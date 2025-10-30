@@ -4,8 +4,8 @@
 
 // Configuração PÚBLICA do Supabase (necessária para o cliente de auth)
 // !! SUBSTITUA PELAS SUAS CHAVES PÚBLICAS REAIS !!
-const SUPABASE_URL = 'https://URL_DO_SEU_PROJETO.supabase.co';
-const SUPABASE_ANON_KEY = 'SUA_CHAVE_PUBLICA_ANON_AQUI';
+const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
 
 // URL da nossa API proxy (Vercel)
 const SUPABASE_PROXY_URL = '/api/proxy';
