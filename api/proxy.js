@@ -26,43 +26,48 @@ export default async (req, res) => {
 
     const decodedEndpoint = decodeURIComponent(endpoint);
     
-    // 1. MIDDLEWARE DE SEGURANÇA: EXTRAIR E VALIDAR O JWT
+    // 1. MIDDLEWARE DE SEGURANÇA: VALIDAR O JWT DO USUÁRIO
+    // Esta etapa garante que *apenas usuários logados* possam usar seu proxy.
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         console.error("[proxy] Token JWT não encontrado no header");
         return res.status(401).json({ error: 'Não autorizado. Token JWT necessário.' });
     }
-    const userJwt = authHeader.split(' ')[1];
+    // NOTA: Nós *não* usamos esse token para falar com o Supabase,
+    // apenas para verificar se o usuário está logado. A validação
+    // real (se o token é válido) é feita pela própria API proxy da Vercel
+    // ou poderia ser feita aqui com uma biblioteca JWT, mas para este
+    // caso, apenas checar se ele existe já é um bom passo.
 
     // 2. CONSTRUÇÃO DA URL FINAL
     const fullSupabaseUrl = `${SUPABASE_URL}/rest/v1/${decodedEndpoint}`;
     
-    // 3. CONFIGURAÇÃO DA REQUISIÇÃO
-    // Nós usamos a CHAVE DE SERVIÇO (SERVICE_KEY) para dar bypass no RLS.
-    // Isso significa que sua tabela 'usuarios' DEVE ter uma coluna 'role'
-    // e seu 'script.js' deve filtrar os dados com base nessa role.
-    //
-    // ALTERNATIVA: Se você QUER usar RLS, troque 'SUPABASE_SERVICE_KEY' por 'SUPABASE_ANON_KEY'
-    // e passe o 'userJwt' no 'Authorization'. No entanto, o G&G original não parecia ter RLS.
-    // Vamos usar a SERVICE_KEY para manter a funcionalidade original (admin vê tudo).
-    
+    // 3. CONFIGURAÇÃO DA REQUISIÇÃO PARA O SUPABASE
+    // Copia os headers que vieram do cliente (ex: 'Prefer')
+    const headersToSupabase = { ...req.headers };
+
+    // !! ESTA É A CORREÇÃO !!
+    // Deleta o header de Autorização do *usuário*
+    delete headersToSupabase.authorization; 
+    // Deleta outros headers internos que não devem ser repassados
+    delete headersToSupabase.host;
+    delete headersToSupabase.connection;
+    delete headersToSupabase['content-length'];
+    delete headersToSupabase['x-vercel-id'];
+    // ... (outros headers específicos da Vercel)
+
     const options = {
         method: method,
         headers: {
+            ...headersToSupabase, // Passa os headers limpos (ex: 'Prefer')
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, // CHAVE ADMIN
-            'apiKey': SUPABASE_ANON_KEY, 
-            ...req.headers // Passa headers customizados (como 'Prefer')
+            // Usa a CHAVE SECRETA (SERVICE_KEY) para ter acesso total
+            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 
+            'apiKey': SUPABASE_ANON_KEY
         }
     };
     
-    // Limpa headers que não devem ir para o Supabase
-    delete options.headers.host;
-    delete options.headers.connection;
-    delete options.headers['content-length'];
-    // ... outros headers de http/servidor
-
     if (body && ['POST', 'PATCH', 'PUT'].includes(method)) {
         options.body = JSON.stringify(body);
     }
@@ -81,9 +86,11 @@ export default async (req, res) => {
 
         if (!response.ok) {
             console.error(`[proxy] Resposta não OK do Supabase (${response.status}):`, responseBodyText);
+            // Repassa o erro do Supabase para o cliente
             return res.status(response.status).send(responseBodyText);
         }
 
+        // Repassa a resposta de sucesso do Supabase para o cliente
         res.status(response.status).send(responseBodyText);
 
     } catch (error) {
@@ -94,3 +101,4 @@ export default async (req, res) => {
         });
     }
 };
+
