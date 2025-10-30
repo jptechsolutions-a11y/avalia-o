@@ -4,8 +4,8 @@
 
 // Configuração PÚBLICA do Supabase (necessária para o cliente de auth)
 // !! SUBSTITUA PELAS SUAS CHAVES PÚBLICAS REAIS !!
-const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+const SUPABASE_URL = 'https://URL_DO_SEU_PROJETO.supabase.co';
+const SUPABASE_ANON_KEY = 'SUA_CHAVE_PUBLICA_ANON_AQUI';
 
 // URL da nossa API proxy (Vercel)
 const SUPABASE_PROXY_URL = '/api/proxy';
@@ -94,7 +94,8 @@ window.GG = {
                     this.initializeApp(session);
                 }
             } else if (event === 'SIGNED_OUT') {
-                this.logout();
+                // Redireciona para o login se for deslogado
+                window.location.href = 'index.html'; 
             }
         });
 
@@ -105,11 +106,11 @@ window.GG = {
                 this.initializeApp(session);
             } else {
                 console.log("Nenhuma sessão encontrada. Redirecionando para login.");
-                window.location.href = 'login.html';
+                window.location.href = 'index.html'; // Corrigido para index.html
             }
         }).catch(error => {
             console.error("Erro ao pegar sessão:", error);
-            window.location.href = 'login.html';
+            window.location.href = 'index.html'; // Corrigido para index.html
         });
     },
 
@@ -120,6 +121,7 @@ window.GG = {
 
         try {
             // Busca o perfil do usuário na nossa tabela 'usuarios'
+            // Usamos o 'auth_user_id' (que é o 'id' do auth.users) para fazer o link
             const endpoint = `usuarios?auth_user_id=eq.${this.authUser.id}&select=*`;
             let profileResponse = await this.supabaseRequest(endpoint, 'GET');
 
@@ -130,8 +132,8 @@ window.GG = {
                     auth_user_id: this.authUser.id,
                     email: this.authUser.email,
                     nome: this.authUser.user_metadata?.full_name || this.authUser.email.split('@')[0],
-                    profile_picture_url: this.authUser.user_metadata?.avatar_url || null,
-                    // 'role' e 'matricula' ficam nulos até serem definidos
+                    profile_picture_url: this.authUser.user_metadata?.avatar_url || null
+                    // 'role' e 'matricula' ficam nulos (padrão 'usuario')
                 };
                 const createResponse = await this.supabaseRequest('usuarios', 'POST', newProfile);
                 if (!createResponse || !createResponse[0]) {
@@ -156,7 +158,7 @@ window.GG = {
         } catch (error) {
             console.error("Erro detalhado na inicialização do app:", error);
             this.mostrarAlerta(`Erro ao carregar dados: ${error.message}`, 'error', 10000);
-            this.logout();
+            this.logout(); // Desloga em caso de erro grave
         }
     },
 
@@ -166,11 +168,12 @@ window.GG = {
         this.authUser = null;
         localStorage.removeItem('auth_token');
         
-        // O onAuthStateChange vai pegar o 'SIGNED_OUT' e redirecionar
         if (this.supabaseClient) {
+            // Isso vai disparar o 'SIGNED_OUT' no onAuthStateChange
             this.supabaseClient.auth.signOut();
         } else {
-            window.location.href = 'login.html';
+            // Fallback
+            window.location.href = 'index.html';
         }
     },
 
@@ -216,7 +219,7 @@ window.GG = {
             });
             
             document.addEventListener('click', (e) => {
-                if (!profileDropdown.contains(e.target)) {
+                if (profileDropdown && !profileDropdown.contains(e.target)) {
                     profileDropdown.classList.remove('open');
                 }
             });
@@ -227,13 +230,14 @@ window.GG = {
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
 
-        const userName = this.currentUser.nome || this.currentUser.email;
-        const userAvatar = this.currentUser.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
+        // Garante que currentUser exista antes de tentar ler
+        const userName = this.currentUser?.nome || this.currentUser?.email || 'Usuário';
+        const userAvatar = this.currentUser?.profile_picture_url || 'https://i.imgur.com/80SsE11.png'; // Imagem G&G padrão
 
         document.getElementById('topBarUserName').textContent = userName;
         document.getElementById('topBarUserAvatar').src = userAvatar;
         document.getElementById('dropdownUserName').textContent = userName;
-        document.getElementById('dropdownUserEmail').textContent = this.currentUser.email;
+        document.getElementById('dropdownUserEmail').textContent = this.currentUser?.email || '...';
         
         // Preenche o formulário de perfil com os dados atuais
         this.loadPerfilView();
@@ -255,6 +259,9 @@ window.GG = {
             if (matchingLink) matchingLink.classList.add('active');
         }
 
+        // Fecha o dropdown de perfil se estiver aberto
+        const profileDropdown = document.getElementById('profileDropdown');
+        if (profileDropdown) profileDropdown.classList.remove('open');
 
         try {
             switch (viewId) {
@@ -289,17 +296,22 @@ window.GG = {
             throw new Error("Sessão expirada. Faça login novamente.");
         }
         
+        // Passa o endpoint como query param para a API
         const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
         
         const config = {
             method: method,
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`, // Envia o JWT do usuário
-                'Prefer': 'return=representation', // Padrão para retornar dados
-                ...headers // Sobrescreve com headers customizados
+                'Authorization': `Bearer ${authToken}`, // Envia o JWT do usuário para a API proxy
+                ...headers // Passa headers customizados (como 'Prefer')
             }
         };
+
+        // Adiciona o 'Prefer' padrão se não for sobrescrito
+        if (!config.headers['Prefer']) {
+             config.headers['Prefer'] = 'return=representation';
+        }
 
         if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
             config.body = JSON.stringify(body);
@@ -320,13 +332,14 @@ window.GG = {
                 const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
                 
                 if (response.status === 401) {
+                    // Se o proxy retornar 401, o token JWT é inválido
                     throw new Error("Não autorizado. Sua sessão pode ter expirado.");
                 }
                 throw new Error(detailedError);
             }
 
-            // Tratamento para contagem
-            if (headers['Prefer'] === 'count=exact') {
+            // Tratamento para contagem (ex: 'Prefer': 'count=exact')
+            if (config.headers['Prefer'] === 'count=exact') {
                  const countRange = response.headers.get('content-range'); // Ex: "0-4/5"
                  const count = countRange ? countRange.split('/')[1] : '0';
                  return { count: parseInt(count || '0', 10) };
@@ -334,15 +347,16 @@ window.GG = {
 
             // Tratamento para DELETE ou respostas sem corpo
             if (response.status === 204 || response.headers.get('content-length') === '0' ) {
-                return null;
+                return null; // Sucesso, mas sem corpo
             }
 
-            return await response.json();
+            return await response.json(); // Retorna o JSON
+
 
         } catch (error) {
             console.error("Erro na função supabaseRequest:", error.message);
             if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
-                 this.logout();
+                 this.logout(); // Desloga o usuário se a sessão expirou
             }
             throw error; // Propaga o erro para a função que chamou
         }
@@ -354,6 +368,7 @@ window.GG = {
         this.mostrarLoading(true);
         this.atualizarStatusDados('🔄 Carregando dados...', 'info');
         try {
+            // Roda todas as requisições em paralelo
             const results = await Promise.allSettled([
                 this.supabaseRequest('colaboradores?select=*', 'GET'), 
                 this.supabaseRequest('gestores?select=*', 'GET'),
@@ -364,12 +379,20 @@ window.GG = {
             
             const [colabRes, gestRes, avalRes, indRes, resIndRes] = results;
 
-            this.dados.colaboradores = colabRes.status === 'fulfilled' ? colabRes.value.reduce((acc, c) => { if(c.matricula) acc[String(c.matricula).trim()] = c; return acc; }, {}) : {};
-            this.dados.gestores = gestRes.status === 'fulfilled' ? gestRes.value.reduce((acc, g) => { if(g.matricula) acc[String(g.matricula).trim()] = g; return acc; }, {}) : {};
-            this.dados.avaliacoes = avalRes.status === 'fulfilled' ? avalRes.value : [];
-            this.dados.indicadores = indRes.status === 'fulfilled' ? indRes.value : [];
-            this.dados.resultadosIndicadores = resIndRes.status === 'fulfilled' ? resIndRes.value : [];
+            // Processa os resultados
+            this.dados.colaboradores = (colabRes.status === 'fulfilled' && colabRes.value) ? colabRes.value.reduce((acc, c) => { if(c.matricula) acc[String(c.matricula).trim()] = c; return acc; }, {}) : {};
+            this.dados.gestores = (gestRes.status === 'fulfilled' && gestRes.value) ? gestRes.value.reduce((acc, g) => { if(g.matricula) acc[String(g.matricula).trim()] = g; return acc; }, {}) : {};
+            this.dados.avaliacoes = (avalRes.status === 'fulfilled' && avalRes.value) ? avalRes.value : [];
+            this.dados.indicadores = (indRes.status === 'fulfilled' && indRes.value) ? indRes.value : [];
+            this.dados.resultadosIndicadores = (resIndRes.status === 'fulfilled' && resIndRes.value) ? resIndRes.value : [];
             
+            // Checa por erros individuais
+            results.forEach((res, i) => {
+                if (res.status === 'rejected') {
+                    console.error(`Falha ao carregar dados [${i}]:`, res.reason);
+                }
+            });
+
             console.log("Dados carregados:", this.dados);
 
             this.dados.dadosCarregados = true;
@@ -475,7 +498,10 @@ window.GG = {
         let somaNotas = 0;
         document.querySelectorAll('#competenciasContainer input[type="radio"]:checked').forEach(radio => { somaNotas += parseInt(radio.value); });
         
-        const pontuacao = (somaNotas / totalFatores); // Média baseada no total, não só nos avaliados
+        // MUDANÇA: A pontuação é a média dos fatores TOTAIS, não apenas dos avaliados.
+        // Se 3 de 10 fatores foram avaliados com 5, a nota é (5+5+5+0+0+0+0+0+0+0) / 10 = 1.5
+        // Isso força o preenchimento completo.
+        const pontuacao = (somaNotas / totalFatores); 
         let classificacao = 'PRECISA MELHORAR';
         if (pontuacao >= 4.5) classificacao = 'EXCELENTE';
         else if (pontuacao >= 3.5) classificacao = 'BOM';
@@ -484,12 +510,14 @@ window.GG = {
         const classDisplay = document.getElementById('classificacaoDisplay');
         document.getElementById('pontuacaoDisplay').textContent = pontuacao.toFixed(1);
         classDisplay.textContent = classificacao;
-        classDisplay.className = `classificacao-display classificacao-${classificacao.replace(' ', '-')}`; // Adiciona classe de cor
+        // Adiciona classe de cor
+        classDisplay.className = `classificacao-display classificacao-${classificacao.replace(' ', '-')}`; 
         
         document.getElementById('resultadoCard').classList.add('show');
         
         this.dados.avaliacaoAtual = { pontuacao, classificacao, fatoresAvaliados, totalFatores };
         
+        // Habilita o botão SALVAR apenas se TUDO estiver preenchido
         const podeHabilitar = (fatoresAvaliados === totalFatores) && document.getElementById('nomeAvaliado').value && document.getElementById('nomeGestor').value && document.getElementById('mesReferencia').value;
         document.getElementById('btnSalvar').disabled = !podeHabilitar;
         
@@ -504,6 +532,10 @@ window.GG = {
     
     async salvarAvaliacao() {
         if (!this.dados.avaliacaoAtual) { this.mostrarAlerta('Calcule o resultado primeiro!', 'danger'); return; }
+        if (this.dados.avaliacaoAtual.fatoresAvaliados !== this.dados.avaliacaoAtual.totalFatores) {
+            this.mostrarAlerta('Responda todas as perguntas de competência antes de salvar.', 'warning');
+            return;
+        }
         
         const matriculaAvaliado = document.getElementById('matriculaAvaliado').value;
         const nomeAvaliado = document.getElementById('nomeAvaliado').value;
@@ -540,6 +572,7 @@ window.GG = {
             
             if (resultado && resultado.length > 0) {
                 this.dados.avaliacoes.push(resultado[0]); // Atualiza dados locais
+                this.atualizarEstatisticasHome(); // Atualiza o dashboard
                 this.mostrarAlerta(`Avaliação de ${mesReferenciaInput} salva!`, 'success');
                 this.limparFormulario(true); // Força a limpeza
             } else { throw new Error('Falha ao salvar. Nenhum dado retornado.'); }
@@ -610,15 +643,23 @@ window.GG = {
 
     // --- FUNÇÕES DE HISTÓRICO ---
     async carregarHistorico(){ 
-        // Não precisa recarregar, os dados já estão em this.dados.avaliacoes
         this.mostrarLoading(true);
+        // Garante que os dados estão carregados (caso o usuário pule o Home)
         if (!this.dados.dadosCarregados) {
             await this.carregarDadosIniciais();
         }
+        
+        // Se ainda assim não carregou, para.
+        if (!this.dados.dadosCarregados) {
+            this.mostrarAlerta("Não foi possível carregar os dados. Verifique a conexão.", 'error');
+            this.mostrarLoading(false);
+            return;
+        }
+
         this.preencherFiltroFiliaisHistorico();
         this.aplicarFiltros(); 
         
-        // Verifica permissão (ex: só admin pode ver tudo)
+        // Verifica permissão (admin vê tudo, usuário normal vê só os seus)
         const statusEl = document.getElementById('accessStatusHistorico');
         if (this.currentUser.role === 'admin') {
             statusEl.textContent = 'Modo Administrador: Visualizando todos os registros.';
@@ -650,6 +691,7 @@ window.GG = {
             dadosFiltrados = [...this.dados.avaliacoes];
         }
 
+        // Filtros da UI
         const filtroMes = document.getElementById('filtroMes').value;
         const filtroFilial = document.getElementById('filtroFilial').value;
         const filtroClass = document.getElementById('filtroClassificacao').value;
@@ -718,10 +760,12 @@ window.GG = {
     
     // --- FUNÇÕES DE CONFIGURAÇÃO (Admin) ---
     async inicializarConfiguracoes() {
+        // Verifica a 'role' do perfil do usuário, não do auth
         if (this.currentUser.role !== 'admin') {
             document.getElementById('configAdminOnly').style.display = 'none';
             document.getElementById('configUserOnly').style.display = 'block';
             document.getElementById('accessStatusConfig').textContent = 'Acesso negado. Requer permissão de Administrador.';
+            document.getElementById('accessStatusConfig').className = 'access-status alert alert-error'; // Classe de erro
             document.getElementById('accessStatusConfig').style.display = 'block';
             return;
         }
@@ -729,6 +773,7 @@ window.GG = {
         document.getElementById('configAdminOnly').style.display = 'block';
         document.getElementById('configUserOnly').style.display = 'none';
         document.getElementById('accessStatusConfig').textContent = 'Acesso de Administrador concedido.';
+        document.getElementById('accessStatusConfig').className = 'access-status'; // Classe padrão
         document.getElementById('accessStatusConfig').style.display = 'block';
 
         this.mostrarLoading(true);
@@ -852,19 +897,18 @@ window.GG = {
         try {
             this.mostrarLoading(true);
             if (editId) {
+                // Modo Edição (PATCH)
                 const resultado = await this.supabaseRequest(`resultados_indicadores?id=eq.${editId}`, 'PATCH', { valor_realizado: valor });
                 const index = this.dados.resultadosIndicadores.findIndex(r => r.id == editId);
                 if (index > -1) this.dados.resultadosIndicadores[index] = resultado[0];
                 this.mostrarAlerta('Resultado atualizado!', 'success');
             } else { 
-                // Tenta fazer Upsert (atualizar se já existir um para esse mês/seção/indicador)
-                const resultado = await this.supabaseRequest(
-                    'resultados_indicadores?on_conflict=indicador_id,mes_referencia,secao', 
-                    'POST', 
-                    dadosResultado,
-                    { 'Prefer': 'return=representation,resolution=merge-duplicates' } // Cabeçalho de Upsert
-                );
+                // Modo Inserção com Upsert (POST + on_conflict)
+                const endpoint = 'resultados_indicadores?on_conflict=indicador_id,mes_referencia,secao';
+                const headers = { 'Prefer': 'return=representation,resolution=merge-duplicates' };
+                const resultado = await this.supabaseRequest(endpoint, 'POST', dadosResultado, headers);
                  
+                 // Atualiza o array local
                  const existingIndex = this.dados.resultadosIndicadores.findIndex(r => r.id == resultado[0].id);
                  if (existingIndex > -1) this.dados.resultadosIndicadores[existingIndex] = resultado[0];
                  else this.dados.resultadosIndicadores.push(resultado[0]);
@@ -959,14 +1003,21 @@ window.GG = {
         if (event.target.files[0]) {
             reader.readAsDataURL(event.target.files[0]);
         } else {
-             document.getElementById('perfilPicturePreview').src = this.currentUser.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
+             // Se o usuário cancelar, volta para a foto atual
+             if(window.GG && window.GG.currentUser) {
+                document.getElementById('perfilPicturePreview').src = window.GG.currentUser.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
+             }
         }
     },
 
     async handlePerfilFormSubmit(event) {
+        // Previne o comportamento padrão do formulário
+        if (event) event.preventDefault(); 
+        
         const alertContainer = document.getElementById('perfilAlert');
         const saveButton = document.querySelector('#perfilForm button[type="submit"]');
         if (!saveButton || !alertContainer) return;
+        
         const originalButtonText = saveButton.innerHTML;
         alertContainer.innerHTML = '';
         saveButton.disabled = true;
@@ -979,8 +1030,8 @@ window.GG = {
         if (pictureFile) {
             try {
                 newPictureUploaded = true; 
-                // NOTA: A API de Upload do JProjects era específica.
-                // Para o G&G, assumimos uma API de upload genérica em /api/upload
+                // A API de Upload precisa ser criada na Vercel (ex: /api/upload.js)
+                // Esta API deve receber o arquivo e salvar no Supabase Storage
                 const apiUrl = `/api/upload?fileName=${encodeURIComponent(pictureFile.name)}&fileType=profile_picture`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -998,11 +1049,11 @@ window.GG = {
                 if (result.publicUrl) {
                     profilePicUrl = result.publicUrl;
                 } else {
-                     throw new Error("API de upload não retornou URL pública.");
+                     throw new Error("API de upload não retornou URL pública. Verifique a API /api/upload.");
                 }
             } catch (uploadError) {
                 console.error("Falha no upload da foto:", uploadError);
-                alertContainer.innerHTML = `<div class="alert alert-error">Falha ao enviar a nova foto: ${uploadError.message}.</div>`;
+                alertContainer.innerHTML = `<div class="alert alert-error">Falha ao enviar a nova foto: ${uploadError.message}. Verifique o console da Vercel.</div>`;
                  saveButton.disabled = false;
                  saveButton.innerHTML = originalButtonText;
                  feather.replace();
@@ -1023,7 +1074,7 @@ window.GG = {
                 this.currentUser = { ...this.currentUser, ...updatedUser[0] };
                 localStorage.setItem('user', JSON.stringify(this.currentUser));
                 
-                // Atualiza a UI
+                // Atualiza a UI imediatamente
                 this.showMainSystem();
                 if (!newPictureUploaded) {
                      document.getElementById('perfilPicturePreview').src = this.currentUser.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
@@ -1036,14 +1087,14 @@ window.GG = {
 
         } catch (error) {
             console.error("Erro ao salvar perfil:", error);
-            if (!alertContainer.innerHTML) {
+            if (!alertContainer.innerHTML) { // Só mostra erro se o de upload já não tiver mostrado
                  alertContainer.innerHTML = `<div class="alert alert-error">Erro ao salvar dados: ${error.message}</div>`;
             }
         } finally {
             saveButton.disabled = false;
             saveButton.innerHTML = '<i data-feather="save" class="h-4 w-4 mr-2"></i> Salvar Alterações';
             feather.replace();
-             document.getElementById('perfilPicture').value = ''; 
+            document.getElementById('perfilPicture').value = ''; // Limpa o input de arquivo
         }
     },
 
@@ -1130,3 +1181,4 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Erro crítico. Verifique o console.");
     }
 });
+
