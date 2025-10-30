@@ -1,7 +1,7 @@
 // login.js
 
 // -----------------------------------------------------------------
-// ... (Configuração SUPABASE_URL e SUPABASE_ANON_KEY) ...
+// CONFIGURAÇÃO: Cole suas chaves públicas do Supabase aqui
 // -----------------------------------------------------------------
 // !! SUBSTITUA PELAS SUAS CHAVES PÚBLICAS REAIS !!
 const SUPABASE_URL = 'https://URL_DO_SEU_PROJETO.supabase.co';
@@ -9,11 +9,17 @@ const SUPABASE_ANON_KEY = 'SUA_CHAVE_PUBLICA_ANON_AQUI';
 // -----------------------------------------------------------------
 
 // Elementos da UI
-const loginCard = document.getElementById('loginCard'); // NOVO
-const requestAccessCard = document.getElementById('requestAccessCard'); // NOVO
+const loginCard = document.getElementById('loginCard');
+const requestAccessCard = document.getElementById('requestAccessCard');
 
 const formTitle = document.getElementById('formTitle');
-// ... existing code ... -->
+const formSubtitle = document.getElementById('formSubtitle');
+const emailForm = document.getElementById('emailForm');
+const googleLoginBtn = document.getElementById('googleLoginBtn');
+const emailSubmitBtn = document.getElementById('emailSubmitBtn');
+const toggleText = document.getElementById('toggleText');
+const toggleLink = document.getElementById('toggleLink');
+const forgotLink = document.getElementById('forgotLink');
 const loginAlert = document.getElementById('loginAlert');
 const passwordLabel = document.querySelector('label[for="password"]');
 
@@ -25,23 +31,30 @@ const requestAlert = document.getElementById('requestAlert');
 
 let isRequestAccess = false; // Substitui isSignUp
 let isForgot = false;
+let supabaseClient;
 
 // Inicializa o cliente Supabase
-// ... existing code ... -->
 try {
     if (!SUPABASE_URL || SUPABASE_URL.includes('URL_DO_SEU_PROJETO')) {
-// ... existing code ... -->
+        console.error('ERRO: SUPABASE_URL não configurada em login.js. Use a URL do seu projeto.');
+        throw new Error('Supabase URL não configurada.');
+    }
+    if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('SUA_CHAVE_PUBLICA')) {
+        console.error('ERRO: SUPABASE_ANON_KEY não configurada em login.js. Use a chave "anon" do seu projeto.');
+        throw new Error('Supabase Anon Key não configurada.');
     }
     const { createClient } = supabase;
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } catch (error) {
-// ... existing code ... -->
+    console.error("Erro ao inicializar Supabase:", error.message);
     showAlert("Erro de configuração do cliente. Verifique o console.", 'error');
 }
 
 
 document.addEventListener('DOMContentLoaded', () => {
-// ... existing code ... -->
+    if (!supabaseClient) {
+        showAlert("Falha crítica ao carregar o Supabase. Verifique as chaves no login.js.", 'error');
+        return;
     }
 
     checkHash(); // Verifica se a URL é #request ou #forgot
@@ -58,15 +71,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // Handler para quando o usuário clica no link de reset de senha no e-mail
-// ... existing code ... -->
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        console.log('Auth Event:', event, session);
+        if (event === 'PASSWORD_RECOVERY') {
+            // Entra no modo de redefinição de senha
+            window.location.hash = '#reset';
+            checkHash();
         } else if (event === 'SIGNED_IN') {
              // Redireciona se o login for bem-sucedido
              window.location.href = 'app.html';
-// ... existing code ... -->
+        }
+    });
+
+    // Verifica se o usuário já está logado (ex: voltou para a pág de login)
+    // ou se ele acabou de redefinir a senha
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
         if (session && window.location.hash !== '#reset') {
             window.location.href = 'app.html';
-// ... existing code ... -->
+        }
+    });
 });
 
 function checkHash() {
@@ -74,14 +97,15 @@ function checkHash() {
     isForgot = (window.location.hash === '#forgot');
     
     if (window.location.hash === '#reset') {
-// ... existing code ... -->
+        // Modo especial de redefinição de senha
+        updateUI('reset');
     } else if (isForgot) {
         updateUI('forgot');
     } else if (isRequestAccess) { // Alterado de isSignUp
         updateUI('request');
     } else {
         updateUI('login');
-// ... existing code ... -->
+    }
 }
 
 function toggleMode(e) {
@@ -93,12 +117,12 @@ function toggleMode(e) {
 }
 
 function toggleForgotMode(e) {
-// ... existing code ... -->
+    if (e) e.preventDefault();
     isForgot = true;
     isRequestAccess = false; // Alterado de isSignUp
     window.location.hash = '#forgot';
     checkHash();
-// ... existing code ... -->
+}
 
 function updateUI(mode) {
     loginAlert.innerHTML = '';
@@ -113,53 +137,86 @@ function updateUI(mode) {
         requestAccessCard.style.display = 'none';
         
         formTitle.textContent = 'Recuperar Senha';
-// ... existing code ... -->
+        formSubtitle.textContent = 'Digite seu e-mail para enviarmos um link de recuperação.';
+        emailSubmitBtn.innerHTML = 'Enviar Link <i data-feather="arrow-right" class="h-4 w-4 ml-2"></i>';
+        toggleText.textContent = 'Lembrou a senha?';
+        toggleLink.textContent = 'Entrar';
+        toggleLink.href = '#';
         passwordGroup.style.display = 'none';
     } else if (mode === 'reset') {
         loginCard.style.display = 'block';
         requestAccessCard.style.display = 'none';
 
         formTitle.textContent = 'Redefinir Senha';
-// ... existing code ... -->
+        formSubtitle.textContent = 'Digite sua nova senha.';
+        emailSubmitBtn.innerHTML = 'Salvar Nova Senha <i data-feather="save" class="h-4 w-4 ml-2"></i>';
+        toggleText.textContent = '';
+        toggleLink.textContent = '';
+        toggleLink.href = '#';
+        forgotLink.style.display = 'none';
+        googleLoginBtn.style.display = 'none';
+        document.querySelector('.flex.items-center.my-4').style.display = 'none'; // Esconde o "OU"
+        document.getElementById('email').parentElement.style.display = 'none'; // Esconde o campo de email
         passwordGroup.style.display = 'block';
     } else { // modo 'login'
         loginCard.style.display = 'block';
         requestAccessCard.style.display = 'none';
 
         formTitle.textContent = 'Sistema de Avaliação G&G';
-// ... existing code ... -->
+        formSubtitle.textContent = 'Acesse para continuar';
+        emailSubmitBtn.innerHTML = 'Entrar';
+        toggleText.textContent = 'Não tem uma conta?';
+        toggleLink.textContent = 'Solicitar Acesso';
+        toggleLink.href = '#request';
+        forgotLink.style.display = 'block';
+        googleLoginBtn.style.display = 'flex';
+        document.querySelector('.flex.items-center.my-4').style.display = 'flex';
+        document.getElementById('email').parentElement.style.display = 'block';
         passwordGroup.style.display = 'block';
     }
+    feather.replace();
 }
 
 // Handler do formulário principal
 async function handleEmailFormSubmit(e) {
-// ... existing code ... -->
+    e.preventDefault();
+    setLoading(true);
+
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     const mode = window.location.hash;
 
     try {
-        // REMOVIDO O BLOCO DE '#signup'
-        
         if (mode === '#forgot') {
             // Modo Recuperar Senha
-// ... existing code ... -->
+            const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin + '/index.html#reset', // Link para voltar
             });
             if (error) throw error;
             showAlert('Link de recuperação enviado! Verifique seu e-mail.', 'success');
         
         } else if (mode === '#reset') {
-// ... existing code ... -->
+            // Modo Redefinir Senha
+            const { error } = await supabaseClient.auth.updateUser({ password: password });
+            if (error) throw error;
+            showAlert('Senha redefinida com sucesso! Você já pode entrar.', 'success');
+            window.location.hash = ''; // Volta para o modo login
+            checkHash();
+
+        } else {
             // Modo Login
             const { data, error } = await supabaseClient.auth.signInWithPassword({
                 email: email,
-// ... existing code ... -->
+                password: password,
+            });
+            if (error) throw error;
+            // Sucesso! O onAuthStateChange vai cuidar do redirecionamento
+        }
     } catch (error) {
         console.error("Erro de autenticação:", error.message);
         showAlert(traduzirErroSupabase(error.message), 'error');
     } finally {
-// ... existing code ... -->
+        setLoading(false);
     }
 }
 
@@ -199,12 +256,19 @@ async function handleRequestAccessSubmit(e) {
 
 // Handler do Login com Google
 async function handleGoogleLogin() {
-// ... existing code ... -->
+    setLoading(true);
+    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin + '/app.html' // Para onde voltar após o login
+        }
+    });
+
     if (error) {
         showAlert(traduzirErroSupabase(error.message), 'error');
         setLoading(false);
     }
-// ... existing code ... -->
+    // Se não houver erro, o Supabase cuida do redirecionamento
 }
 
 function setLoading(isLoading, formType = 'login') {
@@ -241,15 +305,28 @@ function showAlert(message, type = 'error', formType = 'login') {
 }
 
 function escapeHTML(str) {
-// ... existing code ... -->
+    if (str === null || str === undefined) return '';
+    return String(str)
+         .replace(/&/g, '&amp;')
+         .replace(/</g, '&lt;')
+         .replace(/>/g, '&gt;')
+         .replace(/"/g, '&quot;')
+         .replace(/'/g, '&#39;');
 }
 
 function traduzirErroSupabase(message) {
-// ... existing code ... -->
+    if (message.includes('Invalid login credentials')) {
+        return 'E-mail ou senha inválidos. Tente novamente.';
+    }
     if (message.includes('User already registered')) {
-        // Este erro não deve mais acontecer, mas é bom manter
         return 'Este e-mail já está cadastrado. Tente fazer login.';
     }
     if (message.includes('Password should be at least 6 characters')) {
-// ... existing code ... -->
+        return 'A senha deve ter pelo menos 6 caracteres.';
+    }
+    if (message.includes('Email rate limit exceeded')) {
+        return 'Muitas tentativas. Tente novamente mais tarde.';
+    }
+    return message; // Retorna a mensagem original se não houver tradução
+}
 
