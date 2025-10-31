@@ -3592,6 +3592,150 @@ body.login-body {
     opacity: 0.7;
 }
 
+/* ... código existente ... */
+#indicadoresContainer span { font-size: 0.8em; }
+
+.loading { display: none; flex-direction: column; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+    /* ATUALIZADO: Fundo escuro semitransparente */
+    background: rgba(0, 0, 0, 0.5); 
+    /* NOVO: Cor do texto e spinner */
+    color: white;
+    z-index: 5000;
+}
+.spinner { border: 3px solid rgba(255, 255, 255, 0.2); /* ATUALIZADO: Borda clara */
+    border-top: 3px solid #ffffff; /* ATUALIZADO: Spinner branco */
+    border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+@media (max-width: 768px) {
+/* ... código existente ... */
+/* ... código existente ... */
+     #perfilPicturePreview { margin-right: 0; margin-bottom: 1rem; }
+     .grid.grid-cols-1.md\:grid-cols-2 { grid-template-columns: 1fr; }
+}
+
+/* ... (Estilos de login .auth-card, .btn-gradient, etc) ... */
+/* ... código existente ... */
+.spinner {
+/* ... código existente ... */
+    margin-right: 8px;
+}
+
+
 /* --- NOVOS ESTILOS PARA ABAS DE CONFIGURAÇÃO --- */
-/* (Estes estilos já devem existir no seu CSS a partir do 'novos_estilos.css' anterior) */
-/* ... */
+.config-tabs {
+    display: flex;
+    flex-wrap: wrap; 
+    gap: 4px;
+    margin-bottom: -1px; 
+    position: relative;
+    z-index: 10;
+    transform: translateY(1px); 
+}
+.config-tab-item {
+    background: #e9ecef;
+    border: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb; 
+    padding: 10px 18px;
+    border-radius: 8px 8px 0 0;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+.config-tab-item .feather {
+    width: 16px;
+    height: 16px;
+}
+.config-tab-item:hover {
+    background: #f3f4f6;
+}
+.config-tab-item.active {
+    background: white; 
+    border-bottom-color: white; 
+    color: var(--dark);
+}
+.config-tab-content {
+    display: none;
+}
+.config-tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease-out;
+}
+.config-tab-content > .info-card {
+    border-top-left-radius: 0; 
+}
+.config-tab-item.active + .config-tab-item + .config-tab-item {
+    border-top-left-radius: 8px;
+}
+
+
+/* --- NOVOS ESTILOS PARA STATUS --- */
+.status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 50px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.4;
+}
+.status-ativo {
+    background-color: #f0fdf4; /* green 50 */
+    color: #15803d; /* green 700 */
+}
+.status-inativo, .status-demitido {
+    background-color: #fef2f2; /* red 50 */
+    color: #b91c1c; /* red 700 */
+}
+.status-aviso {
+    background-color: #fffbeb; /* yellow 50 */
+    color: #b45309; /* yellow 700 */
+}
+
+/* --- NOVOS ESTILOS PARA FILTROS E GRÁFICOS --- */
+.filter-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+    background-color: #f9fafb;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e5e7eb;
+}
+.filter-bar .form-group {
+    margin-bottom: 0;
+}
+
+.modal-content input:read-only,
+.modal-content select:disabled {
+    background-color: #f3f4f6;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.chart-container-wrapper {
+    position: relative;
+    height: 300px; 
+    width: 100%;
+}
+
+.report-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+    margin: 25px 0;
+}
+
+@media (max-width: 768px) {
+    .report-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
