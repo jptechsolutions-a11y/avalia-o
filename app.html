@@ -284,11 +284,24 @@
                                     <input type="hidden" id="edit-indicador-id">
                                     <div class="form-row">
                                         <div class="form-group"><label for="add-indicador-nome">Nome do Indicador *</label><input type="text" id="add-indicador-nome" required></div>
-                                        <div class="form-group"><label for="add-indicador-secao">Seção * <small>(Use 'GERAL' para todos)</small></label><input type="text" id="add-indicador-secao" required></div>
+                                        <div class="form-group">
+                                            <label for="add-indicador-secao">Seção *</label>
+                                            <!-- ATUALIZADO: De input para select -->
+                                            <select id="add-indicador-secao" required>
+                                                <option value="">Carregando seções...</option>
+                                            </select>
+                                        </div>
                                     </div>
                                     <div class="form-row">
-                                        <div class="form-group"><label for="add-indicador-meta">Meta</label><input type="text" id="add-indicador-meta" placeholder="Ex: >= 80, < 5%"></div>
-                                        <div class="form-group"><label for="add-indicador-tipo">Tipo</label><input type="text" id="add-indicador-tipo" placeholder="numérico, percentual, texto..."></div>
+                                        <div class="form-group"><label for="add-indicador-meta">Meta</label><input type="text" id="add-indicador-meta" placeholder="Ex: >= 80, < 5%, R$ 1000"></div>
+                                        <div class="form-group">
+                                            <label for="add-indicador-tipo">Tipo</label>
+                                            <!-- ATUALIZADO: De input para select -->
+                                            <select id="add-indicador-tipo">
+                                                <option value="">Selecione o Tipo...</option>
+                                                <!-- Populado via JS -->
+                                            </select>
+                                        </div>
                                     </div>
                                     <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Indicador</button>
                                     <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormIndicador()"><i class="fas fa-undo"></i> Limpar</button>
@@ -489,3 +502,4 @@
     </script>
 </body>
 </html>
+
