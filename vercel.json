@@ -1,0 +1,35 @@
+{
+  "functions": {
+    "api/proxy.js": {
+      "maxDuration": 30
+    },
+    "api/request-access.js": {
+      "maxDuration": 30
+    },
+    "api/upload.js": {
+      "maxDuration": 30,
+      "bodyParser": false
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        }
+      ]
+    }
+  ]
+}
