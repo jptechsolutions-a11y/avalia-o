@@ -7,7 +7,7 @@ const requestAccessCard = document.getElementById('requestAccessCard');
 const formTitle = document.getElementById('formTitle');
 const formSubtitle = document.getElementById('formSubtitle');
 const emailForm = document.getElementById('emailForm');
-const googleLoginBtn = document.getElementById('googleLoginBtn');
+// const googleLoginBtn = document.getElementById('googleLoginBtn'); // Removido
 const emailSubmitBtn = document.getElementById('emailSubmitBtn');
 const toggleText = document.getElementById('toggleText');
 const toggleLink = document.getElementById('toggleLink');
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkHash(); 
     window.addEventListener('hashchange', checkHash);
 
-    googleLoginBtn.addEventListener('click', handleGoogleLogin);
+    // googleLoginBtn.addEventListener('click', handleGoogleLogin); // Removido
     emailForm.addEventListener('submit', handleEmailFormSubmit);
     toggleLink.addEventListener('click', toggleMode);
     forgotLink.addEventListener('click', toggleForgotMode);
@@ -110,6 +110,8 @@ function updateUI(mode) {
     loginAlert.innerHTML = '';
     requestAlert.innerHTML = ''; 
     const passwordGroup = document.getElementById('password').parentElement;
+    const googleLoginBtn = document.getElementById('googleLoginBtn'); // Pega o botão para escondê-lo
+    const orSeparator = document.querySelector('.flex.items-center.my-4'); // Pega o separador "OU"
 
     if (mode === 'request') { 
         loginCard.style.display = 'none';
@@ -125,6 +127,8 @@ function updateUI(mode) {
         toggleLink.textContent = 'Entrar';
         toggleLink.href = '#';
         passwordGroup.style.display = 'none';
+        if (googleLoginBtn) googleLoginBtn.style.display = 'none'; // Esconde botão Google
+        if (orSeparator) orSeparator.style.display = 'none'; // Esconde "OU"
     } else if (mode === 'reset') {
         loginCard.style.display = 'block';
         requestAccessCard.style.display = 'none';
@@ -136,11 +140,12 @@ function updateUI(mode) {
         toggleLink.textContent = '';
         toggleLink.href = '#';
         forgotLink.style.display = 'none';
-        googleLoginBtn.style.display = 'none';
-        document.querySelector('.flex.items-center.my-4').style.display = 'none'; 
+        if (googleLoginBtn) googleLoginBtn.style.display = 'none'; // Esconde botão Google
+        if (orSeparator) orSeparator.style.display = 'none'; // Esconde "OU"
         document.getElementById('email').parentElement.style.display = 'none'; 
         passwordGroup.style.display = 'block';
     } else { 
+        // Modo 'login' padrão
         loginCard.style.display = 'block';
         requestAccessCard.style.display = 'none';
 
@@ -151,8 +156,8 @@ function updateUI(mode) {
         toggleLink.textContent = 'Solicitar Acesso';
         toggleLink.href = '#request';
         forgotLink.style.display = 'block';
-        googleLoginBtn.style.display = 'flex';
-        document.querySelector('.flex.items-center.my-4').style.display = 'flex';
+        if (googleLoginBtn) googleLoginBtn.style.display = 'none'; // Esconde botão Google
+        if (orSeparator) orSeparator.style.display = 'none'; // Esconde "OU"
         document.getElementById('email').parentElement.style.display = 'block';
         passwordGroup.style.display = 'block';
     }
@@ -246,6 +251,7 @@ async function handleRequestAccessSubmit(e) {
 }
 
 
+/* Removido
 async function handleGoogleLogin() {
     setLoading(true);
     const { data, error } = await supabaseClient.auth.signInWithOAuth({
@@ -260,6 +266,7 @@ async function handleGoogleLogin() {
         setLoading(false);
     }
 }
+*/
 
 function setLoading(isLoading, formType = 'login') {
     let btn;
@@ -267,7 +274,7 @@ function setLoading(isLoading, formType = 'login') {
         btn = requestSubmitBtn;
     } else {
         btn = emailSubmitBtn;
-        googleLoginBtn.disabled = isLoading;
+        // googleLoginBtn.disabled = isLoading; // Removido
     }
     
     if (!btn) return;
@@ -318,3 +325,4 @@ function traduzirErroSupabase(message) {
     }
     return message; 
 }
+
