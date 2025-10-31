@@ -24,8 +24,8 @@
                 <!-- Card de Login -->
                 <div class="auth-card" id="loginCard">
                     <div class="auth-header">
-                        <!-- MODIFICADO: Alterado o logo e adicionadas classes de alinhamento do controlebaixaconsumo -->
-                        <img src="teste.png" alt="Logo JP Tech" class="w-40 h-auto mb-6 mx-auto object-contain">
+                        <!-- CORREÇÃO: Voltando para 'icon.png' mas mantendo as classes de estilo do controlebaixaconsumo -->
+                        <img src="icon.png" alt="Logo G&G" class="w-40 h-auto mb-6 mx-auto object-contain">
                         <h2 id="formTitle">Acesso ao Sistema</h2>
                         <!-- MANTIDO: Subtítulo original do sistema de avaliação -->
                         <p id="formSubtitle">Avaliação de Desempenho G&G</p>
@@ -37,12 +37,14 @@
                         <div class="form-group" style="margin-bottom: 20px;">
                             <!-- MODIFICADO: Label escondida para corresponder ao estilo do controlebaixaconsumo -->
                             <label for="email" class="font-semibold text-gray-700" style="display: none;">E-mail:</label>
-                            <input type="email" id="email" placeholder="seu.email@dominio.com" required class="w-full">
+                            <!-- CORREÇÃO: Placeholder ajustado para "E-mail" -->
+                            <input type="email" id="email" placeholder="E-mail" required class="w-full">
                         </div>
                         <div class="form-group" style="margin-bottom: 20px;">
                             <!-- MODIFICADO: Label escondida para corresponder ao estilo do controlebaixaconsumo -->
                             <label for="password" class="font-semibold text-gray-700" style="display: none;">Senha:</label>
-                            <input type="password" id="password" placeholder="Sua senha" required class="w-full">
+                            <!-- CORREÇÃO: Placeholder ajustado para "Senha" -->
+                            <input type="password" id="password" placeholder="Senha" required class="w-full">
                         </div>
                         
                         <button id="emailSubmitBtn" type="submit" class="btn-gradient">
@@ -50,8 +52,10 @@
                         </button>
                     </form>
                     
-                    <div class="form-links">
+                    <!-- CORREÇÃO: Layout dos links de rodapé do card para centralizar com pipe (|) -->
+                    <div class="mt-6 text-center text-sm">
                         <a href="#forgot" id="forgotLink" class="text-gray-500 hover:underline">Esqueceu sua senha?</a>
+                        <span class="mx-2 text-gray-400">|</span>
                         <a href="#request" id="toggleLink" class="font-semibold" style="color: var(--accent);">Solicitar Acesso</a>
                     </div>
                 </div>
@@ -59,8 +63,8 @@
                 <!-- Card de Solicitação de Acesso (Inicialmente oculto) -->
                 <div class="auth-card" id="requestAccessCard" style="display: none;">
                     <div class="auth-header">
-                        <!-- MODIFICADO: Alterado o logo e adicionadas classes de alinhamento -->
-                        <img src="teste.png" alt="Logo JP Tech" class="w-40 h-auto mb-6 mx-auto object-contain">
+                        <!-- CORREÇÃO: Voltando para 'icon.png' mas mantendo as classes de estilo -->
+                        <img src="icon.png" alt="Logo G&G" class="w-40 h-auto mb-6 mx-auto object-contain">
                         <h2 id="formTitleRequest">Solicitar Acesso</h2>
                         <p id="formSubtitleRequest">Preencha seus dados para solicitar a criação da sua conta.</p>
                     </div>
@@ -71,11 +75,13 @@
                         <div class="form-group" style="margin-bottom: 20px;">
                              <!-- MODIFICADO: Label escondida -->
                             <label for="requestNome" class="font-semibold text-gray-700" style="display: none;">Seu Nome Completo:</label>
+                            <!-- CORREÇÃO: Placeholder ajustado -->
                             <input type="text" id="requestNome" placeholder="Seu Nome Completo" required class="w-full">
                         </div>
                         <div class="form-group" style="margin-bottom: 20px;">
                              <!-- MODIFICADO: Label escondida -->
                             <label for="requestEmail" class="font-semibold text-gray-700" style="display: none;">Seu E-mail:</label>
+                            <!-- CORREÇÃO: Placeholder ajustado -->
                             <input type="email" id="requestEmail" placeholder="seu.email@empresa.com" required class="w-full">
                         </div>
                         <div class="form-group" style="margin-bottom: 20px;">
@@ -119,7 +125,8 @@
     </div>
 
     <footer class="auth-footer">
-        © 2025 | Sistema G&G | Desenvolvido por Juliano Patrick
+        <!-- CORREÇÃO: Formatando o rodapé para bater com o do controlebaixaconsumo -->
+        © 2025 - Sistema G&G | Desenvolvido por <span style="font-weight: 700;">@ Juliano Patrick </span>
     </footer>
 
     <script src="login.js"></script>
