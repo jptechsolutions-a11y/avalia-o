@@ -212,17 +212,33 @@ async function handleRequestAccessSubmit(e) {
             body: JSON.stringify({ nome, email, motivo })
         });
 
-        const result = await response.json();
-
+        // Verifica se a resposta HTTP foi bem-sucedida (ex: 200 OK)
         if (!response.ok) {
-            throw new Error(result.error || 'Falha ao enviar solicitação.');
+            let errorMsg = `Falha ao enviar: ${response.status} ${response.statusText}`;
+            try {
+                // Tenta ler uma resposta de erro JSON da API
+                const errorResult = await response.json();
+                errorMsg = errorResult.error || errorResult.message || errorMsg;
+            } catch (jsonError) {
+                // Falha ao ler JSON (ex: é uma página 404 HTML, como no seu screenshot)
+                console.warn("A resposta de erro não era JSON:", jsonError.message);
+                if (response.status === 404) {
+                    errorMsg = 'Não foi possível encontrar o endpoint da API (/api/request-access). Verifique a configuração do servidor.';
+                }
+            }
+            // Lança o erro para ser pego pelo bloco catch
+            throw new Error(errorMsg);
         }
+
+        // Se a resposta foi OK, aí sim lemos o JSON
+        const result = await response.json();
 
         showAlert('Solicitação enviada com sucesso! Você receberá um e-mail quando seu acesso for liberado.', 'success', 'request');
         requestAccessForm.reset();
 
     } catch (error) {
         console.error("Erro ao solicitar acesso:", error.message);
+        // Exibe a mensagem de erro melhorada
         showAlert(error.message, 'error', 'request');
     } finally {
         setLoading(false, 'request');
