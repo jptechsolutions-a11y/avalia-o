@@ -22,9 +22,9 @@
             <div>
                 <!-- Card de Login -->
                 <div class="auth-card" id="loginCard">
-                    <div class="auth-header">
+                    <!-- CORREÇÃO: Adicionado style="text-align: center;" -->
+                    <div class="auth-header" style="text-align: center;">
                         <!-- Logo com classes de estilo do controlebaixaconsumo -->
-                        <!-- CORREÇÃO: Adicionada a classe 'block' para forçar o 'mx-auto' a funcionar -->
                         <img src="icon.png" alt="Logo G&G" class="block w-40 h-auto mb-6 mx-auto object-contain">
                         <h2 id="formTitle">Acesso ao Sistema</h2>
                         <!-- MANTIDO: Subtítulo original do sistema de avaliação -->
@@ -53,17 +53,18 @@
                     </form>
                     
                     <!-- REVERTIDO: Links de rodapé para usar HASH (funcionalidade original) -->
+                    <!-- CORREÇÃO: Classes dos links padronizadas com o controlebaixaconsumo -->
                     <div class="mt-6 text-center text-sm">
-                        <a href="#forgot" id="forgotLink" class="text-gray-500 hover:underline">Esqueceu sua senha?</a>
+                        <a href="#forgot" id="forgotLink" class="text-blue-600 hover:underline">Esqueceu sua senha?</a>
                         <span class="mx-2 text-gray-400">|</span>
-                        <a href="#request" id="toggleLink" class="font-semibold" style="color: var(--accent);">Solicitar Acesso</a>
+                        <a href="#request" id="toggleLink" class="text-blue-600 hover:underline">Solicitar Acesso</a>
                     </div>
                 </div>
 
                 <!-- Card de Solicitação de Acesso (RESTAURADO da versão original) -->
                 <div class="auth-card" id="requestAccessCard" style="display: none;">
-                    <div class="auth-header">
-                        <!-- CORREÇÃO: Adicionada a classe 'block' para forçar o 'mx-auto' a funcionar -->
+                    <!-- CORREÇÃO: Adicionado style="text-align: center;" -->
+                    <div class="auth-header" style="text-align: center;">
                         <img src="icon.png" alt="Logo G&G" class="block w-40 h-auto mb-6 mx-auto object-contain">
                         <h2 id="formTitleRequest">Solicitar Acesso</h2>
                         <p id="formSubtitleRequest">Preencha seus dados para solicitar a criação da sua conta.</p>
