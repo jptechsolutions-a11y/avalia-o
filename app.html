@@ -5,21 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Avaliação G&G</title>
     <link rel="icon" href="https://i.imgur.com/80SsE11.png" type="image/png">
-    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#011627">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-    <!-- Importa a biblioteca Supabase (necessária para o cliente) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-100">
 
-    <!-- Shell principal do App (inicia escondido) -->
     <div id="appShell" class="h-screen flex flex-col" style="display: none;">
 
-        <!-- 1. BARRA SUPERIOR (HEADER) - Tema JProjects -->
         <header id="topBar" class="flex-shrink-0">
             <div class="flex items-center gap-4">
                 <button id="sidebarToggle" class="btn-icon">
@@ -33,9 +29,7 @@
                 </div>
             </div>
             
-            <!-- Espaço central (pode ter busca no futuro) -->
             <div class="flex-1 flex justify-center px-8">
-                <!-- <input type="text" id="topBarSearch" placeholder="Buscar avaliações..." class="w-full max-w-md"> -->
             </div>
             
             <div class="flex items-center gap-4">
@@ -44,14 +38,12 @@
                     <span class="hidden md:inline">Nova Avaliação</span>
                 </button>
                 <div class="separator"></div>
-                <!-- Dropdown de Perfil -->
                 <div id="profileDropdown" class="relative">
                     <button id="profileDropdownButton" class="flex items-center gap-2 rounded-full hover:bg-gray-700 p-1">
-                        <img id="topBarUserAvatar" src="icon.png" class="w-8 h-8 rounded-full object-cover bg-gray-600">
+                        <img id="topBarUserAvatar" src="https://i.imgur.com/80SsE11.png" class="w-8 h-8 rounded-full object-cover bg-gray-600">
                         <span id="topBarUserName" class="text-sm font-medium text-white hidden md:block">Usuário</span>
                         <i data-feather="chevron-down" class="h-4 w-4 text-gray-400 hidden md:block"></i>
                     </button>
-                    <!-- Menu Dropdown -->
                     <div id="profileDropdownMenu" class="dropdown-menu">
                         <div class="px-4 py-3 border-b border-gray-600">
                             <span class="block text-sm font-medium text-white" id="dropdownUserName">...</span>
@@ -73,10 +65,8 @@
             </div>
         </header>
 
-        <!-- Container para Sidebar + Main Content -->
         <div id="mainSystem" class="flex flex-1 overflow-hidden">
 
-            <!-- 2. BARRA LATERAL (SIDEBAR) - Tema JProjects -->
             <aside class="sidebar">
                 <nav class="p-2 pt-4">
                     <a href="#home" class="nav-item" title="Home" onclick="window.GG.showView('homeView', this)">
@@ -107,14 +97,11 @@
                 </nav>
             </aside>
             
-            <!-- Overlay para fechar sidebar no mobile -->
             <div id="sidebarOverlay"></div>
 
-            <!-- 3. CONTEÚDO PRINCIPAL (MAIN) - Onde as seções G&G entram -->
             <main class="main-content">
                 <div class="container mx-auto px-6 py-8">
 
-                    <!-- View #homeView (Antiga #home) -->
                     <div id="homeView" class="view-content active">
                         <h1><i class="fas fa-tachometer-alt"></i> Painel Inicial</h1>
                         <div id="statusConexaoHome" class="status-conexao">
@@ -132,13 +119,11 @@
                         </div>
                     </div>
 
-                    <!-- View #avaliacaoView (Antiga #avaliacao) -->
                     <div id="avaliacaoView" class="view-content">
                         <h1><i class="fas fa-edit"></i> Nova Avaliação de Desempenho</h1>
                         <div id="statusDados" class="alert alert-info" style="display:none;"></div>
                         
                         <form id="form-avaliacao" onsubmit="event.preventDefault();">
-                            <!-- Card de Dados do Avaliado -->
                             <div class="info-card">
                                 <h3><i class="fas fa-user-check"></i> Dados do Avaliado</h3>
                                 <div class="form-row">
@@ -154,7 +139,6 @@
                                 </div>
                             </div>
 
-                            <!-- Card de Dados do Avaliador -->
                             <div class="info-card">
                                 <h3><i class="fas fa-user-tie"></i> Dados do Avaliador (Gestor)</h3>
                                 <div class="form-row">
@@ -172,17 +156,14 @@
                                 </div>
                             </div>
 
-                            <!-- Progresso -->
                             <div class="progress-container">
                                 <h3><i class="fas fa-tasks"></i> Progresso da Avaliação (Competências)</h3>
                                 <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
                                 <div id="progressText" style="text-align: center; margin-top: 5px; font-size: 0.9em;">0 de 0 fatores avaliados</div>
                             </div>
 
-                            <!-- Container das Competências (será preenchido pelo JS) -->
                             <div id="competenciasContainer"></div>
 
-                            <!-- Feedback Geral -->
                             <div class="info-card">
                                 <h3><i class="fas fa-comments"></i> Feedback Geral</h3>
                                 <div class="form-group"> <label for="pontosFortes">Pontos Fortes Observados</label> <textarea id="pontosFortes" rows="3" placeholder="Descreva os principais pontos positivos..."></textarea> </div>
@@ -190,20 +171,17 @@
                                 <div class="form-group"> <label for="comentarios">Comentários Gerais (Opcional)</label> <textarea id="comentarios" rows="3" placeholder="Observações adicionais..."></textarea> </div>
                             </div>
                             
-                            <!-- Indicadores -->
                             <div class="info-card" id="indicadoresCard">
                                 <h3><i class="fas fa-chart-pie"></i> Indicadores da Seção (Referente ao Mês Selecionado)</h3>
                                 <div id="indicadoresContainer"><p style="color: #6c757d;">Selecione o colaborador e o mês de referência.</p></div>
                             </div>
 
-                            <!-- Resultado -->
                             <div id="resultadoCard" class="resultado-card">
                                 <h3><i class="fas fa-poll"></i> Resultado da Avaliação</h3>
                                 <div class="pontuacao-display" id="pontuacaoDisplay">0.0</div>
                                 <div class="classificacao-display" id="classificacaoDisplay">-</div>
                             </div>
 
-                            <!-- Botões de Ação -->
                             <div style="text-align: center; margin-top: 30px; margin-bottom: 20px;">
                                 <button type="button" class="btn btn-info" onclick="window.GG.calcularResultado()"><i class="fas fa-calculator"></i> Calcular</button>
                                 <button type="button" class="btn btn-success" id="btnSalvar" onclick="window.GG.salvarAvaliacao()" disabled><i class="fas fa-save"></i> Salvar</button>
@@ -212,7 +190,6 @@
                         </form>
                     </div>
 
-                    <!-- View #historicoView (Antiga #historico) -->
                     <div id="historicoView" class="view-content">
                         <div id="accessStatusHistorico" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-history"></i> Histórico de Avaliações</h1>
@@ -237,14 +214,12 @@
                         </div>
                     </div>
 
-                    <!-- View #relatoriosView (Antiga #relatorios) -->
                     <div id="relatoriosView" class="view-content">
                          <div id="accessStatusRelatorios" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-chart-bar"></i> Relatórios</h1>
                         <p>Seção de relatórios em desenvolvimento.</p>
                     </div>
 
-                    <!-- View #configuracoesView (Antiga #configuracoes) -->
                     <div id="configuracoesView" class="view-content">
                         <div id="accessStatusConfig" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-cogs"></i> Configurações do Sistema</h1>
@@ -330,13 +305,12 @@
                         </div>
                     </div>
                     
-                    <!-- View #perfilView (Nova) -->
                     <div id="perfilView" class="view-content">
                          <h1><i class="fas fa-user-circle"></i> Meu Perfil</h1>
                         <div class="bg-white p-6 rounded-lg shadow-md max-w-3xl mx-auto info-card">
                             <form id="perfilForm" onsubmit="event.preventDefault(); window.GG.handlePerfilFormSubmit();">
                                 <div class="flex flex-col sm:flex-row items-center mb-6 pb-6 border-b">
-                                    <img id="perfilPicturePreview" src="icon.png" alt="Foto Perfil" class="w-24 h-24 rounded-full object-cover mb-4 sm:mb-0 sm:mr-6 border border-gray-200 shadow-sm">
+                                    <img id="perfilPicturePreview" src="https://i.imgur.com/80SsE11.png" alt="Foto Perfil" class="w-24 h-24 rounded-full object-cover mb-4 sm:mb-0 sm:mr-6 border border-gray-200 shadow-sm">
                                     <div class="text-center sm:text-left">
                                         <label for="perfilPicture" class="btn btn-primary btn-small cursor-pointer">
                                             <i data-feather="upload" class="h-4 w-4 mr-2"></i> Alterar Foto
@@ -369,18 +343,15 @@
                         </div>
                     </div>
 
-                </div> <!-- Fim .container -->
+                </div>
             </main>
-        </div> <!-- Fim #mainSystem -->
-    </div> <!-- Fim #appShell -->
+        </div>
+    </div>
 
-    <!-- Container de Notificações (Toasts) -->
     <div id="notificationContainer"></div>
     
-    <!-- Modal de Loading Global -->
     <div class="loading" id="loading"><div class="spinner"></div><p>Processando...</p></div>
     
-    <!-- Modal de Edição (Genérico, do G&G original) -->
      <div id="editModal" class="modal">
        <div class="modal-content">
         <span class="modal-close" onclick="window.GG.fecharModal()">&times;</span>
@@ -397,7 +368,6 @@
 
     <script src="script.js"></script>
     <script>
-        // Inicializar ícones
         feather.replace();
     </script>
 </body>
