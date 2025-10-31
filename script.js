@@ -1113,6 +1113,20 @@ window.GG = {
         } catch (e) { this.mostrarAlerta(`Erro ao excluir: ${e.message}`, 'danger'); }
         finally { this.mostrarLoading(false); }
     },
+
+    // (Função existente, mas movida para referência)
+    editarResultado(id) {
+        if (this.currentUser.role !== 'admin') return;
+        const resultado = this.dados.resultadosIndicadores.find(res => res.id === id);
+        if (!resultado) return;
+        document.getElementById('add-resultado-indicador').value = resultado.indicador_id;
+        document.getElementById('add-resultado-secao').value = resultado.secao;
+        document.getElementById('add-resultado-mes').value = resultado.mes_referencia.substring(0, 7);
+        document.getElementById('add-resultado-valor').value = resultado.valor_realizado || '';
+        document.getElementById('edit-resultado-id').value = id;
+        document.getElementById('add-resultado-valor').focus();
+        this.mostrarAlerta(`Editando resultado. Altere o valor e salve.`, 'info');
+    },
     
     popularDropdownsConfig() {
         const selectIndicador = document.getElementById('add-resultado-indicador');
@@ -1162,15 +1176,23 @@ window.GG = {
         selectTipoAdmin.innerHTML += '<option value="inverso">Numérico Inverso (Ex: < 5)</option>';
     },
     
+    // -----------------------------------------------------------------
+    // FUNÇÕES CORRIGIDAS
+    // -----------------------------------------------------------------
+
+    // CORRIGIDO: Esta função tinha o corpo errado (corpo de 'salvarIndicador')
     async adicionarOuAtualizarResultado() {
-        const id = document.getElementById('edit-indicador-id').value;
-        const dadosIndicador = {
-            indicador: document.getElementById('add-indicador-nome').value.trim(),
-            secao: document.getElementById('add-indicador-secao').value.trim().toUpperCase() || 'GERAL', // Lê do select
-            meta: document.getElementById('add-indicador-meta').value.trim() || null,
-            tipo: document.getElementById('add-indicador-tipo').value.trim() || null // Lê do select
-        };
-        if (!dadosIndicador.indicador || !dadosIndicador.secao) { this.mostrarAlerta('Nome e Seção são obrigatórios.', 'warning'); return; }
+        if (this.currentUser.role !== 'admin') return;
+        
+        // CORPO CORRETO RESTAURADO:
+        const indicadorId = document.getElementById('add-resultado-indicador').value;
+        const secao = document.getElementById('add-resultado-secao').value;
+        const mesInput = document.getElementById('add-resultado-mes').value;
+        const valor = document.getElementById('add-resultado-valor').value.trim();
+        const editId = document.getElementById('edit-resultado-id').value;
+
+        if (!indicadorId || !secao || !mesInput || valor === '') { this.mostrarAlerta('Todos os campos são obrigatórios.', 'warning'); return; }
+        const mesReferencia = `${mesInput}-01`;
         
         const dadosResultado = { indicador_id: parseInt(indicadorId), secao: secao, mes_referencia: mesReferencia, valor_realizado: valor };
 
@@ -1227,12 +1249,21 @@ window.GG = {
         feather.replace();
     },
     
+    // CORRIGIDO: Esta era a função que causava o erro da imagem (estava duplicada e quebrada)
+    // Corrigi a lógica interna para buscar 'indicador' e não 'resultado'
     editarIndicador(id) {
         // Esta função usa o formulário principal, não o modal genérico. Vamos manter assim.
         if (this.currentUser.role !== 'admin') return;
-        const resultado = this.dados.resultadosIndicadores.find(res => res.id === id);
-        if (!indicador) return;
+        
+        // CORREÇÃO: Buscar em 'this.dados.indicadores'
+        const indicador = this.dados.indicadores.find(ind => ind.id === id);
+        
+        // CORREÇÃO: Verificar a variável 'indicador'
+        if (!indicador) return; 
+        
         document.getElementById('edit-indicador-id').value = id;
+        
+        // CORREÇÃO: Usar o objeto 'indicador'
         document.getElementById('add-indicador-nome').value = indicador.indicador;
         document.getElementById('add-indicador-secao').value = indicador.secao; // Funciona com select
         document.getElementById('add-indicador-meta').value = indicador.meta || '';
@@ -1535,6 +1566,4 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Erro crítico. Verifique o console.");
     }
 });
-
-
 
