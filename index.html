@@ -5,163 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acesso | Sistema G&G</title>
     <link rel="icon" href="https://i.imgur.com/80SsE11.png" type="image/png">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css"> <!-- Carrega o style.css -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        /* Estilos base do style.css (var(--darker), etc.) */
-        body { 
-            background-color: var(--darker); 
-            color: #4b5563;
-        }
-        
-        /* Container principal que centraliza tudo */
-        .auth-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-            padding-bottom: 100px; /* Espaço para o rodapé */
-            position: relative;
-        }
-
-        /* O card branco do formulário */
-        .auth-card {
-            width: 100%;
-            background: white;
-            padding: 40px 30px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Cabeçalho do card */
-        .auth-header { text-align: center; }
-        .auth-header img {
-            width: 80px;
-            height: 80px;
-            margin-bottom: 20px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .auth-header h2 {
-            color: var(--dark);
-            font-size: 1.8rem;
-            font-weight: 700;
-        }
-        .auth-header p {
-            color: var(--accent);
-            font-size: 1rem;
-            margin-bottom: 30px;
-            font-weight: 500;
-        }
-
-        /* Grid de 2 colunas */
-        .auth-grid-container {
-            display: grid;
-            grid-template-columns: 1fr; /* Uma coluna por padrão (mobile) */
-            gap: 2.5rem;
-            width: 100%;
-            max-width: 64rem; /* 1024px */
-            margin: 0 auto;
-        }
-
-        /* Em telas grandes (lg), vira 2 colunas */
-        @media (min-width: 1024px) {
-            .auth-grid-container {
-                grid-template-columns: 450px 1fr; /* Coluna da esquerda fixa, direita flexível */
-            }
-        }
-
-        /* Cards de informação (coluna da direita) */
-        .info-card {
-            padding: 2rem;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        }
-
-        .info-card-gradient {
-            background: var(--primary-gradient); /* Gradiente do style.css */
-            color: white;
-        }
-
-        .info-card-white {
-            background: white;
-            color: var(--dark);
-            margin-top: 2rem; /* Espaço entre os cards de info */
-        }
-
-        .info-card-white h4 {
-            font-weight: 700;
-            color: var(--dark);
-            margin-bottom: 1rem;
-            font-size: 1.25rem;
-        }
-        
-        .info-card-white h5 {
-            font-weight: 600;
-            color: var(--accent);
-            margin-bottom: 0.75rem;
-            font-size: 1rem;
-        }
-
-        .info-card-white li {
-            color: #4b5563; /* text-gray-600 */
-            margin-bottom: 0.5rem;
-        }
-        .info-card-white li span {
-            font-weight: 600;
-        }
-        
-        /* Botão de Entrar com gradiente */
-        .btn-gradient {
-            background: var(--primary-gradient);
-            color: white;
-            font-weight: 600;
-            border: none;
-            transition: all 0.2s ease;
-            width: 100%;
-            padding: 14px;
-            font-size: 1rem;
-            border-radius: 6px;
-        }
-        .btn-gradient:hover {
-            filter: brightness(1.1);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transform: translateY(-1px);
-        }
-        .btn-gradient:disabled {
-            opacity: 0.6; 
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        /* Links do formulário */
-        .form-links {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 1.5rem;
-            font-size: 0.875rem;
-        }
-
-        /* Rodapé */
-        .auth-footer {
-            width: 100%;
-            text-align: center;
-            padding: 2rem 1rem;
-            color: #94a3b8; /* text-gray-400 */
-            font-size: 0.875rem;
-            position: absolute;
-            bottom: 0;
-            left: 0;
-        }
-    </style>
+    <!-- O bloco <style> foi removido daqui e movido para style.css -->
 </head>
-<body>
+<body class="login-body">
 
     <div class="auth-container">
+        <!-- Overlay de Fundo com Blur (baseado na sua referência) -->
+        <div class="auth-blur-overlay"></div>
         
         <div class="auth-grid-container">
             
@@ -233,8 +87,8 @@
                 </div>
             </div>
 
-            <!-- COLUNA DA DIREITA (INFORMAÇÕES) -->
-            <div>
+            <!-- COLUNA DA DIREITA (INFORMAÇÕES) - Estrutura de Grid da sua Referência -->
+            <div class="auth-info-grid">
                 <div class="info-card info-card-gradient">
                     <h3 class="text-2xl font-bold mb-3">CONTROLE EFICIENTE, AVALIAÇÃO PRECISA.</h3>
                     <p>Gerencie as avaliações de desempenho com precisão, agilidade e total rastreabilidade.</p>
