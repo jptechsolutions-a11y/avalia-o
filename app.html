@@ -17,17 +17,36 @@
     <div id="appShell" class="h-screen flex flex-col" style="display: none;">
 
         <header id="topBar" class="flex-shrink-0">
-            <!-- ... (cabeçalho existente, sem alterações) ... -->
-<!-- ... existing code ... -->
             <div class="flex items-center gap-4">
                 <button id="sidebarToggle" class="btn-icon">
                     <i data-feather="menu" class="h-5 w-5"></i>
                 </button>
-<!-- ... existing code ... -->
-                <div id="profileDropdownMenu" class="dropdown-menu">
+                <img src="logo.png" class="h-8 w-8" alt="Logo G&G">
+                <div class="separator"></div>
+                <div class="flex flex-col">
+                    <span class="text-sm font-semibold text-white" id="topBarProjectName">Sistema G&G</span>
+                    <span class="text-xs text-gray-400" id="topBarOrgName">Avaliação de Desempenho</span>
+                </div>
+            </div>
+            
+            <div class="flex-1 flex justify-center px-8">
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <button class="btn btn-success" onclick="window.GG.showView('avaliacaoView', document.querySelector('a[href=\'#avaliacao\']'))">
+                    <i data-feather="plus" class="h-4 w-4 mr-2"></i>
+                    <span class="hidden md:inline">Nova Avaliação</span>
+                </button>
+                <div class="separator"></div>
+                <div id="profileDropdown" class="relative">
+                    <button id="profileDropdownButton" class="flex items-center gap-2 rounded-full hover:bg-gray-700 p-1">
+                        <img id="topBarUserAvatar" src="https://i.imgur.com/80SsE11.png" class="w-8 h-8 rounded-full object-cover bg-gray-600">
+                        <span id="topBarUserName" class="text-sm font-medium text-white hidden md:block">Usuário</span>
+                        <i data-feather="chevron-down" class="h-4 w-4 text-gray-400 hidden md:block"></i>
+                    </button>
+                    <div id="profileDropdownMenu" class="dropdown-menu">
                         <div class="px-4 py-3 border-b border-gray-600">
                             <span class="block text-sm font-medium text-white" id="dropdownUserName">...</span>
-<!-- ... existing code ... -->
                             <span class="block text-xs text-gray-400" id="dropdownUserEmail">...</span>
                         </div>
                         <a href="#perfil" class="dropdown-item" onclick="window.GG.showView('perfilView', document.querySelector('a[href=\'#perfil\']'))">
@@ -37,37 +56,170 @@
                             <i data-feather="settings" class="h-4 w-4 mr-2"></i> Configurações
                         </a>
                         <div class="border-t border-gray-600">
-<!-- ... existing code ... -->
+                            <a href="#" class="dropdown-item text-red-400" onclick="window.GG.logout()">
+                                <i data-feather="log-out" class="h-4 w-4 mr-2"></i> Sair
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div id="mainSystem" class="flex flex-1 overflow-hidden">
+
+            <aside class="sidebar">
+                <nav class="p-2 pt-4">
+                    <a href="#home" class="nav-item" title="Home" onclick="window.GG.showView('homeView', this)">
+                        <i data-feather="home" class="h-5 w-5 mr-3"></i> <span class="nav-text">Home</span>
+                    </a>
+                    <a href="#avaliacao" class="nav-item" title="Nova Avaliação" onclick="window.GG.showView('avaliacaoView', this)">
+                        <i data-feather="edit-3" class="h-5 w-5 mr-3"></i> <span class="nav-text">Nova Avaliação</span>
+                    </a>
+                    <a href="#historico" class="nav-item" title="Histórico" onclick="window.GG.showView('historicoView', this)">
+                        <i data-feather="clipboard" class="h-5 w-5 mr-3"></i> <span class="nav-text">Histórico</span>
+                    </a>
+                    <a href="#relatorios" class="nav-item" title="Relatórios" onclick="window.GG.showView('relatoriosView', this)">
+                        <i data-feather="bar-chart-2" class="h-5 w-5 mr-3"></i> <span class="nav-text">Relatórios</span>
+                    </a>
+
+                    <div class="mt-4 border-t border-gray-700 pt-2">
+                        <span class="p-3 text-xs font-semibold text-gray-500 uppercase nav-text">Administração</span>
+                    </div>
+                    <a href="#configuracoes" class="nav-item" title="Configurações" onclick="window.GG.showView('configuracoesView', this)">
+                        <i data-feather="settings" class="h-5 w-5 mr-3"></i> <span class="nav-text">Configurações</span>
+                    </a>
+                    <a href="#perfil" class="nav-item" title="Meu Perfil" onclick="window.GG.showView('perfilView', this)">
+                        <i data-feather="user" class="h-5 w-5 mr-3"></i> <span class="nav-text">Meu Perfil</span>
+                    </a>
+                    <a href="#" id="logoutLink" class="nav-item" title="Sair" onclick="window.GG.logout()">
+                        <i data-feather="log-out" class="h-5 w-5 mr-3 text-red-400"></i> <span class="nav-text text-red-400">Sair</span>
+                    </a>
+                </nav>
+            </aside>
+            
+            <div id="sidebarOverlay"></div>
+
             <main class="main-content">
                 <div class="container mx-auto px-6 py-8">
 
                     <!-- Conteúdo: Home -->
-<!-- ... existing code ... -->
+                    <div id="homeView" class="view-content active">
+                        <h1><i class="fas fa-tachometer-alt"></i> Painel Inicial</h1>
+                        <div id="statusConexaoHome" class="status-conexao">
+                            <span id="textoStatus"><i class="fas fa-sync fa-spin"></i> Verificando conexão...</span>
+                        </div>
+                        <div class="alert alert-info">
+                            <h4><i class="fas fa-info-circle"></i> Bem-vindo ao Sistema de Avaliação G&G</h4>
+                            <p>Use o menu ao lado para navegar. Realize avaliações, consulte históricos e gerencie indicadores.</p>
+                        </div>
                         <div class="stats-grid">
                             <div class="stat-card-dash"> <div class="stat-number" id="totalAvaliacoesHome">0</div> <div class="stat-label">Avaliações</div> </div>
                             <div class="stat-card-dash"> <div class="stat-number" id="mediaGeralHome">0.0</div> <div class="stat-label">Média Geral</div> </div>
-<!-- ... existing code ... -->
                             <div class="stat-card-dash"> <div class="stat-number" id="totalColaboradoresHome">0</div> <div class="stat-label">Colaboradores</div> </div>
                             <div class="stat-card-dash"> <div class="stat-number" id="totalGestoresHome">0</div> <div class="stat-label">Gestores (Avaliadores)</div> </div>
                         </div>
                     </div>
 
                     <!-- Conteúdo: Nova Avaliação -->
-<!-- ... existing code ... -->
+                    <div id="avaliacaoView" class="view-content">
+                        <h1><i class="fas fa-edit"></i> Nova Avaliação de Desempenho</h1>
+                        <div id="statusDados" class="alert alert-info" style="display:none;"></div>
+                        
+                        <form id="form-avaliacao" onsubmit="event.preventDefault();">
+                            <div class="info-card">
+                                <h3><i class="fas fa-user-check"></i> Dados do Avaliado</h3>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="matriculaAvaliado">Matrícula do Avaliado *</label>
+                                        <input type="text" id="matriculaAvaliado" required placeholder="Digite a matrícula..." onchange="window.GG.buscarColaborador(this.value)">
+                                    </div>
+                                    <div class="form-group"> <label for="nomeAvaliado">Nome</label> <input type="text" id="nomeAvaliado" readonly> </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group"> <label for="funcaoAvaliado">Função</label> <input type="text" id="funcaoAvaliado" readonly> </div>
+                                    <div class="form-group"> <label for="filial">Filial</label> <input type="text" id="filial" readonly> </div>
+                                </div>
+                            </div>
+
+                            <div class="info-card">
+                                <h3><i class="fas fa-user-tie"></i> Dados do Avaliador (Gestor)</h3>
+                                <div class="form-row">
+                                    <div class="form-group"> <label for="matriculaGestor">Matrícula do Gestor *</label> <input type="text" id="matriculaGestor" required placeholder="Digite sua matrícula..." onchange="window.GG.buscarGestor(this.value)"> </div>
+                                    <div class="form-group"> <label for="nomeGestor">Nome</label> <input type="text" id="nomeGestor" readonly> </div>
+                                </div>
+                                <hr>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="mesReferencia">Mês de Referência da Avaliação *</label>
+                                        <input type="month" id="mesReferencia" required style="padding: 10px;" onchange="window.GG.atualizarIndicadoresExibidos()">
+                                        <small>Selecione o mês/ano correspondente ao período avaliado.</small>
+                                    </div>
+                                    <div class="form-group"></div>
+                                </div>
+                            </div>
+
+                            <div class="progress-container">
+                                <h3><i class="fas fa-tasks"></i> Progresso da Avaliação (Competências)</h3>
+                                <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                                <div id="progressText" style="text-align: center; margin-top: 5px; font-size: 0.9em;">0 de 0 fatores avaliados</div>
+                            </div>
+
+                            <div id="competenciasContainer"></div>
+
+                            <div class="info-card">
+                                <h3><i class="fas fa-comments"></i> Feedback Geral</h3>
+                                <div class="form-group"> <label for="pontosFortes">Pontos Fortes Observados</label> <textarea id="pontosFortes" rows="3" placeholder="Descreva os principais pontos positivos..."></textarea> </div>
+                                <div class="form-group"> <label for="oportunidades">Oportunidades de Desenvolvimento</label> <textarea id="oportunidades" rows="3" placeholder="Indique os pontos que precisam ser desenvolvidos..."></textarea> </div>
+                                <div class="form-group"> <label for="comentarios">Comentários Gerais (Opcional)</label> <textarea id="comentarios" rows="3" placeholder="Observações adicionais..."></textarea> </div>
+                            </div>
+                            
+                            <div class="info-card" id="indicadoresCard">
+                                <h3><i class="fas fa-chart-pie"></i> Indicadores da Seção (Referente ao Mês Selecionado)</h3>
+                                <div id="indicadoresContainer"><p style="color: #6c757d;">Selecione o colaborador e o mês de referência.</p></div>
+                            </div>
+
+                            <div id="resultadoCard" class="resultado-card">
+                                <h3><i class="fas fa-poll"></i> Resultado da Avaliação</h3>
+                                <div class="pontuacao-display" id="pontuacaoDisplay">0.0</div>
+                                <div class="classificacao-display" id="classificacaoDisplay">-</div>
+                            </div>
+
+                            <div style="text-align: center; margin-top: 30px; margin-bottom: 20px;">
+                                <button type="button" class="btn btn-info" onclick="window.GG.calcularResultado()"><i class="fas fa-calculator"></i> Calcular</button>
+                                <button type="button" class="btn btn-success" id="btnSalvar" onclick="window.GG.salvarAvaliacao()" disabled><i class="fas fa-save"></i> Salvar</button>
                                 <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormulario()"><i class="fas fa-undo"></i> Limpar</button>
                             </div>
                         </form>
                     </div>
 
                     <!-- Conteúdo: Histórico -->
-<!-- ... existing code ... -->
+                    <div id="historicoView" class="view-content">
+                        <div id="accessStatusHistorico" class="access-status" style="display: none;"></div>
+                        <h1><i class="fas fa-history"></i> Histórico de Avaliações</h1>
+                        <div class="info-card">
+                            <h3><i class="fas fa-filter"></i> Filtros</h3>
+                            <div class="form-row">
+                                <div class="form-group"><label for="filtroMes">Mês Referência</label><input type="month" id="filtroMes" onchange="window.GG.aplicarFiltros()"></div>
+                                <div class="form-group"><label for="filtroFilial">Filial</label><select id="filtroFilial" onchange="window.GG.aplicarFiltros()"><option value="">Todas</option></select></div>
+                                <div class="form-group"><label for="filtroClassificacao">Classificação</label><select id="filtroClassificacao" onchange="window.GG.aplicarFiltros()"><option value="">Todas</option><option value="EXCELENTE">Excelente</option><option value="BOM">Bom</option><option value="REGULAR">Regular</option><option value="PRECISA MELHORAR">Precisa Melhorar</option></select></div>
+                                <div class="form-group" style="align-self: flex-end;"><button type="button" class="btn btn-sm btn-secondary" onclick="window.GG.limparFiltros()" style="width: 100%;"><i class="fas fa-times"></i> Limpar</button></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label for="filtroNome">Nome do Avaliado</label><input type="text" id="filtroNome" placeholder="Filtrar por nome..." oninput="window.GG.aplicarFiltros()"></div>
+                                <div class="form-group"><label for="filtroGestor">Nome do Gestor</label><input type="text" id="filtroGestor" placeholder="Filtrar por nome..." oninput="window.GG.aplicarFiltros()"></div>
+                            </div>
+                        </div>
+                        <div id="tabelaHistoricoContainer" class="table-container">
+                            <div id="tabelaHistorico"><p style="text-align: center; padding: 20px;">Carregando histórico...</p></div>
+                        </div>
                         <div style="text-align: center; margin-top: 20px;">
                             <button type="button" class="btn btn-warning" onclick="window.GG.exportarDados()"><i class="fas fa-download"></i> Exportar Visão</button>
                         </div>
                     </div>
 
                     <!-- Conteúdo: Relatórios -->
-<!-- ... existing code ... -->
+                    <div id="relatoriosView" class="view-content">
+                         <div id="accessStatusRelatorios" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-chart-bar"></i> Relatórios</h1>
                         <p>Seção de relatórios em desenvolvimento.</p>
                     </div>
@@ -81,248 +233,131 @@
                         <div id="configAdminOnly" style="display: none;">
                             <div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Acesso restrito a administradores.</div>
 
-                            <!-- INÍCIO DA NOVA ESTRUTURA DE ABAS -->
-                            <div class="config-tabs">
-                                <a href="#" class="tab-link active" onclick="window.GG.showConfigTab('colaboradores', this)">
-                                    <i data-feather="briefcase" class="h-4 w-4 mr-2"></i> Colaboradores & Gestores
-                                </a>
-                                <a href="#" class="tab-link" onclick="window.GG.showConfigTab('usuarios', this)">
-                                    <i data-feather="users" class="h-4 w-4 mr-2"></i> Usuários do Sistema
-                                </a>
-                                <a href="#" class="tab-link" onclick="window.GG.showConfigTab('indicadores', this)">
-                                    <i data-feather="target" class="h-4 w-4 mr-2"></i> Indicadores & Metas
-                                </a>
-                            </div>
-                            <!-- FIM DA NOVA ESTRUTURA DE ABAS -->
-
-                            <!-- INÍCIO DO CONTEÚDO DAS ABAS -->
-
-                            <!-- ABA 1: COLABORADORES E GESTORES (NOVO) -->
-                            <div id="tab-colaboradores" class="tab-content active">
-                                
-                                <div class="info-card">
-                                    <h3><i class="fas fa-briefcase"></i> Gerenciar Colaboradores</h3>
-                                    <form id="form-add-colaborador" onsubmit="event.preventDefault(); window.GG.salvarColaborador();">
-                                        <h4>Adicionar/Editar Colaborador</h4>
-                                        <input type="hidden" id="edit-colaborador-id">
-                                        <div class="form-row">
-                                            <div class="form-group"><label for="add-colaborador-nome">Nome *</label><input type="text" id="add-colaborador-nome" required></div>
-                                            <div class="form-group"><label for="add-colaborador-matricula">Matrícula *</label><input type="text" id="add-colaborador-matricula" required></div>
-                                        </div>
-                                        <div class="form-row">
-                                            <div class="form-group"><label for="add-colaborador-funcao">Função</label><input type="text" id="add-colaborador-funcao"></div>
-                                            <div class="form-group"><label for="add-colaborador-filial">Filial</label><input type="text" id="add-colaborador-filial" placeholder="Ex: 101, 205..."></div>
-                                        </div>
-                                        <div class="form-row">
-                                            <div class="form-group"><label for="add-colaborador-secao">Seção</label><input type="text" id="add-colaborador-secao" placeholder="Ex: OPERACIONAL, ADM..."></div>
-                                            <div class="form-group">
-                                                <label for="add-colaborador-status">Status</label>
-                                                <select id="add-colaborador-status" required>
-                                                    <option value="ativo">Ativo</option>
-                                                    <option value="inativo">Inativo</option>
-                                                    <option value="aviso">Aviso Prévio</option>
-                                                    <option value="demitido">Demitido</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Colaborador</button>
-                                        <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormColaborador()"><i class="fas fa-undo"></i> Limpar</button>
-                                    </form>
-                                    <hr>
-                                    <h4>Colaboradores Cadastrados</h4>
-                                    <div class="table-container">
-                                        <table class="tabela" id="tabela-colaboradores-admin">
-                                            <thead><tr><th>Nome</th><th>Matrícula</th><th>Função</th><th>Filial</th><th>Seção</th><th>Status</th><th>Ações</th></tr></thead>
-                                            <tbody><tr><td colspan="7" style="text-align:center;">Carregando...</td></tr></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                                
-                                <div class="info-card">
-                                    <h3><i class="fas fa-user-tie"></i> Gerenciar Gestores</h3>
-                                    <form id="form-add-gestor" onsubmit="event.preventDefault(); window.GG.salvarGestor();">
-                                        <h4>Adicionar/Editar Gestor</h4>
-                                        <input type="hidden" id="edit-gestor-id">
-                                        <div class="form-row">
-                                            <div class="form-group"><label for="add-gestor-nome">Nome *</label><input type="text" id="add-gestor-nome" required></div>
-                                            <div class="form-group"><label for="add-gestor-matricula">Matrícula *</label><input type="text" id="add-gestor-matricula" required></div>
-                                        </div>
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="add-gestor-status">Status</label>
-                                                <select id="add-gestor-status" required>
-                                                    <option value="ativo">Ativo</option>
-                                                    <option value="inativo">Inativo</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group"></div>
-                                        </div>
-                                        <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Gestor</button>
-                                        <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormGestor()"><i class="fas fa-undo"></i> Limpar</button>
-                                    </form>
-                                    <hr>
-                                    <h4>Gestores Cadastrados</h4>
-                                    <div class="table-container">
-                                        <table class="tabela" id="tabela-gestores-admin">
-                                            <thead><tr><th>Nome</th><th>Matrícula</th><th>Status</th><th>Ações</th></tr></thead>
-                                            <tbody><tr><td colspan="4" style="text-align:center;">Carregando...</td></tr></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                            </div>
-
-                            <!-- ABA 2: USUÁRIOS DO SISTEMA (Conteúdo Movido) -->
-                            <div id="tab-usuarios" class="tab-content">
-                                <div class="info-card">
-                                    <h3><i class="fas fa-inbox"></i> Solicitações de Acesso Pendentes</h3>
-                                    <div class="table-container">
-                                        <table class="tabela" id="tabela-solicitacoes-admin">
-                                            <thead><tr><th>Nome</th><th>E-mail</th><th>Motivo</th><th>Data</th><th>Ações</th></tr></thead>
-                                            <tbody><tr><td colspan="5" style="text-align:center;">Carregando...</td></tr></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div class="info-card">
-                                    <h3><i class="fas fa-users-cog"></i> Gerenciar Usuários do Sistema</h3>
-                                    <div class="table-container">
-                                        <table class="tabela" id="tabela-usuarios-admin">
-                                            <thead><tr><th>Nome</th><th>E-mail</th><th>Matrícula</th><th>Permissão (Role)</th><th>Filial</th><th>Status</th><th>Ações</th></tr></thead>
-                                            <tbody><tr><td colspan="7" style="text-align:center;">Carregando usuários...</td></tr></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- ABA 3: INDICADORES (Conteúdo Movido) -->
-                            <div id="tab-indicadores" class="tab-content">
-                                <!-- CARD: Cadastrar Novo Indicador -->
-                                <div class="info-card">
-                                    <h3><i class="fas fa-plus-circle"></i> Cadastrar Novo Indicador</h3>
-                                    <form id="form-add-indicador" onsubmit="event.preventDefault(); window.GG.salvarIndicador();">
-                                        <input type="hidden" id="edit-indicador-id">
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="add-indicador-nome">Nome do Indicador *</label>
-                                                <input type="text" id="add-indicador-nome" required>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="add-indicador-secao">Seção *</label>
-                                                <select id="add-indicador-secao" required>
-                                                    <option value="">Carregando seções...</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Indicador</button>
-                                        <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormIndicador()"><i class="fas fa-undo"></i> Limpar</button>
-                                    </form>
-                                    <hr>
-                                    <h4>Indicadores Cadastrados (Definições)</h4>
-                                    <div class="table-container">
-                                        <table class="tabela" id="tabela-indicadores">
-                                            <thead><tr><th>ID</th><th>Indicador</th><th>Seção</th><th>Ações</th></tr></thead>
-                                            <tbody><tr><td colspan="4" style="text-align:center;">Carregando...</td></tr></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <!-- CARD: Gerenciar Metas -->
-                                <div class="info-card">
-                                    <h3><i class="fas fa-list-alt"></i> Gerenciar Metas por Filial</h3>
-                                    <form id="form-add-meta" onsubmit="event.preventDefault(); window.GG.salvarMeta();">
-                                        <h4>Adicionar/Editar Meta</h4>
-                                        <input type="hidden" id="edit-meta-id">
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="add-meta-indicador">Indicador *</label>
-                                                <select id="add-meta-indicador" required>
-                                                    <option value="">Selecione...</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="add-meta-filial">Filial *</label>
-                                                <select id="add-meta-filial" required>
-                                                    <option value="">Carregando filiais...</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="add-meta-meta">Meta *</label>
-                                                <input type="text" id="add-meta-meta" required placeholder="Ex: >= 80, < 5%">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="add-meta-tipo">Tipo *</label>
-                                                <select id="add-meta-tipo" required>
-                                                    <option value="">Selecione o Tipo...</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Meta</button>
-                                        <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormMeta()"><i class="fas fa-undo"></i> Limpar</button>
-                                    </form>
-                                    <hr>
-                                    <h4>Metas Cadastradas</h4>
-                                    <div class="table-container">
-                                        <table class="tabela" id="tabela-metas">
-                                            <thead><tr><th>ID</th><th>Indicador</th><th>Filial</th><th>Meta</th><th>Tipo</th><th>Ações</th></tr></thead>
-                                            <tbody><tr><td colspan="6" style="text-align:center;">Carregando...</td></tr></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <!-- CARD: Gerenciar Resultados -->
-                                <div class="info-card">
-                                    <h3><i class="fas fa-calendar-check"></i> Gerenciar Resultados Mensais</h3>
-                                    <form id="form-add-resultado" onsubmit="event.preventDefault(); window.GG.adicionarOuAtualizarResultado();">
-                                        <h4>Adicionar/Atualizar Resultado</h4>
-                                        <input type="hidden" id="edit-resultado-id">
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="add-resultado-indicador">Indicador *</label>
-                                                <select id="add-resultado-indicador" required><option value="">Carregando...</option></select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="add-resultado-filial">Filial *</label>
-                                                <select id="add-resultado-filial" required><option value="">Carregando...</option></select>
-                                            </div>
-                                        </div>
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="add-resultado-mes">Mês de Referência *</label>
-                                                <input type="month" id="add-resultado-mes" required>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="add-resultado-valor">Valor Realizado *</label>
-                                                <input type="text" id="add-resultado-valor" required placeholder="Ex: 85.5, 1.2%, R$1000">
-                                            </div>
-                                        </div>
-                                        <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Resultado</button>
-                                        <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormResultado()"><i class="fas fa-undo"></i> Limpar</button>
-                                    </form>
-                                    <hr>
-                                    <h4>Resultados Cadastrados</h4>
+                            <!-- NOVO CARD: Apenas para criar o nome do indicador -->
+                            <div class="info-card">
+                                <h3><i class="fas fa-plus-circle"></i> Cadastrar Novo Indicador</h3>
+                                <form id="form-add-indicador" onsubmit="event.preventDefault(); window.GG.salvarIndicador();">
+                                    <input type="hidden" id="edit-indicador-id">
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label for="filtro-resultado-mes">Filtrar por Mês:</label>
-                                            <input type="month" id="filtro-resultado-mes" onchange="window.GG.renderizarTabelaResultados()">
+                                            <label for="add-indicador-nome">Nome do Indicador *</label>
+                                            <input type="text" id="add-indicador-nome" required>
                                         </div>
                                         <div class="form-group">
-                                            <label for="filtro-resultado-filial">Filtrar por Filial:</label>
-                                            <select id="filtro-resultado-filial" onchange="window.GG.renderizarTabelaResultados()"><option value="">Todas</option></select>
+                                            <label for="add-indicador-secao">Seção *</label>
+                                            <select id="add-indicador-secao" required>
+                                                <option value="">Carregando seções...</option>
+                                            </select>
                                         </div>
                                     </div>
-                                    <div class="table-container">
-                                        <table class="tabela" id="tabela-resultados">
-                                            <thead><tr><th>Mês</th><th>Filial</th><th>Indicador</th><th>Realizado</th><th>Ações</th></tr></thead>
-                                            <tbody><tr><td colspan="5" style="text-align:center;">Selecione filtros para carregar...</td></tr></tbody>
-                                        </table>
-                                    </div>
+                                    <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Indicador</button>
+                                    <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormIndicador()"><i class="fas fa-undo"></i> Limpar</button>
+                                </form>
+                                <hr>
+                                <h4>Indicadores Cadastrados (Definições)</h4>
+                                <div class="table-container">
+                                    <table class="tabela" id="tabela-indicadores">
+                                        <thead><tr><th>ID</th><th>Indicador</th><th>Seção</th><th>Ações</th></tr></thead>
+                                        <tbody><tr><td colspan="4" style="text-align:center;">Carregando...</td></tr></tbody>
+                                    </table>
                                 </div>
                             </div>
-                            <!-- FIM DO CONTEÚDO DAS ABAS -->
 
+                            <!-- CARD ATUALIZADO: Agora para gerenciar Metas -->
+                            <div class="info-card">
+                                <h3><i class="fas fa-list-alt"></i> Gerenciar Metas por Filial</h3>
+                                <form id="form-add-meta" onsubmit="event.preventDefault(); window.GG.salvarMeta();">
+                                    <h4>Adicionar/Editar Meta</h4>
+                                    <input type="hidden" id="edit-meta-id">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="add-meta-indicador">Indicador *</label>
+                                            <select id="add-meta-indicador" required>
+                                                <option value="">Selecione...</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="add-meta-filial">Filial *</label>
+                                            <select id="add-meta-filial" required>
+                                                <option value="">Carregando filiais...</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="add-meta-meta">Meta *</label>
+                                            <input type="text" id="add-meta-meta" required placeholder="Ex: >= 80, < 5%">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="add-meta-tipo">Tipo *</label>
+                                            <select id="add-meta-tipo" required>
+                                                <option value="">Selecione o Tipo...</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Meta</button>
+                                    <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormMeta()"><i class="fas fa-undo"></i> Limpar</button>
+                                </form>
+                                <hr>
+                                <h4>Metas Cadastradas</h4>
+                                <div class="table-container">
+                                    <table class="tabela" id="tabela-metas">
+                                        <thead><tr><th>ID</th><th>Indicador</th><th>Filial</th><th>Meta</th><th>Tipo</th><th>Ações</th></tr></thead>
+                                        <tbody><tr><td colspan="6" style="text-align:center;">Carregando...</td></tr></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="info-card">
+                                <h3><i class="fas fa-calendar-check"></i> Gerenciar Resultados Mensais</h3>
+                                <form id="form-add-resultado" onsubmit="event.preventDefault(); window.GG.adicionarOuAtualizarResultado();">
+                                    <h4>Adicionar/Atualizar Resultado</h4>
+                                    <input type="hidden" id="edit-resultado-id">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="add-resultado-indicador">Indicador *</label>
+                                            <select id="add-resultado-indicador" required><option value="">Carregando...</option></select>
+                                        </div>
+                                        <div class="form-group">
+                                            <!-- ATUALIZADO: De Seção para Filial -->
+                                            <label for="add-resultado-filial">Filial *</label>
+                                            <select id="add-resultado-filial" required><option value="">Carregando...</option></select>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="add-resultado-mes">Mês de Referência *</label>
+                                            <input type="month" id="add-resultado-mes" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="add-resultado-valor">Valor Realizado *</label>
+                                            <input type="text" id="add-resultado-valor" required placeholder="Ex: 85.5, 1.2%, R$1000">
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Resultado</button>
+                                    <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormResultado()"><i class="fas fa-undo"></i> Limpar</button>
+                                </form>
+                                <hr>
+                                <h4>Resultados Cadastrados</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="filtro-resultado-mes">Filtrar por Mês:</label>
+                                        <input type="month" id="filtro-resultado-mes" onchange="window.GG.renderizarTabelaResultados()">
+                                    </div>
+                                    <div class="form-group">
+                                        <!-- ATUALIZADO: De Seção para Filial -->
+                                        <label for="filtro-resultado-filial">Filtrar por Filial:</label>
+                                        <select id="filtro-resultado-filial" onchange="window.GG.renderizarTabelaResultados()"><option value="">Todas</option></select>
+                                    </div>
+                                </div>
+                                <div class="table-container">
+                                    <table class="tabela" id="tabela-resultados">
+                                        <!-- ATUALIZADO: De Seção para Filial -->
+                                        <thead><tr><th>Mês</th><th>Filial</th><th>Indicador</th><th>Realizado</th><th>Ações</th></tr></thead>
+                                        <tbody><tr><td colspan="5" style="text-align:center;">Selecione filtros para carregar...</td></tr></tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                          <div id="configUserOnly" class="alert alert-info" style="display: none;">
                             Você não tem permissão de administrador para ver esta página.
@@ -330,21 +365,106 @@
                     </div>
                     
                     <!-- Conteúdo: Perfil -->
-<!-- ... existing code ... -->
+                    <div id="perfilView" class="view-content">
+                         <h1><i class="fas fa-user-circle"></i> Meu Perfil</h1>
+                        <div class="bg-white p-6 rounded-lg shadow-md max-w-3xl mx-auto info-card">
+                            <form id="perfilForm" onsubmit="event.preventDefault(); window.GG.handlePerfilFormSubmit();">
+                                <div class="flex flex-col sm:flex-row items-center mb-6 pb-6 border-b">
+                                    <img id="perfilPicturePreview" src="https://i.imgur.com/80SsE11.png" alt="Foto Perfil" class="w-24 h-24 rounded-full object-cover mb-4 sm:mb-0 sm:mr-6 border border-gray-200 shadow-sm">
+                                    <div class="text-center sm:text-left">
+                                        <label for="perfilPicture" class="btn btn-primary btn-small cursor-pointer">
+                                            <i data-feather="upload" class="h-4 w-4 mr-2"></i> Alterar Foto
+                                        </label>
+                                        <input type="file" id="perfilPicture" accept="image/jpeg, image/png, image/gif" class="hidden" onchange="window.GG.previewProfilePicture(event)">
+                                        <p class="text-xs text-gray-500 mt-2">Envie JPG, PNG ou GIF (Máx 2MB).</p>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div class="form-group">
+                                        <label for="perfilNome">Nome Completo:</label>
+                                        <input type="text" id="perfilNome" required class="w-full">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="perfilMatricula">Matrícula (Opcional):</label>
+                                        <input type="text" id="perfilMatricula" class="w-full" placeholder="Sua matrícula na empresa">
+                                    </div>
+                                </div>
+                                <div class="form-group mb-4">
+                                    <label for="perfilEmail">E-mail (Login):</label>
+                                    <input type="email" id="perfilEmail" required class="w-full bg-gray-100 cursor-not-allowed" disabled title="E-mail de login não pode ser alterado aqui">
+                                </div>
+                                <div id="perfilAlert" class="mt-4"></div>
+                                <div class="flex justify-end gap-4 mt-6">
+                                    <button type="submit" class="btn btn-success">
+                                        <i data-feather="save" class="h-4 w-4 mr-2"></i> Salvar Alterações
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Container de Notificações -->
+    <div id="notificationContainer"></div>
+    
+    <!-- Tela de Loading -->
+     <div class="loading" id="loading"><div class="spinner"></div><p>Processando...</p></div>
+    
+     <!-- Modal Genérico (Existente) -->
+     <div id="editModal" class="modal">
+       <div class="modal-content">
+        <span class="modal-close" onclick="window.GG.fecharModal()">&times;</span>
+        <h3 id="modalTitle">Editar Item</h3>
+        <form id="modalForm" onsubmit="event.preventDefault(); window.GG.salvarEdicaoModal();">
             <input type="hidden" id="editItemId">
             <input type="hidden" id="editItemType">
             <div id="modalFields"></div>
-<!-- ... existing code ... -->
+            <button type="submit" class="btn btn-success">Salvar Alterações</button>
+            <button type="button" class="btn btn-secondary" onclick="window.GG.fecharModal()">Cancelar</button>
         </form>
        </div>
      </div>
      
      <!-- NOVO: Modal de Edição de Usuário -->
-<!-- ... existing code ... -->
+     <div id="userEditModal" class="modal">
+       <div class="modal-content" style="width: 600px; max-width: 95vw;">
+        <span class="modal-close" onclick="window.GG.fecharModalUsuario()">&times;</span>
+        <h3>Editar Usuário</h3>
+        <form id="userEditForm" onsubmit="event.preventDefault(); window.GG.salvarModalUsuario();">
             <input type="hidden" id="modal-user-id">
             <div class="form-row">
                 <div class="form-group">
-<!-- ... existing code ... -->
+                    <label for="modal-user-nome">Nome</label>
+                    <input type="text" id="modal-user-nome" required>
+                </div>
+                <div class="form-group">
+                    <label for="modal-user-email">E-mail (Login)</label>
+                    <input type="email" id="modal-user-email" readonly class="bg-gray-100">
+                </div>
+            </div>
+             <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-user-matricula">Matrícula</label>
+                    <input type="text" id="modal-user-matricula">
+                </div>
+                <div class="form-group">
+                    <label for="modal-user-filial">Filial Principal</label>
+                    <input type="text" id="modal-user-filial" placeholder="Ex: 101, 205...">
+                </div>
+            </div>
+             <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-user-role">Permissão (Role)</label>
+                    <select id="modal-user-role">
+                        <option value="user">Usuário (Padrão)</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label for="modal-user-status">Status</label>
                      <select id="modal-user-status">
                         <option value="ativo">Ativo</option>
