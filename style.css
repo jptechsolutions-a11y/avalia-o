@@ -1009,7 +1009,7 @@ ESTILOS DA PÁGINA DE LOGIN (MOVIMOS DO INDEX.HTML PARA CÁ)
 body.login-body { 
     background-color: var(--darker); 
     color: #4b5563;
-    position: relative;
+    position: relative; /* Adicionado para o blur overlay */
     min-height: 100vh;
 }
 
@@ -1066,13 +1066,7 @@ body.login-body {
 
 /* Cabeçalho do card */
 .auth-header { text-align: center; }
-.auth-header img {
-    width: 80px;
-    height: 80px;
-    margin-bottom: 20px;
-    margin-left: auto;
-    margin-right: auto;
-}
+/* MODIFICADO: Removido o estilo .auth-header img que definia 80x80px */
 .auth-header h2 {
     color: var(--dark);
     font-size: 1.8rem;
