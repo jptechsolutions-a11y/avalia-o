@@ -1,14 +1,6 @@
-// login.js
-
-// -----------------------------------------------------------------
-// CONFIGURAÇÃO: Cole suas chaves públicas do Supabase aqui
-// -----------------------------------------------------------------
-// !! SUBSTITUA PELAS SUAS CHAVES PÚBLICAS REAIS !!
 const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
-// -----------------------------------------------------------------
 
-// Elementos da UI
 const loginCard = document.getElementById('loginCard');
 const requestAccessCard = document.getElementById('requestAccessCard');
 
@@ -23,17 +15,15 @@ const forgotLink = document.getElementById('forgotLink');
 const loginAlert = document.getElementById('loginAlert');
 const passwordLabel = document.querySelector('label[for="password"]');
 
-// Elementos do formulário de solicitação (NOVOS)
 const requestAccessForm = document.getElementById('requestAccessForm');
 const requestSubmitBtn = document.getElementById('requestSubmitBtn');
 const toggleLinkRequest = document.getElementById('toggleLinkRequest');
 const requestAlert = document.getElementById('requestAlert');
 
-let isRequestAccess = false; // Substitui isSignUp
+let isRequestAccess = false; 
 let isForgot = false;
 let supabaseClient;
 
-// Inicializa o cliente Supabase
 try {
     if (!SUPABASE_URL || SUPABASE_URL.includes('URL_DO_SEU_PROJETO')) {
         console.error('ERRO: SUPABASE_URL não configurada em login.js. Use a URL do seu projeto.');
@@ -57,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    checkHash(); // Verifica se a URL é #request ou #forgot
+    checkHash(); 
     window.addEventListener('hashchange', checkHash);
 
     googleLoginBtn.addEventListener('click', handleGoogleLogin);
@@ -65,26 +55,19 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleLink.addEventListener('click', toggleMode);
     forgotLink.addEventListener('click', toggleForgotMode);
     
-    // Novos listeners
     requestAccessForm.addEventListener('submit', handleRequestAccessSubmit);
     toggleLinkRequest.addEventListener('click', toggleMode);
 
-
-    // Handler para quando o usuário clica no link de reset de senha no e-mail
     supabaseClient.auth.onAuthStateChange((event, session) => {
         console.log('Auth Event:', event, session);
         if (event === 'PASSWORD_RECOVERY') {
-            // Entra no modo de redefinição de senha
             window.location.hash = '#reset';
             checkHash();
         } else if (event === 'SIGNED_IN') {
-             // Redireciona se o login for bem-sucedido
              window.location.href = 'app.html';
         }
     });
 
-    // Verifica se o usuário já está logado (ex: voltou para a pág de login)
-    // ou se ele acabou de redefinir a senha
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
         if (session && window.location.hash !== '#reset') {
             window.location.href = 'app.html';
@@ -93,15 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function checkHash() {
-    isRequestAccess = (window.location.hash === '#request'); // Alterado de isSignUp
+    isRequestAccess = (window.location.hash === '#request'); 
     isForgot = (window.location.hash === '#forgot');
     
     if (window.location.hash === '#reset') {
-        // Modo especial de redefinição de senha
         updateUI('reset');
     } else if (isForgot) {
         updateUI('forgot');
-    } else if (isRequestAccess) { // Alterado de isSignUp
+    } else if (isRequestAccess) { 
         updateUI('request');
     } else {
         updateUI('login');
@@ -110,26 +92,26 @@ function checkHash() {
 
 function toggleMode(e) {
     if (e) e.preventDefault();
-    isRequestAccess = !isRequestAccess; // Alterado de isSignUp
+    isRequestAccess = !isRequestAccess; 
     isForgot = false;
-    window.location.hash = isRequestAccess ? '#request' : ''; // Alterado de #signup
+    window.location.hash = isRequestAccess ? '#request' : ''; 
     checkHash();
 }
 
 function toggleForgotMode(e) {
     if (e) e.preventDefault();
     isForgot = true;
-    isRequestAccess = false; // Alterado de isSignUp
+    isRequestAccess = false; 
     window.location.hash = '#forgot';
     checkHash();
 }
 
 function updateUI(mode) {
     loginAlert.innerHTML = '';
-    requestAlert.innerHTML = ''; // Limpa o novo alerta
+    requestAlert.innerHTML = ''; 
     const passwordGroup = document.getElementById('password').parentElement;
 
-    if (mode === 'request') { // Alterado de 'signup'
+    if (mode === 'request') { 
         loginCard.style.display = 'none';
         requestAccessCard.style.display = 'block';
     } else if (mode === 'forgot') {
@@ -155,10 +137,10 @@ function updateUI(mode) {
         toggleLink.href = '#';
         forgotLink.style.display = 'none';
         googleLoginBtn.style.display = 'none';
-        document.querySelector('.flex.items-center.my-4').style.display = 'none'; // Esconde o "OU"
-        document.getElementById('email').parentElement.style.display = 'none'; // Esconde o campo de email
+        document.querySelector('.flex.items-center.my-4').style.display = 'none'; 
+        document.getElementById('email').parentElement.style.display = 'none'; 
         passwordGroup.style.display = 'block';
-    } else { // modo 'login'
+    } else { 
         loginCard.style.display = 'block';
         requestAccessCard.style.display = 'none';
 
@@ -177,7 +159,6 @@ function updateUI(mode) {
     feather.replace();
 }
 
-// Handler do formulário principal
 async function handleEmailFormSubmit(e) {
     e.preventDefault();
     setLoading(true);
@@ -188,29 +169,25 @@ async function handleEmailFormSubmit(e) {
 
     try {
         if (mode === '#forgot') {
-            // Modo Recuperar Senha
             const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-                redirectTo: window.location.origin + '/index.html#reset', // Link para voltar
+                redirectTo: window.location.origin + '/index.html#reset', 
             });
             if (error) throw error;
             showAlert('Link de recuperação enviado! Verifique seu e-mail.', 'success');
         
         } else if (mode === '#reset') {
-            // Modo Redefinir Senha
             const { error } = await supabaseClient.auth.updateUser({ password: password });
             if (error) throw error;
             showAlert('Senha redefinida com sucesso! Você já pode entrar.', 'success');
-            window.location.hash = ''; // Volta para o modo login
+            window.location.hash = ''; 
             checkHash();
 
         } else {
-            // Modo Login
             const { data, error } = await supabaseClient.auth.signInWithPassword({
                 email: email,
                 password: password,
             });
             if (error) throw error;
-            // Sucesso! O onAuthStateChange vai cuidar do redirecionamento
         }
     } catch (error) {
         console.error("Erro de autenticação:", error.message);
@@ -220,10 +197,9 @@ async function handleEmailFormSubmit(e) {
     }
 }
 
-// NOVO: Handler para o formulário de Solicitação de Acesso
 async function handleRequestAccessSubmit(e) {
     e.preventDefault();
-    setLoading(true, 'request'); // Seta o loading no botão de solicitação
+    setLoading(true, 'request'); 
 
     const nome = document.getElementById('requestNome').value;
     const email = document.getElementById('requestEmail').value;
@@ -254,13 +230,12 @@ async function handleRequestAccessSubmit(e) {
 }
 
 
-// Handler do Login com Google
 async function handleGoogleLogin() {
     setLoading(true);
     const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: window.location.origin + '/app.html' // Para onde voltar após o login
+            redirectTo: window.location.origin + '/app.html' 
         }
     });
 
@@ -268,7 +243,6 @@ async function handleGoogleLogin() {
         showAlert(traduzirErroSupabase(error.message), 'error');
         setLoading(false);
     }
-    // Se não houver erro, o Supabase cuida do redirecionamento
 }
 
 function setLoading(isLoading, formType = 'login') {
@@ -286,11 +260,10 @@ function setLoading(isLoading, formType = 'login') {
     if (isLoading) {
         btn.innerHTML = `<div class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin: 0 auto;"></div>`;
     } else {
-        // Restaura o texto original
         if (formType === 'request') {
             btn.innerHTML = 'Enviar Solicitação';
         } else {
-            checkHash(); // Restaura o texto dos botões de login/reset/forgot
+            checkHash(); 
         }
     }
 }
@@ -327,6 +300,5 @@ function traduzirErroSupabase(message) {
     if (message.includes('Email rate limit exceeded')) {
         return 'Muitas tentativas. Tente novamente mais tarde.';
     }
-    return message; // Retorna a mensagem original se não houver tradução
+    return message; 
 }
-
