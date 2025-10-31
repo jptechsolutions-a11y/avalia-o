@@ -26,13 +26,15 @@
                         <!-- Logo com classes de estilo do controlebaixaconsumo -->
                         <img src="icon.png" alt="Logo G&G" class="w-40 h-auto mb-6 mx-auto object-contain">
                         <h2 id="formTitle">Acesso ao Sistema</h2>
+                        <!-- MANTIDO: Subtítulo original do sistema de avaliação -->
                         <p id="formSubtitle">Avaliação de Desempenho G&G</p>
                     </div>
 
                     <div id="loginAlert"></div>
 
                     <!-- Formulário de Login (agora usa 'loginForm' como ID) -->
-                    <form id="loginForm" class="auth-form">
+                    <!-- REVERTIDO: 'loginForm' substituído por 'emailForm' para bater com o JS original -->
+                    <form id="emailForm" class="auth-form">
                         <div class="form-group" style="margin-bottom: 20px;">
                             <label for="email" class="font-semibold text-gray-700" style="display: none;">E-mail:</label>
                             <input type="email" id="email" placeholder="E-mail" required class="w-full">
@@ -42,28 +44,53 @@
                             <input type="password" id="password" placeholder="Senha" required class="w-full">
                         </div>
                         
-                        <!-- Grupo de Seleção de Filial (copiado do controlebaixaconsumo) -->
-                        <div class="form-group" id="filialSelectGroup" style="display: none; margin-bottom: 30px;">
-                            <label for="filialSelect" class="block mb-1 font-semibold text-sm text-gray-700">Selecione a Filial:</label>
-                            <select id="filialSelect" style="width: 100%; padding: 14px; border: 1px solid #ccc; border-radius: 8px;"></select>
-                        </div>
+                        <!-- REMOVIDO: Bloco de seleção de filial -->
 
                         <button id="emailSubmitBtn" type="submit" class="btn-gradient">
                             ENTRAR
                         </button>
                     </form>
                     
-                    <!-- Links de Rodapé (alterados para usar Modais) -->
+                    <!-- REVERTIDO: Links de rodapé para usar HASH (funcionalidade original) -->
                     <div class="mt-6 text-center text-sm">
-                        <a href="#" class="text-gray-500 hover:underline" onclick="openForgotPasswordModal()">Esqueceu sua senha?</a>
+                        <a href="#forgot" id="forgotLink" class="text-gray-500 hover:underline">Esqueceu sua senha?</a>
                         <span class="mx-2 text-gray-400">|</span>
-                        <a href="#" class="font-semibold" style="color: var(--accent);" onclick="openRequestAccessModal()">Solicitar Acesso</a>
+                        <a href="#request" id="toggleLink" class="font-semibold" style="color: var(--accent);">Solicitar Acesso</a>
                     </div>
                 </div>
 
-                <!-- Card de Solicitação de Acesso (agora é um modal, mas mantemos a estrutura caso o JS falhe) -->
+                <!-- Card de Solicitação de Acesso (RESTAURADO da versão original) -->
                 <div class="auth-card" id="requestAccessCard" style="display: none;">
-                    <!-- Conteúdo do requestAccessCard (será migrado para o modal) -->
+                    <div class="auth-header">
+                        <img src="icon.png" alt="Logo G&G" class="w-40 h-auto mb-6 mx-auto object-contain">
+                        <h2 id="formTitleRequest">Solicitar Acesso</h2>
+                        <p id="formSubtitleRequest">Preencha seus dados para solicitar a criação da sua conta.</p>
+                    </div>
+                    
+                    <div id="requestAlert"></div>
+
+                    <form id="requestAccessForm" class="auth-form">
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label for="requestNome" class="font-semibold text-gray-700" style="display: none;">Seu Nome Completo:</label>
+                            <input type="text" id="requestNome" placeholder="Seu Nome Completo" required class="w-full">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label for="requestEmail" class="font-semibold text-gray-700" style="display: none;">Seu E-mail:</label>
+                            <input type="email" id="requestEmail" placeholder="seu.email@empresa.com" required class="w-full">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label for="requestMotivo" class="font-semibold text-gray-700" style="display: none;">Motivo/Justificativa:</label>
+                            <textarea id="requestMotivo" placeholder="Ex: Sou gestor da filial X e preciso de acesso para avaliar..." required class="w-full" rows="3"></textarea>
+                        </div>
+                        <button id="requestSubmitBtn" type="submit" class="btn btn-primary w-full" style="padding: 14px; font-size: 1rem;">
+                            Enviar Solicitação
+                        </button>
+                    </form>
+                    
+                    <div class="mt-6 text-center text-sm">
+                        <span id="toggleTextRequest">Já tem uma conta?</span>
+                        <a href="#" id="toggleLinkRequest" class="font-semibold" style="color: var(--accent);">Entrar</a>
+                    </div>
                 </div>
             </div>
 
@@ -97,52 +124,7 @@
         © 2025 - Sistema G&G | Desenvolvido por <span style="font-weight: 700;">@ Juliano Patrick </span>
     </footer>
 
-    <!-- MODAIS (Copiados do controlebaixaconsumo) -->
-    <div id="forgotPasswordModal" class="modal-overlay" style="display: none; justify-content: center; align-items: center;">
-        <div class="modal-content" style="max-width: 450px;">
-            <h3 class="text-xl font-semibold mb-4 text-gray-800">Recuperar Senha</h3>
-            <p class="text-sm text-gray-600 mb-4">Digite seu e-mail cadastrado. Se ele existir no sistema, você receberá um link para redefinir sua senha.</p>
-            <form id="forgotPasswordForm">
-                <div class="form-group mb-4">
-                    <label for="forgotEmail" class="font-semibold text-gray-700">E-mail:</label>
-                    <input type="email" id="forgotEmail" required class="w-full" style="padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px;">
-                </div>
-                <div id="forgotPasswordAlert" class="mt-4"></div>
-                <div class="flex gap-4 mt-6">
-                    <button type="submit" class="btn btn-primary flex-1">Enviar Link de Recuperação</button>
-                    <button type="button" class="btn btn-danger flex-1" onclick="closeModal('forgotPasswordModal')">Cancelar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="requestAccessModal" class="modal-overlay" style="display: none; justify-content: center; align-items: center;">
-        <div class="modal-content" style="max-width: 500px;">
-            <h3 class="text-xl font-semibold mb-4 text-gray-800">Solicitar Acesso</h3>
-            <p class="text-sm text-gray-600 mb-4">Preencha seus dados. Sua solicitação será enviada ao administrador para aprovação.</p>
-            <form id="requestAccessForm">
-                <div class="form-group mb-3">
-                    <label for="requestNome" class="font-semibold text-gray-700">Nome Completo:</label>
-                    <input type="text" id="requestNome" required class="w-full" style="padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px;">
-                </div>
-                <div class="form-group mb-3">
-                    <label for="requestEmail" class="font-semibold text-gray-700">Seu E-mail:</label>
-                    <input type="email" id="requestEmail" required class="w-full" style="padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px;">
-                </div>
-                <div class="form-group mb-4">
-                    <label for="requestMotivo" class="font-semibold text-gray-700">Motivo/Justificativa:</label>
-                    <textarea id="requestMotivo" rows="3" required class="w-full" style="padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px;"></textarea>
-                </div>
-                <div id="requestAccessAlert" class="mt-4"></div>
-                <div class="flex gap-4 mt-6">
-                    <button type="submit" class="btn btn-primary flex-1">Enviar Solicitação</button>
-                    <button type="button" class="btn btn-danger flex-1" onclick="closeModal('requestAccessModal')">Cancelar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    <!-- FIM DOS MODAIS -->
-
+    <!-- REMOVIDO: Modais (a lógica antiga usa troca de cards) -->
 
     <script src="login.js"></script>
     <script>
@@ -150,3 +132,4 @@
     </script>
 </body>
 </html>
+
