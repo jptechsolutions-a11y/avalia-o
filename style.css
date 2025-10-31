@@ -3274,7 +3274,7 @@ body.login-body {
 .auth-card {
     width: 100%;
     background: white;
-    padding: 50px 40px; /* Padding da sua referência */
+    padding: 80px 40px; /* Padding da sua referência */
     border-radius: 16px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); /* Sombra da sua referência */
 }
