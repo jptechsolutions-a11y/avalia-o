@@ -125,64 +125,98 @@ function toggleForgotMode(e) {
     checkHash();
 }
 
-// ... existing code ...
 function updateUI(mode) {
     if (!loginAlert || !requestAlert || !document.getElementById('password')) return; // Proteção extra
 
     loginAlert.innerHTML = '';
     requestAlert.innerHTML = ''; 
+    
+    // **** INÍCIO DA CORREÇÃO ****
     const passwordEl = document.getElementById('password'); // Pegar o elemento password
     const emailEl = document.getElementById('email'); // Pegar o elemento email
     const passwordGroup = passwordEl.parentElement;
     const emailGroup = emailEl.parentElement; // Pegar o grupo do email
+    // **** FIM DA CORREÇÃO ****
+    
     // const googleLoginBtn = document.getElementById('googleLoginBtn'); // Removido
     // const orSeparator = document.querySelector('.flex.items-center.my-4'); // Removido
 
     if (mode === 'request') { 
-// ... existing code ...
+        loginCard.style.display = 'none';
+        requestAccessCard.style.display = 'block';
     } else if (mode === 'forgot') {
         loginCard.style.display = 'block';
         requestAccessCard.style.display = 'none';
-// ... existing code ...
+        
+        formTitle.textContent = 'Recuperar Senha';
+        formSubtitle.textContent = 'Digite seu e-mail para enviarmos um link de recuperação.';
+        emailSubmitBtn.innerHTML = 'Enviar Link <i data-feather="arrow-right" class="h-4 w-4 ml-2"></i>';
+        
+        // toggleText.textContent = 'Lembrou a senha?'; // toggleText removido
+        toggleLink.textContent = 'Entrar';
         toggleLink.href = '#';
         
+        // **** INÍCIO DA CORREÇÃO ****
         passwordGroup.style.display = 'none';
         passwordEl.required = false; // <-- CORREÇÃO: Campo escondido não é obrigatório
         
         emailGroup.style.display = 'block'; // Garantir que email esteja visível
         emailEl.required = true; // <-- CORREÇÃO: Campo visível é obrigatório
-
+        // **** FIM DA CORREÇÃO ****
+        
         // if (googleLoginBtn) googleLoginBtn.style.display = 'none'; 
-// ... existing code ...
+        // if (orSeparator) orSeparator.style.display = 'none'; 
     } else if (mode === 'reset') {
         loginCard.style.display = 'block';
-// ... existing code ...
+        requestAccessCard.style.display = 'none';
+
+        formTitle.textContent = 'Redefinir Senha';
+        formSubtitle.textContent = 'Digite sua nova senha.';
+        emailSubmitBtn.innerHTML = 'Salvar Nova Senha <i data-feather="save" class="h-4 w-4 ml-2"></i>';
+        
+        // toggleText.textContent = ''; // toggleText removido
+        toggleLink.textContent = '';
+        toggleLink.href = '#';
+        forgotLink.style.display = 'none';
+
         // if (googleLoginBtn) googleLoginBtn.style.display = 'none'; 
         // if (orSeparator) orSeparator.style.display = 'none'; 
         
-        // const emailEl = document.getElementById('email'); // Movido para cima
+        // **** INÍCIO DA CORREÇÃO ****
         if (emailEl) emailEl.parentElement.style.display = 'none'; 
         emailEl.required = false; // <-- CORREÇÃO: Campo escondido não é obrigatório
         
         passwordGroup.style.display = 'block';
         passwordEl.required = true; // <-- CORREÇÃO: Campo visível é obrigatório
+        // **** FIM DA CORREÇÃO ****
     } else { 
         // Modo 'login' padrão
-// ... existing code ...
+        loginCard.style.display = 'block';
+        requestAccessCard.style.display = 'none';
+
+        formTitle.textContent = 'Acesso ao Sistema'; // Corrigido para o novo layout
+        formSubtitle.textContent = 'Avaliação de Desempenho G&G'; // Corrigido
+        emailSubmitBtn.innerHTML = 'ENTRAR'; // Corrigido
+        
+        // toggleText.textContent = 'Não tem uma conta?'; // toggleText removido
+        toggleLink.textContent = 'Solicitar Acesso';
+        toggleLink.href = '#request';
+        // CORREÇÃO: Alterado de 'block' para 'inline' para permitir o alinhamento
+        forgotLink.style.display = 'inline'; 
+
         // if (googleLoginBtn) googleLoginBtn.style.display = 'none'; 
         // if (orSeparator) orSeparator.style.display = 'none'; 
         
-        // const emailEl = document.getElementById('email'); // Movido para cima
+        // **** INÍCIO DA CORREÇÃO ****
         if (emailEl) emailEl.parentElement.style.display = 'block';
         emailEl.required = true; // <-- CORREÇÃO: Campo visível é obrigatório
         
         passwordGroup.style.display = 'block';
         passwordEl.required = true; // <-- CORREÇÃO: Campo visível é obrigatório
+        // **** FIM DA CORREÇÃO ****
     }
     feather.replace();
 }
-// ... existing code ...
-
 
 async function handleEmailFormSubmit(e) {
     e.preventDefault();
@@ -339,5 +373,4 @@ function traduzirErroSupabase(message) {
     }
     return message; 
 }
-
 
