@@ -7,6 +7,8 @@
     <link rel="icon" href="https://i.imgur.com/80SsE11.png" type="image/png">
     <meta name="theme-color" content="#011627">
     <link rel="stylesheet" href="style.css">
+    <!-- NOVO: Link para o CSS do Laudo/Relatórios -->
+    <link rel="stylesheet" href="laudo_relatorios_estilos.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -17,7 +19,6 @@
     <div id="appShell" class="h-screen flex flex-col" style="display: none;">
 
         <header id="topBar" class="flex-shrink-0">
-            <!-- ... (cabeçalho existente, sem alterações) ... -->
             <div class="flex items-center gap-4">
                 <button id="sidebarToggle" class="btn-icon">
                     <i data-feather="menu" class="h-5 w-5"></i>
@@ -69,7 +70,6 @@
         <div id="mainSystem" class="flex flex-1 overflow-hidden">
 
             <aside class="sidebar">
-                <!-- ... (sidebar existente, sem alterações) ... -->
                 <nav class="p-2 pt-4">
                     <a href="#home" class="nav-item" title="Home" onclick="window.GG.showView('homeView', this)">
                         <i data-feather="home" class="h-5 w-5 mr-3"></i> <span class="nav-text">Home</span>
@@ -82,6 +82,10 @@
                     </a>
                     <a href="#relatorios" class="nav-item" title="Relatórios" onclick="window.GG.showView('relatoriosView', this)">
                         <i data-feather="bar-chart-2" class="h-5 w-5 mr-3"></i> <span class="nav-text">Relatórios</span>
+                    </a>
+                    <!-- NOVO: Link Colaborador -->
+                    <a href="#colaborador" class="nav-item" title="Desempenho Colaborador" onclick="window.GG.showView('colaboradorView', this)">
+                        <i data-feather="trending-up" class="h-5 w-5 mr-3"></i> <span class="nav-text">Colaborador</span>
                     </a>
 
                     <div class="mt-4 border-t border-gray-700 pt-2">
@@ -106,7 +110,6 @@
 
                     <!-- Conteúdo: Home -->
                     <div id="homeView" class="view-content active">
-                        <!-- ... (view home existente, sem alterações) ... -->
                         <h1><i class="fas fa-tachometer-alt"></i> Painel Inicial</h1>
                         <div id="statusConexaoHome" class="status-conexao">
                             <span id="textoStatus"><i class="fas fa-sync fa-spin"></i> Verificando conexão...</span>
@@ -125,7 +128,6 @@
 
                     <!-- Conteúdo: Nova Avaliação -->
                     <div id="avaliacaoView" class="view-content">
-                        <!-- ... (view avaliação existente, sem alterações) ... -->
                         <h1><i class="fas fa-edit"></i> Nova Avaliação de Desempenho</h1>
                         <div id="statusDados" class="alert alert-info" style="display:none;"></div>
                         
@@ -198,7 +200,6 @@
 
                     <!-- Conteúdo: Histórico -->
                     <div id="historicoView" class="view-content">
-                        <!-- ... (view histórico existente, sem alterações) ... -->
                         <div id="accessStatusHistorico" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-history"></i> Histórico de Avaliações</h1>
                         <div class="info-card">
@@ -222,12 +223,73 @@
                         </div>
                     </div>
 
-                    <!-- Conteúdo: Relatórios -->
+                    <!-- Conteúdo: Relatórios (NOVO CONTEÚDO) -->
                     <div id="relatoriosView" class="view-content">
-                         <!-- ... (view relatórios existente, sem alterações) ... -->
                          <div id="accessStatusRelatorios" class="access-status" style="display: none;"></div>
-                        <h1><i class="fas fa-chart-bar"></i> Relatórios</h1>
-                        <p>Seção de relatórios em desenvolvimento.</p>
+                        <h1><i class="fas fa-chart-bar"></i> Relatórios Gerenciais</h1>
+                        <div class="alert alert-info" id="relatoriosAdminOnly" style="display: none;">
+                            <i class="fas fa-info-circle"></i> Visualizando relatórios como Administrador (todos os dados).
+                        </div>
+
+                        <div class="report-grid">
+                            <div class="chart-card">
+                                <h3><i data-feather="pie-chart"></i> Média Geral por Filial</h3>
+                                <div class="chart-container-wrapper">
+                                    <canvas id="chartMediaFilial"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3><i data-feather="bar-chart"></i> Média Geral por Seção</h3>
+                                <div class="chart-container-wrapper">
+                                    <canvas id="chartMediaSecao"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3><i data-feather="trending-up"></i> Evolução da Média Geral (Últimos 12 Meses)</h3>
+                            <div class="chart-container-wrapper" style="height: 350px;">
+                                <canvas id="chartEvolucaoGeral"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Conteúdo: Colaborador (NOVA VIEW) -->
+                    <div id="colaboradorView" class="view-content">
+                        <h1><i class="fas fa-chart-line"></i> Desempenho do Colaborador</h1>
+                        <div class="info-card">
+                            <h3><i class="fas fa-filter"></i> Selecionar Colaborador</h3>
+                            <div class="form-group">
+                                <label for="colaboradorSelect">Selecione um colaborador para ver seu histórico</label>
+                                <select id="colaboradorSelect" onchange="window.GG.carregarDadosColaborador(this.value)">
+                                    <option value="">Selecione...</option>
+                                    <!-- Será populado pelo JS -->
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="colaboradorData" style="display: none;">
+                             <div class="stats-grid">
+                                <div class="stat-card-dash"> <div class="stat-number" id="colabMediaGeral">0.0</div> <div class="stat-label">Média Geral</div> </div>
+                                <div class="stat-card-dash"> <div class="stat-number" id="colabTotalAvaliacoes">0</div> <div class="stat-label">Total de Avaliações</div> </div>
+                                <div class="stat-card-dash"> <div class="stat-number" id="colabUltimaNota">0.0</div> <div class="stat-label">Última Pontuação</div> </div>
+                                <div class="stat-card-dash"> <div class="stat-number" id="colabTendencia">-</div> <div class="stat-label">Tendência</div> </div>
+                            </div>
+                            
+                            <div class="chart-card">
+                                <h3><i data-feather="trending-up"></i> Evolução das Pontuações</h3>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartEvolucaoColaborador"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="info-card">
+                                 <h3><i data-feather="clipboard"></i> Histórico Detalhado</h3>
+                                 <div id="colaboradorHistoricoContainer" class="table-container">
+                                     <!-- Tabela de histórico do colaborador será inserida aqui -->
+                                 </div>
+                            </div>
+                        </div>
+
                     </div>
 
                     <!-- Conteúdo: Configurações -->
@@ -252,7 +314,6 @@
                             
                             <!-- ABA 1: GERENCIAR USUÁRIOS -->
                             <div id="configTabUsuarios" class="config-tab-content active">
-                                <!-- ... (aba usuários existente, sem alterações) ... -->
                                 <div class="info-card">
                                     <h3><i data-feather="user-plus"></i> Solicitações de Acesso Pendentes</h3>
                                     <div class="table-container">
@@ -276,7 +337,6 @@
                             
                             <!-- ABA 2: GERENCIAR INDICADORES -->
                             <div id="configTabIndicadores" class="config-tab-content">
-                                <!-- ... (aba indicadores existente, sem alterações) ... -->
                                 <div class="info-card">
                                     <h3><i class="fas fa-plus-circle"></i> Cadastrar Novo Indicador</h3>
                                     <form id="form-add-indicador" onsubmit="event.preventDefault(); window.GG.salvarIndicador();">
@@ -405,7 +465,6 @@
                                     <h3><i data-feather="briefcase"></i> Administrar Colaboradores e Gestores</h3>
                                     <p class="mb-4 text-sm text-gray-600">Aqui você pode editar o status (ativo, inativo, demitido, etc.) e outros dados cadastrais do pessoal.</p>
                                     
-                                    <!-- NOVO: Filtros para Pessoal -->
                                     <div class="filter-bar">
                                         <div class="form-group">
                                             <label for="filtroPessoalNome">Buscar por Nome/Matrícula</label>
@@ -435,7 +494,6 @@
                                         </div>
                                     </div>
 
-                                    <!-- NOVO: Botão Adicionar -->
                                     <div style="margin-bottom: 20px; text-align: right;">
                                         <button class="btn btn-success" onclick="window.GG.abrirModalNovoPessoal()">
                                             <i data-feather="plus" class="h-4 w-4 mr-2"></i> Adicionar Novo
@@ -471,7 +529,6 @@
                     
                     <!-- Conteúdo: Perfil -->
                     <div id="perfilView" class="view-content">
-                         <!-- ... (view perfil existente, sem alterações) ... -->
                          <h1><i class="fas fa-user-circle"></i> Meu Perfil</h1>
                         <div class="bg-white p-6 rounded-lg shadow-md max-w-3xl mx-auto info-card">
                             <form id="perfilForm" onsubmit="event.preventDefault(); window.GG.handlePerfilFormSubmit();">
@@ -520,9 +577,8 @@
     <!-- Tela de Loading -->
      <div class="loading" id="loading"><div class="spinner"></div><p>Processando...</p></div>
     
-     <!-- Modal Genérico (Existente) -->
+     <!-- Modal Genérico -->
      <div id="editModal" class="modal">
-       <!-- ... (modal existente, sem alterações) ... -->
        <div class="modal-content">
         <span class="modal-close" onclick="window.GG.fecharModal()">&times;</span>
         <h3 id="modalTitle">Editar Item</h3>
@@ -536,9 +592,8 @@
        </div>
      </div>
      
-     <!-- Modal de Edição de Usuário (Existente) -->
+     <!-- Modal de Edição de Usuário -->
      <div id="userEditModal" class="modal">
-       <!-- ... (modal existente, sem alterações) ... -->
        <div class="modal-content" style="width: 600px; max-width: 95vw;">
         <span class="modal-close" onclick="window.GG.fecharModalUsuario()">&times;</span>
         <h3>Editar Usuário</h3>
@@ -593,13 +648,13 @@
        </div>
      </div>
 
-     <!-- Modal de Edição de Pessoal (Atualizado) -->
+     <!-- Modal de Edição de Pessoal -->
      <div id="pessoalEditModal" class="modal">
        <div class="modal-content" style="width: 600px; max-width: 95vw;">
         <span class="modal-close" onclick="window.GG.fecharModalPessoal()">&times;</span>
         <h3 id="modalPessoalTitle">Editar Colaborador/Gestor</h3>
         <form id="pessoalEditForm" onsubmit="event.preventDefault(); window.GG.salvarModalPessoal();">
-            <input type="hidden" id="modal-pessoal-matricula-original"> <!-- Guarda a matrícula original para UPDATEs -->
+            <input type="hidden" id="modal-pessoal-matricula-original"> 
             
             <div class="form-row">
                  <div class="form-group">
@@ -646,7 +701,6 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <!-- Espaço Vazio -->
                 </div>
             </div>
             <div class="flex justify-end gap-4 mt-6">
@@ -658,6 +712,59 @@
                 </button>
             </div>
         </form>
+       </div>
+     </div>
+
+     <!-- NOVO: Modal de Laudo/Impressão -->
+     <div id="laudoModal" class="modal">
+       <div class="laudo-container modal-content">
+            <div class="laudo-header">
+                <h3>Laudo da Avaliação</h3>
+                <button class="btn btn-primary" onclick="window.GG.imprimirLaudo()">
+                    <i data-feather="printer" class="h-4 w-4 mr-2"></i> Imprimir
+                </button>
+                <span class="modal-close" onclick="window.GG.fecharLaudo()">&times;</span>
+            </div>
+            <div class="laudo-body" id="laudoBody">
+                <div class="laudo-section">
+                    <h4 class="laudo-titulo">Dados da Avaliação</h4>
+                    <div id="laudoInfo" class="laudo-info-grid">
+                        <!-- Conteúdo dinâmico -->
+                    </div>
+                </div>
+                
+                <div class="laudo-section">
+                     <h4 class="laudo-titulo">Resultado Final</h4>
+                     <div id="laudoResultado" class="laudo-resultado-grid">
+                        <!-- Conteúdo dinâmico -->
+                     </div>
+                </div>
+
+                <div class="laudo-section">
+                    <h4 class="laudo-titulo">Competências Avaliadas</h4>
+                    <div id="laudoCompetencias">
+                        <!-- Conteúdo dinâmico -->
+                    </div>
+                </div>
+
+                <div class="laudo-section">
+                    <h4 class="laudo-titulo">Indicadores (Referente ao Mês)</h4>
+                    <div id="laudoIndicadores">
+                        <!-- Conteúdo dinâmico -->
+                    </div>
+                </div>
+                
+                <div class="laudo-section">
+                    <h4 class="laudo-titulo">Feedback e Comentários</h4>
+                    <div id="laudoFeedback">
+                        <!-- Conteúdo dinâmico -->
+                    </div>
+                </div>
+                
+                <div class="laudo-footer">
+                    <p>Documento gerado pelo Sistema G&G em: <span id="laudoDataGeracao">--</span></p>
+                </div>
+            </div>
        </div>
      </div>
 
