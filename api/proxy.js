@@ -27,18 +27,14 @@ export default async (req, res) => {
     const decodedEndpoint = decodeURIComponent(endpoint);
     
     // 1. MIDDLEWARE DE SEGURANÇA: VALIDAR O JWT DO USUÁRIO
-    // Esta etapa garante que *apenas usuários logados* possam usar seu proxy.
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         console.error("[proxy] Token JWT não encontrado no header");
         return res.status(401).json({ error: 'Não autorizado. Token JWT necessário.' });
     }
     // NOTA: Nós *não* usamos esse token para falar com o Supabase,
-    // apenas para verificar se o usuário está logado. A validação
-    // real (se o token é válido) é feita pela própria API proxy da Vercel
-    // ou poderia ser feita aqui com uma biblioteca JWT, mas para este
-    // caso, apenas checar se ele existe já é um bom passo.
-
+    // apenas para verificar se o usuário está logado.
+    
     // 2. CONSTRUÇÃO DA URL FINAL
     const fullSupabaseUrl = `${SUPABASE_URL}/rest/v1/${decodedEndpoint}`;
     
@@ -47,15 +43,16 @@ export default async (req, res) => {
     const headersToSupabase = { ...req.headers };
 
     // !! ESTA É A CORREÇÃO !!
-    // Deleta o header de Autorização do *usuário*
+    // Deleta o header de Autorização do *usuário* que veio em '...req.headers'
     delete headersToSupabase.authorization; 
-    // Deleta outros headers internos que não devem ser repassados
+    // Deleta outros headers internos
     delete headersToSupabase.host;
     delete headersToSupabase.connection;
     delete headersToSupabase['content-length'];
     delete headersToSupabase['x-vercel-id'];
-    // ... (outros headers específicos da Vercel)
-
+    delete headersToSupabase['x-real-ip'];
+    delete headersToSupabase['x-forwarded-for'];
+    
     const options = {
         method: method,
         headers: {
