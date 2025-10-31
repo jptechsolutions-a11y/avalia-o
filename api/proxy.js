@@ -17,6 +17,7 @@ export default async (req, res) => {
         });
     }
 
+    // Pega o 'endpoint' da query string (ex: "usuarios?id=eq.1")
     const { endpoint } = req.query;
     const { method, body } = req;
     
@@ -24,21 +25,22 @@ export default async (req, res) => {
         return res.status(400).json({ error: 'Endpoint Supabase não especificado.' });
     }
 
+    // Decodifica o endpoint para caso tenha caracteres especiais
     const decodedEndpoint = decodeURIComponent(endpoint);
     
-    // 1. MIDDLEWARE DE SEGURANÇA: VALIDAR O JWT DO USUÁRIO
+    // 1. VERIFICAÇÃO DE SEGURANÇA (Verifica se o usuário está logado)
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        console.error("[proxy] Token JWT não encontrado no header");
+        console.error("[proxy] Token JWT do usuário não encontrado no header");
         return res.status(401).json({ error: 'Não autorizado. Token JWT necessário.' });
     }
-    // NOTA: Apenas verificamos se o token *existe*. Não o usamos para o Supabase.
+    // (Nós não usamos esse token, mas verificamos se ele existe)
     
     // 2. CONSTRUÇÃO DA URL FINAL
     const fullSupabaseUrl = `${SUPABASE_URL}/rest/v1/${decodedEndpoint}`;
     
-    // 3. CONFIGURAÇÃO DA REQUISIÇÃO (MAIS SEGURA)
-    // Criamos um objeto de headers "limpo", passando apenas o que é necessário.
+    // 3. CONFIGURAÇÃO DA REQUISIÇÃO (A CORREÇÃO ESTÁ AQUI)
+    // Criamos um objeto de headers "limpo"
     const headersToSupabase = {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -54,7 +56,7 @@ export default async (req, res) => {
     
     const options = {
         method: method,
-        headers: headersToSupabase // Usa o objeto de headers limpo
+        headers: headersToSupabase // Usa o objeto de headers limpo e seguro
     };
     
     if (body && ['POST', 'PATCH', 'PUT'].includes(method)) {
