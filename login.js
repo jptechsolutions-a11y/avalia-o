@@ -183,7 +183,8 @@ function updateUI(mode) {
         // toggleText.textContent = 'Não tem uma conta?'; // toggleText removido
         toggleLink.textContent = 'Solicitar Acesso';
         toggleLink.href = '#request';
-        forgotLink.style.display = 'block';
+        // CORREÇÃO: Alterado de 'block' para 'inline' para permitir o alinhamento
+        forgotLink.style.display = 'inline'; 
 
         // if (googleLoginBtn) googleLoginBtn.style.display = 'none'; 
         // if (orSeparator) orSeparator.style.display = 'none'; 
@@ -350,3 +351,5 @@ function traduzirErroSupabase(message) {
     }
     return message; 
 }
+
+
