@@ -1,28 +1,14 @@
 const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
 
-const loginCard = document.getElementById('loginCard');
-const requestAccessCard = document.getElementById('requestAccessCard');
-
-const formTitle = document.getElementById('formTitle');
-const formSubtitle = document.getElementById('formSubtitle');
-const emailForm = document.getElementById('emailForm');
-// const googleLoginBtn = document.getElementById('googleLoginBtn'); // Removido
-const emailSubmitBtn = document.getElementById('emailSubmitBtn');
-const toggleText = document.getElementById('toggleText');
-const toggleLink = document.getElementById('toggleLink');
-const forgotLink = document.getElementById('forgotLink');
-const loginAlert = document.getElementById('loginAlert');
-const passwordLabel = document.querySelector('label[for="password"]');
-
-const requestAccessForm = document.getElementById('requestAccessForm');
-const requestSubmitBtn = document.getElementById('requestSubmitBtn');
-const toggleLinkRequest = document.getElementById('toggleLinkRequest');
-const requestAlert = document.getElementById('requestAlert');
+// Apenas declaramos as variáveis aqui
+let loginCard, requestAccessCard, formTitle, formSubtitle, emailForm, emailSubmitBtn;
+let toggleLink, forgotLink, loginAlert, passwordLabel;
+let requestAccessForm, requestSubmitBtn, toggleLinkRequest, requestAlert;
+let supabaseClient;
 
 let isRequestAccess = false; 
 let isForgot = false;
-let supabaseClient;
 
 try {
     if (!SUPABASE_URL || SUPABASE_URL.includes('URL_DO_SEU_PROJETO')) {
@@ -37,15 +23,48 @@ try {
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } catch (error) {
     console.error("Erro ao inicializar Supabase:", error.message);
-    showAlert("Erro de configuração do cliente. Verifique o console.", 'error');
+    // Tentamos mostrar o alerta, mas o 'loginAlert' pode não estar definido ainda
+    const tempAlert = document.getElementById('loginAlert');
+    if (tempAlert) {
+        tempAlert.innerHTML = `<div class="alert alert-error">Erro de configuração do cliente. Verifique o console.</div>`;
+    }
 }
 
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Agora atribuímos os elementos DO INTERIOR do DOMContentLoaded
+    loginCard = document.getElementById('loginCard');
+    requestAccessCard = document.getElementById('requestAccessCard');
+
+    formTitle = document.getElementById('formTitle');
+    formSubtitle = document.getElementById('formSubtitle');
+    emailForm = document.getElementById('emailForm');
+    emailSubmitBtn = document.getElementById('emailSubmitBtn');
+
+    // toggleText foi removido, não o procuramos mais.
+    toggleLink = document.getElementById('toggleLink');
+    forgotLink = document.getElementById('forgotLink');
+    loginAlert = document.getElementById('loginAlert');
+    passwordLabel = document.querySelector('label[for="password"]');
+
+    requestAccessForm = document.getElementById('requestAccessForm');
+    requestSubmitBtn = document.getElementById('requestSubmitBtn');
+    toggleLinkRequest = document.getElementById('toggleLinkRequest');
+    requestAlert = document.getElementById('requestAlert');
+
+
     if (!supabaseClient) {
         showAlert("Falha crítica ao carregar o Supabase. Verifique as chaves no login.js.", 'error');
         return;
     }
+    
+    // Verificação de segurança para garantir que os elementos HTML existem
+    if (!loginCard || !requestAccessCard || !emailForm || !toggleLink || !forgotLink || !requestAccessForm) {
+        console.error("Erro fatal: Elementos essenciais do DOM não encontrados. Verifique os IDs no index.html.");
+        showAlert("Erro ao carregar a página. Elementos não encontrados.", 'error');
+        return;
+    }
+
 
     checkHash(); 
     window.addEventListener('hashchange', checkHash);
@@ -107,11 +126,13 @@ function toggleForgotMode(e) {
 }
 
 function updateUI(mode) {
+    if (!loginAlert || !requestAlert || !document.getElementById('password')) return; // Proteção extra
+
     loginAlert.innerHTML = '';
     requestAlert.innerHTML = ''; 
     const passwordGroup = document.getElementById('password').parentElement;
-    const googleLoginBtn = document.getElementById('googleLoginBtn'); // Pega o botão para escondê-lo
-    const orSeparator = document.querySelector('.flex.items-center.my-4'); // Pega o separador "OU"
+    // const googleLoginBtn = document.getElementById('googleLoginBtn'); // Removido
+    // const orSeparator = document.querySelector('.flex.items-center.my-4'); // Removido
 
     if (mode === 'request') { 
         loginCard.style.display = 'none';
@@ -123,12 +144,14 @@ function updateUI(mode) {
         formTitle.textContent = 'Recuperar Senha';
         formSubtitle.textContent = 'Digite seu e-mail para enviarmos um link de recuperação.';
         emailSubmitBtn.innerHTML = 'Enviar Link <i data-feather="arrow-right" class="h-4 w-4 ml-2"></i>';
-        toggleText.textContent = 'Lembrou a senha?';
+        
+        // toggleText.textContent = 'Lembrou a senha?'; // toggleText removido
         toggleLink.textContent = 'Entrar';
         toggleLink.href = '#';
+        
         passwordGroup.style.display = 'none';
-        if (googleLoginBtn) googleLoginBtn.style.display = 'none'; // Esconde botão Google
-        if (orSeparator) orSeparator.style.display = 'none'; // Esconde "OU"
+        // if (googleLoginBtn) googleLoginBtn.style.display = 'none'; 
+        // if (orSeparator) orSeparator.style.display = 'none'; 
     } else if (mode === 'reset') {
         loginCard.style.display = 'block';
         requestAccessCard.style.display = 'none';
@@ -136,29 +159,37 @@ function updateUI(mode) {
         formTitle.textContent = 'Redefinir Senha';
         formSubtitle.textContent = 'Digite sua nova senha.';
         emailSubmitBtn.innerHTML = 'Salvar Nova Senha <i data-feather="save" class="h-4 w-4 ml-2"></i>';
-        toggleText.textContent = '';
+        
+        // toggleText.textContent = ''; // toggleText removido
         toggleLink.textContent = '';
         toggleLink.href = '#';
         forgotLink.style.display = 'none';
-        if (googleLoginBtn) googleLoginBtn.style.display = 'none'; // Esconde botão Google
-        if (orSeparator) orSeparator.style.display = 'none'; // Esconde "OU"
-        document.getElementById('email').parentElement.style.display = 'none'; 
+
+        // if (googleLoginBtn) googleLoginBtn.style.display = 'none'; 
+        // if (orSeparator) orSeparator.style.display = 'none'; 
+        
+        const emailEl = document.getElementById('email');
+        if (emailEl) emailEl.parentElement.style.display = 'none'; 
         passwordGroup.style.display = 'block';
     } else { 
         // Modo 'login' padrão
         loginCard.style.display = 'block';
         requestAccessCard.style.display = 'none';
 
-        formTitle.textContent = 'Sistema de Avaliação G&G';
-        formSubtitle.textContent = 'Acesse para continuar';
-        emailSubmitBtn.innerHTML = 'Entrar';
-        toggleText.textContent = 'Não tem uma conta?';
+        formTitle.textContent = 'Acesso ao Sistema'; // Corrigido para o novo layout
+        formSubtitle.textContent = 'Avaliação de Desempenho G&G'; // Corrigido
+        emailSubmitBtn.innerHTML = 'ENTRAR'; // Corrigido
+        
+        // toggleText.textContent = 'Não tem uma conta?'; // toggleText removido
         toggleLink.textContent = 'Solicitar Acesso';
         toggleLink.href = '#request';
         forgotLink.style.display = 'block';
-        if (googleLoginBtn) googleLoginBtn.style.display = 'none'; // Esconde botão Google
-        if (orSeparator) orSeparator.style.display = 'none'; // Esconde "OU"
-        document.getElementById('email').parentElement.style.display = 'block';
+
+        // if (googleLoginBtn) googleLoginBtn.style.display = 'none'; 
+        // if (orSeparator) orSeparator.style.display = 'none'; 
+        
+        const emailEl = document.getElementById('email');
+        if (emailEl) emailEl.parentElement.style.display = 'block';
         passwordGroup.style.display = 'block';
     }
     feather.replace();
@@ -193,6 +224,7 @@ async function handleEmailFormSubmit(e) {
                 password: password,
             });
             if (error) throw error;
+            // O redirecionamento agora é tratado pelo onAuthStateChange
         }
     } catch (error) {
         console.error("Erro de autenticação:", error.message);
@@ -253,18 +285,7 @@ async function handleRequestAccessSubmit(e) {
 
 /* Removido
 async function handleGoogleLogin() {
-    setLoading(true);
-    const { data, error } = await supabaseClient.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-            redirectTo: window.location.origin + '/app.html' 
-        }
-    });
-
-    if (error) {
-        showAlert(traduzirErroSupabase(error.message), 'error');
-        setLoading(false);
-    }
+    // ...
 }
 */
 
@@ -286,7 +307,8 @@ function setLoading(isLoading, formType = 'login') {
         if (formType === 'request') {
             btn.innerHTML = 'Enviar Solicitação';
         } else {
-            checkHash(); 
+            // Rechamamos updateUI para garantir que o texto do botão (ENTRAR) esteja correto
+            updateUI(window.location.hash || 'login'); 
         }
     }
 }
@@ -294,7 +316,10 @@ function setLoading(isLoading, formType = 'login') {
 
 function showAlert(message, type = 'error', formType = 'login') {
     const alertEl = (formType === 'request') ? requestAlert : loginAlert;
-    if (!alertEl) return;
+    if (!alertEl) {
+        console.error("Elemento de Alerta não encontrado:", formType);
+        return;
+    }
     
     const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
     alertEl.innerHTML = `<div class="alert ${alertClass}">${escapeHTML(message)}</div>`;
@@ -325,4 +350,3 @@ function traduzirErroSupabase(message) {
     }
     return message; 
 }
-
