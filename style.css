@@ -3461,4 +3461,82 @@ body.login-body {
     margin-right: 8px;
 }
 
+/* --- NOVOS ESTILOS PARA ABAS DE CONFIGURAÇÃO --- */
+.config-tabs {
+    display: flex;
+    flex-wrap: wrap; /* Permite quebrar linha em telas pequenas */
+    gap: 4px;
+    margin-bottom: -1px; /* Puxa as abas para cima da borda do card */
+    position: relative;
+    z-index: 10;
+    transform: translateY(1px); /* Compensa a borda */
+}
+.config-tab-item {
+    background: #e9ecef;
+    border: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb; /* Borda padrão */
+    padding: 10px 18px;
+    border-radius: 8px 8px 0 0;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+.config-tab-item .feather {
+    width: 16px;
+    height: 16px;
+}
+.config-tab-item:hover {
+    background: #f3f4f6;
+}
+.config-tab-item.active {
+    background: white; /* Mesmo fundo do card */
+    border-bottom-color: white; /* Esconde a borda inferior */
+    color: var(--dark);
+}
+.config-tab-content {
+    display: none;
+    /* O card .info-card já fornece o padding e a borda */
+}
+.config-tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease-out;
+}
+/* Corrige o primeiro card dentro da aba para não ter borda dupla */
+.config-tab-content > .info-card {
+    border-top-left-radius: 0; /* Arredonda só onde a aba não está ativa */
+}
+/* Garante que, se a primeira aba não for a ativa, o canto seja arredondado */
+.config-tab-item.active + .config-tab-item + .config-tab-item {
+    border-top-left-radius: 8px;
+}
+
+
+/* --- NOVOS ESTILOS PARA STATUS --- */
+.status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 50px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.4;
+}
+.status-ativo {
+    background-color: #f0fdf4; /* green 50 */
+    color: #15803d; /* green 700 */
+}
+.status-inativo, .status-demitido {
+    background-color: #fef2f2; /* red 50 */
+    color: #b91c1c; /* red 700 */
+}
+.status-aviso {
+    background-color: #fffbeb; /* yellow 50 */
+    color: #b45309; /* yellow 700 */
+}
 
