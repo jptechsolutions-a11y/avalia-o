@@ -17,6 +17,7 @@
     <div id="appShell" class="h-screen flex flex-col" style="display: none;">
 
         <header id="topBar" class="flex-shrink-0">
+            <!-- ... (cabeçalho existente, sem alterações) ... -->
             <div class="flex items-center gap-4">
                 <button id="sidebarToggle" class="btn-icon">
                     <i data-feather="menu" class="h-5 w-5"></i>
@@ -68,6 +69,7 @@
         <div id="mainSystem" class="flex flex-1 overflow-hidden">
 
             <aside class="sidebar">
+                <!-- ... (sidebar existente, sem alterações) ... -->
                 <nav class="p-2 pt-4">
                     <a href="#home" class="nav-item" title="Home" onclick="window.GG.showView('homeView', this)">
                         <i data-feather="home" class="h-5 w-5 mr-3"></i> <span class="nav-text">Home</span>
@@ -104,6 +106,7 @@
 
                     <!-- Conteúdo: Home -->
                     <div id="homeView" class="view-content active">
+                        <!-- ... (view home existente, sem alterações) ... -->
                         <h1><i class="fas fa-tachometer-alt"></i> Painel Inicial</h1>
                         <div id="statusConexaoHome" class="status-conexao">
                             <span id="textoStatus"><i class="fas fa-sync fa-spin"></i> Verificando conexão...</span>
@@ -122,6 +125,7 @@
 
                     <!-- Conteúdo: Nova Avaliação -->
                     <div id="avaliacaoView" class="view-content">
+                        <!-- ... (view avaliação existente, sem alterações) ... -->
                         <h1><i class="fas fa-edit"></i> Nova Avaliação de Desempenho</h1>
                         <div id="statusDados" class="alert alert-info" style="display:none;"></div>
                         
@@ -194,6 +198,7 @@
 
                     <!-- Conteúdo: Histórico -->
                     <div id="historicoView" class="view-content">
+                        <!-- ... (view histórico existente, sem alterações) ... -->
                         <div id="accessStatusHistorico" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-history"></i> Histórico de Avaliações</h1>
                         <div class="info-card">
@@ -219,6 +224,7 @@
 
                     <!-- Conteúdo: Relatórios -->
                     <div id="relatoriosView" class="view-content">
+                         <!-- ... (view relatórios existente, sem alterações) ... -->
                          <div id="accessStatusRelatorios" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-chart-bar"></i> Relatórios</h1>
                         <p>Seção de relatórios em desenvolvimento.</p>
@@ -229,11 +235,9 @@
                         <div id="accessStatusConfig" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-cogs"></i> Configurações do Sistema</h1>
                         
-                        <!-- Conteúdo visível apenas para Admins -->
                         <div id="configAdminOnly" style="display: none;">
                             <div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Acesso restrito a administradores.</div>
                             
-                            <!-- INÍCIO: NOVAS ABAS DE CONFIGURAÇÃO -->
                             <div class="config-tabs">
                                 <button class="config-tab-item active" onclick="window.GG.showConfigTab('usuarios', this)">
                                     <i data-feather="users"></i> Gerenciar Usuários
@@ -246,8 +250,9 @@
                                 </button>
                             </div>
                             
-                            <!-- ABA 1: GERENCIAR USUÁRIOS (Conteúdo Existente) -->
+                            <!-- ABA 1: GERENCIAR USUÁRIOS -->
                             <div id="configTabUsuarios" class="config-tab-content active">
+                                <!-- ... (aba usuários existente, sem alterações) ... -->
                                 <div class="info-card">
                                     <h3><i data-feather="user-plus"></i> Solicitações de Acesso Pendentes</h3>
                                     <div class="table-container">
@@ -269,9 +274,9 @@
                                 </div>
                             </div>
                             
-                            <!-- ABA 2: GERENCIAR INDICADORES (Conteúdo Existente) -->
+                            <!-- ABA 2: GERENCIAR INDICADORES -->
                             <div id="configTabIndicadores" class="config-tab-content">
-                                <!-- CARD: Cadastrar Indicador -->
+                                <!-- ... (aba indicadores existente, sem alterações) ... -->
                                 <div class="info-card">
                                     <h3><i class="fas fa-plus-circle"></i> Cadastrar Novo Indicador</h3>
                                     <form id="form-add-indicador" onsubmit="event.preventDefault(); window.GG.salvarIndicador();">
@@ -301,7 +306,6 @@
                                     </div>
                                 </div>
 
-                                <!-- CARD: Gerenciar Metas -->
                                 <div class="info-card">
                                     <h3><i class="fas fa-list-alt"></i> Gerenciar Metas por Filial</h3>
                                     <form id="form-add-meta" onsubmit="event.preventDefault(); window.GG.salvarMeta();">
@@ -346,7 +350,6 @@
                                     </div>
                                 </div>
 
-                                <!-- CARD: Gerenciar Resultados -->
                                 <div class="info-card">
                                     <h3><i class="fas fa-calendar-check"></i> Gerenciar Resultados Mensais</h3>
                                     <form id="form-add-resultado" onsubmit="event.preventDefault(); window.GG.adicionarOuAtualizarResultado();">
@@ -396,12 +399,49 @@
                                 </div>
                             </div>
                             
-                            <!-- ABA 3: GERENCIAR COLABORADORES/GESTORES (NOVO) -->
+                            <!-- ABA 3: GERENCIAR COLABORADORES/GESTORES -->
                             <div id="configTabPessoal" class="config-tab-content">
                                 <div class="info-card">
                                     <h3><i data-feather="briefcase"></i> Administrar Colaboradores e Gestores</h3>
                                     <p class="mb-4 text-sm text-gray-600">Aqui você pode editar o status (ativo, inativo, demitido, etc.) e outros dados cadastrais do pessoal.</p>
-                                    <!-- TODO: Adicionar filtros e botão de adicionar -->
+                                    
+                                    <!-- NOVO: Filtros para Pessoal -->
+                                    <div class="filter-bar">
+                                        <div class="form-group">
+                                            <label for="filtroPessoalNome">Buscar por Nome/Matrícula</label>
+                                            <input type="text" id="filtroPessoalNome" placeholder="Digite nome ou matrícula..." oninput="window.GG.renderizarTabelaColaboradoresGestores()">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="filtroPessoalFilial">Filtrar por Filial</label>
+                                            <select id="filtroPessoalFilial" onchange="window.GG.renderizarTabelaColaboradoresGestores()"><option value="">Todas</option></select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="filtroPessoalTipo">Filtrar por Tipo</label>
+                                            <select id="filtroPessoalTipo" onchange="window.GG.renderizarTabelaColaboradoresGestores()">
+                                                <option value="">Todos</option>
+                                                <option value="Colaborador">Colaborador</option>
+                                                <option value="Gestor">Gestor</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="filtroPessoalStatus">Filtrar por Status</label>
+                                            <select id="filtroPessoalStatus" onchange="window.GG.renderizarTabelaColaboradoresGestores()">
+                                                <option value="">Todos</option>
+                                                <option value="ativo">Ativo</option>
+                                                <option value="inativo">Inativo</option>
+                                                <option value="aviso">Aviso Prévio</option>
+                                                <option value="demitido">Demitido</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- NOVO: Botão Adicionar -->
+                                    <div style="margin-bottom: 20px; text-align: right;">
+                                        <button class="btn btn-success" onclick="window.GG.abrirModalNovoPessoal()">
+                                            <i data-feather="plus" class="h-4 w-4 mr-2"></i> Adicionar Novo
+                                        </button>
+                                    </div>
+
                                     <div class="table-container">
                                         <table class="tabela" id="tabela-colaboradores-gestores">
                                             <thead>
@@ -409,20 +449,20 @@
                                                     <th>Nome</th>
                                                     <th>Matrícula</th>
                                                     <th>Tipo</th>
+                                                    <th>Filial</th>
+                                                    <th>Seção</th>
                                                     <th>Status</th>
                                                     <th>Ações</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <tr><td colspan="5" style="text-align:center;">Carregando...</td></tr>
+                                                <tr><td colspan="7" style="text-align:center;">Carregando...</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
                                 </div>
                             </div>
-                            <!-- FIM: NOVAS ABAS DE CONFIGURAÇÃO -->
                         </div>
-                         
                          
                          <div id="configUserOnly" class="alert alert-info" style="display: none;">
                             Você não tem permissão de administrador para ver esta página.
@@ -431,6 +471,7 @@
                     
                     <!-- Conteúdo: Perfil -->
                     <div id="perfilView" class="view-content">
+                         <!-- ... (view perfil existente, sem alterações) ... -->
                          <h1><i class="fas fa-user-circle"></i> Meu Perfil</h1>
                         <div class="bg-white p-6 rounded-lg shadow-md max-w-3xl mx-auto info-card">
                             <form id="perfilForm" onsubmit="event.preventDefault(); window.GG.handlePerfilFormSubmit();">
@@ -481,6 +522,7 @@
     
      <!-- Modal Genérico (Existente) -->
      <div id="editModal" class="modal">
+       <!-- ... (modal existente, sem alterações) ... -->
        <div class="modal-content">
         <span class="modal-close" onclick="window.GG.fecharModal()">&times;</span>
         <h3 id="modalTitle">Editar Item</h3>
@@ -496,6 +538,7 @@
      
      <!-- Modal de Edição de Usuário (Existente) -->
      <div id="userEditModal" class="modal">
+       <!-- ... (modal existente, sem alterações) ... -->
        <div class="modal-content" style="width: 600px; max-width: 95vw;">
         <span class="modal-close" onclick="window.GG.fecharModalUsuario()">&times;</span>
         <h3>Editar Usuário</h3>
@@ -550,17 +593,31 @@
        </div>
      </div>
 
-     <!-- NOVO: Modal de Edição de Pessoal (Colab/Gestor) -->
+     <!-- Modal de Edição de Pessoal (Atualizado) -->
      <div id="pessoalEditModal" class="modal">
        <div class="modal-content" style="width: 600px; max-width: 95vw;">
         <span class="modal-close" onclick="window.GG.fecharModalPessoal()">&times;</span>
-        <h3>Editar Colaborador/Gestor</h3>
+        <h3 id="modalPessoalTitle">Editar Colaborador/Gestor</h3>
         <form id="pessoalEditForm" onsubmit="event.preventDefault(); window.GG.salvarModalPessoal();">
-            <input type="hidden" id="modal-pessoal-matricula">
-            <input type="hidden" id="modal-pessoal-tipo">
+            <input type="hidden" id="modal-pessoal-matricula-original"> <!-- Guarda a matrícula original para UPDATEs -->
+            
+            <div class="form-row">
+                 <div class="form-group">
+                    <label for="modal-pessoal-tipo">Tipo *</label>
+                     <select id="modal-pessoal-tipo" required>
+                        <option value="Colaborador">Colaborador</option>
+                        <option value="Gestor">Gestor</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="modal-pessoal-matricula">Matrícula *</label>
+                    <input type="text" id="modal-pessoal-matricula" required placeholder="A matrícula não pode ser alterada depois">
+                </div>
+            </div>
+
             <div class="form-row">
                 <div class="form-group">
-                    <label for="modal-pessoal-nome">Nome</label>
+                    <label for="modal-pessoal-nome">Nome *</label>
                     <input type="text" id="modal-pessoal-nome" required>
                 </div>
                 <div class="form-group">
@@ -571,8 +628,14 @@
              <div class="form-row">
                 <div class="form-group">
                     <label for="modal-pessoal-filial">Filial</label>
-                    <input type="text" id="modal-pessoal-filial">
+                    <input type="text" id="modal-pessoal-filial" placeholder="Ex: 101, 205...">
                 </div>
+                 <div class="form-group">
+                    <label for="modal-pessoal-secao">Seção</label>
+                    <input type="text" id="modal-pessoal-secao" placeholder="Ex: GESTAO, OPERACAO...">
+                </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label for="modal-pessoal-status">Status</label>
                      <select id="modal-pessoal-status" required>
@@ -581,6 +644,9 @@
                         <option value="aviso">Aviso Prévio</option>
                         <option value="demitido">Demitido</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <!-- Espaço Vazio -->
                 </div>
             </div>
             <div class="flex justify-end gap-4 mt-6">
@@ -602,3 +668,4 @@
     </script>
 </body>
 </html>
+
