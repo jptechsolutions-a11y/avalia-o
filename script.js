@@ -8,6 +8,14 @@ window.GG = {
     currentUser: null, 
     authUser: null, 
     
+    // NOVO: Cache para os charts
+    charts: {
+        mediaFilial: null,
+        mediaSecao: null,
+        evolucaoGeral: null,
+        evolucaoColaborador: null
+    },
+    
     dados: {
         avaliacoes: [], 
         colaboradores: {}, 
@@ -24,7 +32,6 @@ window.GG = {
     },
     
     COMPETENCIAS: [
-        // ... (competências, sem alterações) ...
         { 
             nome: 'COMUNICAÇÃO E INFLUÊNCIA', 
             fatores: [
@@ -59,7 +66,7 @@ window.GG = {
     ],
 
     init() {
-        console.log('🚀 Iniciando Sistema G&G v5.4 (Filtros Pessoal)...');
+        console.log('🚀 Iniciando Sistema G&G v5.5 (Laudos e Relatórios)...');
         
         try {
             if (!SUPABASE_URL || SUPABASE_URL.includes('URL_DO_SEU_PROJETO')) {
@@ -149,7 +156,6 @@ window.GG = {
     },
 
     logout() {
-        // ... (função existente, sem alterações) ...
         console.log("Deslogando usuário...");
         this.currentUser = null;
         this.authUser = null;
@@ -163,7 +169,6 @@ window.GG = {
     },
 
     setupUIListeners() {
-        // ... (função existente, sem alterações) ...
         const sidebarToggle = document.getElementById('sidebarToggle');
         const sidebar = document.querySelector('.sidebar');
         const appShell = document.getElementById('appShell');
@@ -210,7 +215,6 @@ window.GG = {
     },
 
     showMainSystem() {
-        // ... (função existente, sem alterações) ...
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
 
@@ -228,7 +232,6 @@ window.GG = {
     },
     
     showView(viewId, element = null) {
-        // ... (função existente, sem alterações) ...
         document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
         const viewEl = document.getElementById(viewId);
         if(viewEl) viewEl.classList.add('active');
@@ -254,7 +257,8 @@ window.GG = {
                 case 'homeView': this.atualizarEstatisticasHome(); break;
                 case 'avaliacaoView': this.inicializarFormularioAvaliacao(); break;
                 case 'historicoView': this.carregarHistorico(); break;
-                case 'relatoriosView': this.gerarRelatorios(); break;
+                case 'relatoriosView': this.inicializarRelatoriosView(); break; // ATUALIZADO
+                case 'colaboradorView': this.inicializarColaboradorView(); break; // NOVO
                 case 'configuracoesView': this.inicializarConfiguracoes(); break;
                 case 'perfilView': this.loadPerfilView(); break;
             }
@@ -263,7 +267,6 @@ window.GG = {
     },
 
     handleHashChange() {
-        // ... (função existente, sem alterações) ...
         if (!this.currentUser) return; 
         
         const hash = window.location.hash;
@@ -288,7 +291,6 @@ window.GG = {
     },
 
     async supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
-        // ... (função existente, sem alterações) ...
         const authToken = localStorage.getItem('auth_token');
         if (!authToken) {
             console.error("Token JWT não encontrado, deslogando.");
@@ -358,14 +360,14 @@ window.GG = {
     
     
     async carregarDadosIniciais() {
-        // ... (função existente, sem alterações) ...
         this.mostrarLoading(true);
         this.atualizarStatusDados('🔄 Carregando dados...', 'info');
         try {
             const results = await Promise.allSettled([
                 this.supabaseRequest('colaboradores?select=*', 'GET'), 
                 this.supabaseRequest('gestores?select=*', 'GET'),
-                this.supabaseRequest('avaliacoes?select=*', 'GET'), 
+                // ATUALIZADO: Seleciona as novas colunas
+                this.supabaseRequest('avaliacoes?select=*,respostas_competencias,html_indicadores,secao', 'GET'), 
                 this.supabaseRequest('indicadores?select=*&order=indicador.asc', 'GET'),
                 this.supabaseRequest('resultados_indicadores?select=*', 'GET'),
                 this.supabaseRequest('indicadores_metas?select=*', 'GET') 
@@ -403,7 +405,6 @@ window.GG = {
     },
 
     buscarColaborador(matricula) {
-        // ... (lógica de status existente, sem alterações) ...
         this.limparIndicadores();
         if (!matricula) { this.limparCamposColaborador(); return; }
         const colaborador = this.dados.colaboradores[String(matricula).trim()];
@@ -430,7 +431,6 @@ window.GG = {
     },
     
     atualizarIndicadoresExibidos() {
-        // ... (função existente, sem alterações) ...
         const container = document.getElementById('indicadoresContainer'); 
         const matricula = document.getElementById('matriculaAvaliado').value;
         const mesReferenciaInput = document.getElementById('mesReferencia').value;
@@ -458,7 +458,6 @@ window.GG = {
     },
     
     parseIndicadorValor(valorStr) {
-        // ... (função existente, sem alterações) ...
         if (typeof valorStr !== 'string' || !valorStr) return NaN;
         
         let cleanStr = valorStr.replace(/R\$|%|<|>|=/g, "").trim();
@@ -474,7 +473,6 @@ window.GG = {
     },
 
     renderizarIndicadores(indicadores, metasDaFilial, resultadosDaFilial) {
-        // ... (função existente, sem alterações) ...
         const container = document.getElementById('indicadoresContainer');
         if (!indicadores || indicadores.length === 0) {
             container.innerHTML = `<p style="color: #6c757d; font-style: italic;">Nenhum indicador aplicável para esta seção.</p>`; return;
@@ -580,14 +578,12 @@ window.GG = {
     limparIndicadores() { document.getElementById('indicadoresContainer').innerHTML = `<p style="color: #6c757d;">Selecione o colaborador e o mês de referência.</p>`; },
     
     limparCamposColaborador() {
-        // ... (função existente, sem alterações) ...
         ['matriculaAvaliado', 'nomeAvaliado', 'funcaoAvaliado', 'filial'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('matriculaAvaliado').style.borderColor = '#d1d5db';
         this.limparIndicadores();
     },
     
     buscarGestor(matricula) {
-        // ... (lógica de status existente, sem alterações) ...
         if (!matricula) { this.limparCamposGestor(); return; }
         const gestor = this.dados.gestores[String(matricula).trim()];
         const campoMatricula = document.getElementById('matriculaGestor');
@@ -610,13 +606,11 @@ window.GG = {
     },
     
     limparCamposGestor() {
-        // ... (função existente, sem alterações) ...
         ['matriculaGestor', 'nomeGestor'].forEach(id => document.getElementById(id).value = '');
          document.getElementById('matriculaGestor').style.borderColor = '#d1d5db';
     },
 
     calcularResultado() {
-        // ... (função existente, sem alterações) ...
         const { fatoresAvaliados, totalFatores } = this.atualizarProgresso();
         if (fatoresAvaliados === 0) { this.mostrarAlerta('Avalie pelo menos um fator de competência!', 'danger'); return; }
         
@@ -651,7 +645,6 @@ window.GG = {
     },
     
     async salvarAvaliacao() {
-        // ... (função existente, sem alterações) ...
         if (!this.dados.avaliacaoAtual) { this.mostrarAlerta('Calcule o resultado primeiro!', 'danger'); return; }
         if (this.dados.avaliacaoAtual.fatoresAvaliados !== this.dados.avaliacaoAtual.totalFatores) {
             this.mostrarAlerta('Responda todas as perguntas de competência antes de salvar.', 'warning');
@@ -671,11 +664,21 @@ window.GG = {
         const mesReferencia = `${mesReferenciaInput}-01`;
         
         const dissertativaLideranca = document.getElementById('dissertativa_lideranca')?.value || null;
+        
+        // NOVO: Captura respostas e HTML dos indicadores
+        const respostas_competencias = {};
+        document.querySelectorAll('#competenciasContainer input[type="radio"]:checked').forEach(radio => {
+            respostas_competencias[radio.name] = radio.value;
+        });
+        const html_indicadores = document.getElementById('indicadoresContainer').innerHTML;
+        const colaborador = this.dados.colaboradores[String(matriculaAvaliado).trim()];
+        const secao = colaborador ? colaborador.secao : null;
 
         const avaliacao = {
             nome_avaliado: nomeAvaliado, matricula_avaliado: matriculaAvaliado, 
             nome_gestor: nomeGestor, matricula_gestor: matriculaGestor, 
             filial: filial,
+            secao: secao, // NOVO
             pontuacao: parseFloat(this.dados.avaliacaoAtual.pontuacao.toFixed(1)), 
             classificacao: this.dados.avaliacaoAtual.classificacao,
             comentarios: document.getElementById('comentarios').value || null, 
@@ -683,7 +686,9 @@ window.GG = {
             oportunidades: document.getElementById('oportunidades').value || null,
             mes_referencia: mesReferencia,
             dissertativa_lideranca: dissertativaLideranca,
-            avaliador_user_id: this.currentUser.id 
+            avaliador_user_id: this.currentUser.id,
+            respostas_competencias: respostas_competencias, // NOVO
+            html_indicadores: html_indicadores // NOVO
         };
         
         try {
@@ -691,9 +696,17 @@ window.GG = {
             const resultado = await this.supabaseRequest('avaliacoes', 'POST', avaliacao);
             
             if (resultado && resultado.length > 0) {
+                // Adiciona o resultado completo (com ID) aos dados locais
                 this.dados.avaliacoes.push(resultado[0]); 
                 this.atualizarEstatisticasHome(); 
                 this.mostrarAlerta(`Avaliação de ${mesReferenciaInput} salva!`, 'success');
+                
+                // NOVO: Pergunta se quer imprimir
+                if (confirm('Avaliação salva. Deseja imprimir o laudo agora?')) {
+                    // Passa o objeto completo retornado pelo Supabase (que inclui o ID)
+                    this.exibirLaudo(resultado[0].id);
+                }
+                
                 this.limparFormulario(true); 
             } else { throw new Error('Falha ao salvar. Nenhum dado retornado.'); }
         } catch (error) { 
@@ -704,7 +717,6 @@ window.GG = {
     },
     
     limparFormulario(force = false) {
-        // ... (função existente, sem alterações) ...
          if (force || confirm('🗑️ Deseja limpar todos os campos?')) {
              document.getElementById('form-avaliacao').reset();
              document.querySelectorAll('#competenciasContainer input[type="radio"]').forEach(radio => radio.checked = false);
@@ -716,14 +728,12 @@ window.GG = {
      },
      
     inicializarFormularioAvaliacao() { 
-        // ... (função existente, sem alterações) ...
         this.criarFormularioCompetencias(); 
         this.atualizarProgresso(); 
         this.limparIndicadores(); 
     },
     
     criarFormularioCompetencias() {
-        // ... (função existente, sem alterações) ...
         const container = document.getElementById('competenciasContainer'); container.innerHTML = '';
         let fatorIndex = 0;
         this.COMPETENCIAS.forEach((c, ci) => {
@@ -753,7 +763,6 @@ window.GG = {
     },
     
     atualizarProgresso() {
-        // ... (função existente, sem alterações) ...
         const totalFatores = this.COMPETENCIAS.reduce((sum, c) => sum + c.fatores.length, 0);
         const fatoresAvaliados = document.querySelectorAll('#competenciasContainer input[type="radio"]:checked').length;
         
@@ -765,7 +774,6 @@ window.GG = {
     },
 
     async carregarHistorico(){ 
-        // ... (função existente, sem alterações) ...
         this.mostrarLoading(true);
         if (!this.dados.dadosCarregados) {
             await this.carregarDadosIniciais();
@@ -793,7 +801,6 @@ window.GG = {
     },
     
     preencherFiltroFiliaisHistorico() {
-        // ... (função existente, sem alterações) ...
         const filtroFilial = document.getElementById('filtroFilial');
         const filiais = [...new Set(this.dados.avaliacoes.map(av => av.filial))].sort();
         filtroFilial.innerHTML = '<option value="">Todas</option>';
@@ -801,7 +808,6 @@ window.GG = {
     },
     
     aplicarFiltros() {
-        // ... (função existente, sem alterações) ...
         let dadosFiltrados;
         
         if (this.currentUser.role !== 'admin') {
@@ -835,12 +841,13 @@ window.GG = {
         this.renderizarTabelaHistorico(dadosFiltrados);
     },
     
+    // ATUALIZADO: renderizarTabelaHistorico com botão Detalhes
     renderizarTabelaHistorico(dados) {
-        // ... (função existente, sem alterações) ...
         const container = document.getElementById('tabelaHistorico');
         if (dados.length === 0) { container.innerHTML = `<p style="text-align: center; padding: 20px; color: #6c757d;">Nenhuma avaliação encontrada para os filtros selecionados.</p>`; return; }
         
-        let html = '<table class="tabela"><thead><tr><th>Mês Ref.</th><th>Avaliado</th><th>Gestor</th><th>Filial</th><th>Pontuação</th><th>Classificação</th></tr></thead><tbody>';
+        // NOVO: Adiciona <th>Ações</th>
+        let html = '<table class="tabela"><thead><tr><th>Mês Ref.</th><th>Avaliado</th><th>Gestor</th><th>Filial</th><th>Pontuação</th><th>Classificação</th><th>Ações</th></tr></thead><tbody>';
         dados.sort((a,b) => new Date(b.mes_referencia || b.created_at) - new Date(a.mes_referencia || a.created_at));
         
         dados.forEach(av => {
@@ -852,19 +859,25 @@ window.GG = {
                         <td>${this.escapeHTML(av.filial)}</td>
                         <td><strong>${av.pontuacao}</strong></td>
                         <td>${this.escapeHTML(av.classificacao)}</td>
+                        <!-- NOVO: Botão Detalhes -->
+                        <td class="actions">
+                            <button class="btn btn-sm btn-info" title="Ver Detalhes" onclick="window.GG.exibirLaudo(${av.id})">
+                                <i data-feather="eye" class="h-4 w-4"></i>
+                            </button>
+                        </td>
                     </tr>`;
         });
-        html += '</tbody></table>'; container.innerHTML = html;
+        html += '</tbody></table>'; 
+        container.innerHTML = html;
+        feather.replace(); // Importante para renderizar o ícone 'eye'
     },
     
     limparFiltros() {
-        // ... (função existente, sem alterações) ...
         ['filtroMes', 'filtroFilial', 'filtroClassificacao', 'filtroNome', 'filtroGestor'].forEach(id => document.getElementById(id).value = '');
         this.aplicarFiltros();
     },
     
     exportarDados() {
-        // ... (função existente, sem alterações) ...
         if (this.dados.avaliacoesFiltradas.length === 0) { this.mostrarAlerta("Nenhum dado para exportar.", "warning"); return; }
         let csv = 'mes_referencia,nome_avaliado,matricula_avaliado,nome_gestor,matricula_gestor,filial,pontuacao,classificacao,pontos_fortes,oportunidades,comentarios,dissertativa_lideranca\n';
         this.dados.avaliacoesFiltradas.forEach(av => {
@@ -889,7 +902,6 @@ window.GG = {
     },
     
     async inicializarConfiguracoes() {
-        // ... (função existente, atualizada na v5.3) ...
         if (this.currentUser.role !== 'admin') {
             document.getElementById('configAdminOnly').style.display = 'none';
             document.getElementById('configUserOnly').style.display = 'block';
@@ -932,7 +944,6 @@ window.GG = {
     },
 
     showConfigTab(tabId, element) {
-        // ... (função existente, sem alterações) ...
         document.querySelectorAll('#configAdminOnly .config-tab-content').forEach(tab => {
             tab.classList.remove('active');
         });
@@ -955,7 +966,6 @@ window.GG = {
     // -----------------------------------------------------------------
 
     async carregarDadosAdmin() {
-        // ... (função existente, sem alterações) ...
         try {
             const [usuariosRes, solicitacoesRes] = await Promise.allSettled([
                 this.supabaseRequest('usuarios?select=*&order=nome.asc', 'GET'),
@@ -972,14 +982,12 @@ window.GG = {
     },
     
     renderizarTabelasAdmin() {
-        // ... (função existente, sem alterações) ...
         this.renderizarTabelaUsuarios();
         this.renderizarTabelaSolicitacoes();
         feather.replace();
     },
 
     renderizarTabelaSolicitacoes() {
-        // ... (função existente, sem alterações) ...
         const tbody = document.querySelector('#tabela-solicitacoes-admin tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
@@ -996,7 +1004,7 @@ window.GG = {
                 <td style="white-space: normal; min-width: 250px;">${this.escapeHTML(s.motivo)}</td>
                 <td>${data}</td>
                 <td class="actions">
-                    <button class="btn btn-sm btn-success" onclick="window.GG.mostrarAlerta('Função (Aprovar) ainda não implementada. Crie o usuário manualmente e rejeite a solicitação.', 'info', 10000)">
+                    <button class="btn btn-sm btn-success" onclick="window.GG.mostrarAlerta('Função (Aprovar) ainda não implementada. Crie o usuário manually e rejeite a solicitação.', 'info', 10000)">
                         <i data-feather="check" class="h-4 w-4"></i>
                     </button>
                     <button class="btn btn-sm btn-danger" onclick="window.GG.rejeitarSolicitacao(${s.id})">
@@ -1008,7 +1016,6 @@ window.GG = {
     },
 
     async rejeitarSolicitacao(id) {
-        // ... (função existente, sem alterações) ...
         if (!confirm('Tem certeza que deseja rejeitar esta solicitação?')) return;
         try {
             this.mostrarLoading(true);
@@ -1024,7 +1031,6 @@ window.GG = {
     },
 
     renderizarTabelaUsuarios() {
-        // ... (função existente, sem alterações) ...
         const tbody = document.querySelector('#tabela-usuarios-admin tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
@@ -1054,7 +1060,6 @@ window.GG = {
     },
 
     abrirModalEdicaoUsuario(id) {
-        // ... (função existente, sem alterações) ...
         const usuario = this.dados.usuarios.find(u => u.id === id);
         if (!usuario) {
             this.mostrarAlerta('Usuário não encontrado.', 'error');
@@ -1074,13 +1079,11 @@ window.GG = {
     },
 
     fecharModalUsuario() {
-        // ... (função existente, sem alterações) ...
         document.getElementById('userEditModal').style.display = 'none';
         document.getElementById('userEditForm').reset();
     },
 
     async salvarModalUsuario() {
-        // ... (função existente, sem alterações) ...
         const id = document.getElementById('modal-user-id').value;
         const payload = {
             nome: document.getElementById('modal-user-nome').value,
@@ -1121,7 +1124,7 @@ window.GG = {
     },
     
     // -----------------------------------------------------------------
-    // FUNÇÕES DE ADMINISTRAÇÃO (Aba Pessoal) - ATUALIZADAS
+    // FUNÇÕES DE ADMINISTRAÇÃO (Aba Pessoal)
     // -----------------------------------------------------------------
 
     renderizarTabelaColaboradoresGestores() {
@@ -1129,11 +1132,10 @@ window.GG = {
         if (!tbody) return;
         tbody.innerHTML = '';
         
-        // Combina as listas
         const colabs = Object.values(this.dados.colaboradores).map(c => ({...c, tipo: 'Colaborador'}));
         const gests = Object.values(this.dados.gestores).map(g => ({...g, tipo: 'Gestor'}));
         let pessoal = [...colabs, ...gests];
-        this.dados.colaboradoresGestores = pessoal; // Salva a lista combinada
+        this.dados.colaboradoresGestores = pessoal; 
 
         // APLICA FILTROS
         const filtroNome = document.getElementById('filtroPessoalNome').value.toLowerCase();
@@ -1192,16 +1194,14 @@ window.GG = {
         feather.replace();
     },
 
-    // NOVO: Abre o modal em modo "Adicionar"
     abrirModalNovoPessoal() {
         document.getElementById('pessoalEditForm').reset();
         document.getElementById('modalPessoalTitle').textContent = 'Adicionar Novo Pessoal';
-        document.getElementById('modal-pessoal-matricula-original').value = ''; // Limpa a chave
+        document.getElementById('modal-pessoal-matricula-original').value = ''; 
         
-        // Habilita campos-chave
         document.getElementById('modal-pessoal-matricula').readOnly = false;
         document.getElementById('modal-pessoal-tipo').disabled = false;
-        document.getElementById('modal-pessoal-status').value = 'ativo'; // Padrão
+        document.getElementById('modal-pessoal-status').value = 'ativo'; 
 
         document.getElementById('pessoalEditModal').style.display = 'flex';
         feather.replace();
@@ -1217,17 +1217,16 @@ window.GG = {
         }
         
         document.getElementById('modalPessoalTitle').textContent = `Editar ${tipo}`;
-        document.getElementById('modal-pessoal-matricula-original').value = matricula; // Guarda a chave
+        document.getElementById('modal-pessoal-matricula-original').value = matricula; 
         
         document.getElementById('modal-pessoal-matricula').value = pessoa.matricula || '';
         document.getElementById('modal-pessoal-tipo').value = tipo;
         document.getElementById('modal-pessoal-nome').value = pessoa.nome || '';
         document.getElementById('modal-pessoal-funcao').value = pessoa.funcao || '';
         document.getElementById('modal-pessoal-filial').value = pessoa.filial || '';
-        document.getElementById('modal-pessoal-secao').value = pessoa.secao || ''; // Campo novo
+        document.getElementById('modal-pessoal-secao').value = pessoa.secao || ''; 
         document.getElementById('modal-pessoal-status').value = pessoa.status || 'ativo';
 
-        // Desabilita campos-chave na edição
         document.getElementById('modal-pessoal-matricula').readOnly = true;
         document.getElementById('modal-pessoal-tipo').disabled = true;
 
@@ -1253,11 +1252,11 @@ window.GG = {
         }
         
         const payload = {
-            matricula: matricula, // Sempre envia a matrícula
+            matricula: matricula, 
             nome: document.getElementById('modal-pessoal-nome').value,
             funcao: document.getElementById('modal-pessoal-funcao').value || null,
             filial: document.getElementById('modal-pessoal-filial').value || null,
-            secao: document.getElementById('modal-pessoal-secao').value.trim().toUpperCase() || null, // Campo novo
+            secao: document.getElementById('modal-pessoal-secao').value.trim().toUpperCase() || null, 
             status: document.getElementById('modal-pessoal-status').value
         };
 
@@ -1274,13 +1273,10 @@ window.GG = {
             let resultado;
             
             if (isEditMode) {
-                // MODO EDIÇÃO (UPDATE)
-                // Remove matricula do payload, pois não queremos alterar a chave primária
                 delete payload.matricula; 
                 resultado = await this.supabaseRequest(`${TabelaNome}?matricula=eq.${matriculaOriginal}`, 'PATCH', payload);
                 
                 if (resultado && resultado[0]) {
-                    // Atualiza o objeto local
                     TabelaDados[String(matriculaOriginal).trim()] = { ...TabelaDados[String(matriculaOriginal).trim()], ...resultado[0] };
                     this.mostrarAlerta('Dados atualizados com sucesso!', 'success');
                 } else {
@@ -1288,8 +1284,6 @@ window.GG = {
                 }
                 
             } else {
-                // MODO ADIÇÃO (INSERT)
-                // Verifica se a matrícula já existe
                 if (TabelaDados[matricula]) {
                     this.mostrarAlerta(`Erro: Matrícula '${matricula}' já existe para um ${tipo}.`, 'error');
                     this.mostrarLoading(false);
@@ -1299,7 +1293,6 @@ window.GG = {
                 resultado = await this.supabaseRequest(TabelaNome, 'POST', payload);
 
                 if (resultado && resultado[0]) {
-                     // Adiciona o novo registro ao objeto local
                     TabelaDados[String(matricula).trim()] = resultado[0];
                     this.mostrarAlerta('Novo registro salvo com sucesso!', 'success');
                 } else {
@@ -1307,7 +1300,7 @@ window.GG = {
                 }
             }
             
-            this.renderizarTabelaColaboradoresGestores(); // Re-renderiza a tabela
+            this.renderizarTabelaColaboradoresGestores(); 
             this.fecharModalPessoal();
             
         } catch (e) {
@@ -1322,7 +1315,6 @@ window.GG = {
     // -----------------------------------------------------------------
 
     renderizarTabelaIndicadores() {
-        // ... (função existente, sem alterações) ...
         const tbody = document.querySelector('#tabela-indicadores tbody');
         tbody.innerHTML = '';
         if (!this.dados.indicadores || this.dados.indicadores.length === 0) { 
@@ -1344,7 +1336,6 @@ window.GG = {
     },
 
     async salvarIndicador() {
-        // ... (função existente, sem alterações) ...
         if (this.currentUser.role !== 'admin') return;
         const id = document.getElementById('edit-indicador-id').value;
         const dadosIndicador = {
@@ -1380,7 +1371,6 @@ window.GG = {
     },
 
     editarIndicador(id) {
-        // ... (função existente, sem alterações) ...
         if (this.currentUser.role !== 'admin') return;
         const indicador = this.dados.indicadores.find(ind => ind.id === id);
         if (!indicador) return; 
@@ -1393,13 +1383,11 @@ window.GG = {
     },
 
     limparFormIndicador(){ 
-        // ... (função existente, sem alterações) ...
         document.getElementById('form-add-indicador').reset(); 
         document.getElementById('edit-indicador-id').value = ''; 
     },
 
     async excluirIndicador(id) {
-        // ... (função existente, sem alterações) ...
         if (this.currentUser.role !== 'admin') return;
         if (!confirm(`Tem certeza que deseja excluir o indicador ID ${id}? ISSO EXCLUIRÁ TODAS AS METAS E RESULTADOS associados a ele.`)) return;
         try {
@@ -1424,7 +1412,6 @@ window.GG = {
     },
 
     renderizarTabelaMetas() {
-        // ... (função existente, sem alterações) ...
         const tbody = document.querySelector('#tabela-metas tbody');
         tbody.innerHTML = '';
         if (!this.dados.metas || this.dados.metas.length === 0) { 
@@ -1454,7 +1441,6 @@ window.GG = {
     },
     
     async salvarMeta() {
-        // ... (função existente, sem alterações) ...
         if (this.currentUser.role !== 'admin') return;
         const id = document.getElementById('edit-meta-id').value;
         
@@ -1500,7 +1486,6 @@ window.GG = {
     },
     
     editarMeta(id) {
-        // ... (função existente, sem alterações) ...
         if (this.currentUser.role !== 'admin') return;
         const meta = this.dados.metas.find(m => m.id === id);
         if (!meta) return; 
@@ -1519,7 +1504,6 @@ window.GG = {
     },
     
     limparFormMeta(){ 
-        // ... (função existente, sem alterações) ...
         document.getElementById('form-add-meta').reset(); 
         document.getElementById('edit-meta-id').value = ''; 
         document.getElementById('add-meta-indicador').disabled = false;
@@ -1527,7 +1511,6 @@ window.GG = {
     },
     
     async excluirMeta(id) {
-        // ... (função existente, sem alterações) ...
         if (this.currentUser.role !== 'admin') return;
         if (!confirm(`Tem certeza que deseja excluir esta meta (ID ${id})?`)) return;
         try {
@@ -1544,7 +1527,6 @@ window.GG = {
     },
     
     editarResultado(id) {
-        // ... (função existente, sem alterações) ...
         if (this.currentUser.role !== 'admin') return;
         const resultado = this.dados.resultadosIndicadores.find(res => res.id === id);
         if (!resultado) return;
@@ -1562,14 +1544,12 @@ window.GG = {
         this.mostrarAlerta(`Editando resultado. Altere o valor e salve.`, 'info');
     },
     
-    // ATUALIZADO: Popula também o novo filtro da aba Pessoal
     popularDropdownsConfig() {
         const filiaisSet = new Set(
             Object.values(this.dados.colaboradores)
                 .map(c => c.filial)
                 .filter(s => s)
         );
-        // Adiciona filiais dos gestores também
         Object.values(this.dados.gestores).forEach(g => {
             if(g.filial) filiaisSet.add(g.filial);
         });
@@ -1580,7 +1560,6 @@ window.GG = {
                 .map(c => c.secao)
                 .filter(s => s)
         );
-        // Adiciona seções dos gestores também
         Object.values(this.dados.gestores).forEach(g => {
             if(g.secao) secoesSet.add(g.secao);
         });
@@ -1594,21 +1573,15 @@ window.GG = {
             { valor: "inverso", texto: "Numérico Inverso (Ex: < 5)" }
         ];
 
-        // --- Pega os Elementos SELECT ---
         const selectIndicadorResultado = document.getElementById('add-resultado-indicador');
         const selectFilialResultado = document.getElementById('add-resultado-filial');
         const selectFilialFiltroRes = document.getElementById('filtro-resultado-filial');
-        
         const selectSecaoIndicador = document.getElementById('add-indicador-secao');
-        
         const selectIndicadorMeta = document.getElementById('add-meta-indicador');
         const selectFilialMeta = document.getElementById('add-meta-filial');
         const selectTipoMeta = document.getElementById('add-meta-tipo');
-
-        // NOVO: Select de filtro da aba Pessoal
         const selectFilialFiltroPessoal = document.getElementById('filtroPessoalFilial');
 
-        // --- Popula Dropdowns de RESULTADOS ---
         selectIndicadorResultado.innerHTML = '<option value="">Selecione Indicador...</option>';
         this.dados.indicadores.forEach(ind => { 
             selectIndicadorResultado.innerHTML += `<option value="${ind.id}">${this.escapeHTML(ind.indicador)} (${this.escapeHTML(ind.secao)})</option>`; 
@@ -1616,15 +1589,14 @@ window.GG = {
 
         selectFilialResultado.innerHTML = '<option value="">Selecione Filial...</option>';
         selectFilialFiltroRes.innerHTML = '<option value="">Todas</option>';
-        selectFilialFiltroPessoal.innerHTML = '<option value="">Todas</option>'; // Popula o novo
+        selectFilialFiltroPessoal.innerHTML = '<option value="">Todas</option>'; 
         filiais.forEach(f => {
             const opt = `<option value="${this.escapeHTML(f)}">${this.escapeHTML(f)}</option>`;
             selectFilialResultado.innerHTML += opt;
             selectFilialFiltroRes.innerHTML += opt;
-            selectFilialFiltroPessoal.innerHTML += opt; // Popula o novo
+            selectFilialFiltroPessoal.innerHTML += opt; 
         });
 
-        // --- Popula Dropdowns de INDICADORES (Definição) ---
         selectSecaoIndicador.innerHTML = '<option value="">Selecione a Seção...</option>';
         selectSecaoIndicador.innerHTML += '<option value="GERAL">GERAL (Para todos)</option>';
         secoes.forEach(s => {
@@ -1633,7 +1605,6 @@ window.GG = {
             }
         });
 
-        // --- Popula Dropdowns de METAS ---
         selectIndicadorMeta.innerHTML = '<option value="">Selecione Indicador...</option>';
         this.dados.indicadores.forEach(ind => { 
             selectIndicadorMeta.innerHTML += `<option value="${ind.id}">${this.escapeHTML(ind.indicador)} (${this.escapeHTML(ind.secao)})</option>`; 
@@ -1651,7 +1622,6 @@ window.GG = {
     },
     
     async adicionarOuAtualizarResultado() {
-        // ... (função existente, sem alterações) ...
         if (this.currentUser.role !== 'admin') return;
         
         const indicadorId = document.getElementById('add-resultado-indicador').value;
@@ -1689,7 +1659,6 @@ window.GG = {
     },
     
     renderizarTabelaResultados() {
-        // ... (função existente, sem alterações) ...
         const tbody = document.querySelector('#tabela-resultados tbody');
         const mesFiltro = document.getElementById('filtro-resultado-mes').value;
         const filialFiltro = document.getElementById('filtro-resultado-filial').value; 
@@ -1722,7 +1691,6 @@ window.GG = {
     },
     
     limparFormResultado(){ 
-        // ... (função existente, sem alterações) ...
         document.getElementById('form-add-resultado').reset(); 
         document.getElementById('edit-resultado-id').value = ''; 
         document.getElementById('add-resultado-indicador').disabled = false;
@@ -1730,7 +1698,6 @@ window.GG = {
     },
     
     async excluirResultado(id) {
-        // ... (função existente, sem alterações) ...
         if (this.currentUser.role !== 'admin') return;
         if (!confirm(`Excluir este resultado (ID ${id})?`)) return;
         try {
@@ -1744,11 +1711,324 @@ window.GG = {
     },
     
     // -----------------------------------------------------------------
+    // NOVO: Funções do Laudo/Impressão
+    // -----------------------------------------------------------------
+    
+    exibirLaudo(avaliacaoId) {
+        const avaliacao = this.dados.avaliacoes.find(a => a.id === avaliacaoId);
+        if (!avaliacao) {
+            this.mostrarAlerta('Não foi possível encontrar os detalhes desta avaliação.', 'error');
+            return;
+        }
+
+        // 1. Dados da Avaliação
+        const mesAno = new Date(avaliacao.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        document.getElementById('laudoInfo').innerHTML = `
+            <div><strong>Avaliado:</strong> ${this.escapeHTML(avaliacao.nome_avaliado)} (${this.escapeHTML(avaliacao.matricula_avaliado)})</div>
+            <div><strong>Filial:</strong> ${this.escapeHTML(avaliacao.filial)}</div>
+            <div><strong>Avaliador:</strong> ${this.escapeHTML(avaliacao.nome_gestor)} (${this.escapeHTML(avaliacao.matricula_gestor)})</div>
+            <div><strong>Mês Referência:</strong> ${mesAno}</div>
+        `;
+
+        // 2. Resultado Final
+        document.getElementById('laudoResultado').innerHTML = `
+            <div><strong>Pontuação Final:</strong> <span class="laudo-pontuacao">${avaliacao.pontuacao}</span></div>
+            <div><strong>Classificação:</strong> <span class="laudo-classificacao classificacao-${this.escapeHTML(avaliacao.classificacao.replace(' ', '-'))}">${this.escapeHTML(avaliacao.classificacao)}</span></div>
+        `;
+        
+        // 3. Respostas das Competências
+        const containerCompetencias = document.getElementById('laudoCompetencias');
+        containerCompetencias.innerHTML = '';
+        let fatorIndex = 0;
+        this.COMPETENCIAS.forEach(c => {
+            let html = `<div class="laudo-competencia-grupo">
+                            <div class="laudo-competencia-header">${this.escapeHTML(c.nome)}</div>`;
+            
+            c.fatores.forEach(f => {
+                const resposta = avaliacao.respostas_competencias ? avaliacao.respostas_competencias[`fator_${fatorIndex}`] : 'N/A';
+                html += `<div class="laudo-fator-item">
+                            <span class="laudo-fator-nota">${resposta || 'N/A'}</span>
+                            <span class="laudo-fator-texto">${this.escapeHTML(f)}</span>
+                         </div>`;
+                fatorIndex++;
+            });
+
+            if (c.dissertativa) {
+                html += `<div class="laudo-fator-item dissertativa">
+                            <strong>${this.escapeHTML(c.dissertativa)}</strong>
+                            <p>${this.escapeHTML(avaliacao.dissertativa_lideranca || '(Não preenchido)')}</p>
+                         </div>`;
+            }
+            
+            html += `</div>`;
+            containerCompetencias.innerHTML += html;
+        });
+
+        // 4. Indicadores
+        document.getElementById('laudoIndicadores').innerHTML = avaliacao.html_indicadores || '<p><i>Indicadores não registrados para esta avaliação.</i></p>';
+
+        // 5. Feedback
+        document.getElementById('laudoFeedback').innerHTML = `
+            <div class="laudo-feedback-item">
+                <strong>Pontos Fortes Observados</strong>
+                <p>${this.escapeHTML(avaliacao.pontos_fortes || '(Não preenchido)')}</p>
+            </div>
+            <div class="laudo-feedback-item">
+                <strong>Oportunidades de Desenvolvimento</strong>
+                <p>${this.escapeHTML(avaliacao.oportunidades || '(Não preenchido)')}</p>
+            </div>
+            <div class="laudo-feedback-item">
+                <strong>Comentários Gerais</strong>
+                <p>${this.escapeHTML(avaliacao.comentarios || '(Não preenchido)')}</p>
+            </div>
+        `;
+        
+        // 6. Data de Geração e Abrir Modal
+        document.getElementById('laudoDataGeracao').textContent = new Date().toLocaleString('pt-BR');
+        document.getElementById('laudoModal').style.display = 'flex';
+        feather.replace();
+    },
+    
+    fecharLaudo() {
+        document.getElementById('laudoModal').style.display = 'none';
+    },
+    
+    imprimirLaudo() {
+        window.print();
+    },
+
+    // -----------------------------------------------------------------
+    // NOVO: Funções da View "Colaborador"
+    // -----------------------------------------------------------------
+    
+    inicializarColaboradorView() {
+        this.popularSelectColaborador();
+        this.carregarDadosColaborador(null); // Limpa a tela
+    },
+    
+    popularSelectColaborador() {
+        const select = document.getElementById('colaboradorSelect');
+        select.innerHTML = '<option value="">Selecione...</option>';
+        
+        // Pega todos os colaboradores, ordena por nome
+        const todos = Object.values(this.dados.colaboradores)
+            .filter(c => c.nome) // Garante que tenha nome
+            .sort((a,b) => a.nome.localeCompare(b.nome));
+            
+        todos.forEach(c => {
+            select.innerHTML += `<option value="${this.escapeHTML(c.matricula)}">${this.escapeHTML(c.nome)} (${this.escapeHTML(c.matricula)})</option>`;
+        });
+    },
+    
+    carregarDadosColaborador(matricula) {
+        const dataContainer = document.getElementById('colaboradorData');
+        if (!matricula) {
+            dataContainer.style.display = 'none';
+            return;
+        }
+        dataContainer.style.display = 'block';
+        
+        const avaliacoes = this.dados.avaliacoes
+            .filter(av => av.matricula_avaliado === matricula)
+            .sort((a,b) => new Date(a.mes_referencia) - new Date(b.mes_referencia));
+            
+        const historicoContainer = document.getElementById('colaboradorHistoricoContainer');
+        if (avaliacoes.length === 0) {
+            historicoContainer.innerHTML = '<p style="padding: 20px; text-align: center;">Nenhuma avaliação encontrada para este colaborador.</p>';
+        } else {
+            // Re-usa a renderização da tabela de histórico, mas sem o botão
+             let html = '<table class="tabela"><thead><tr><th>Mês Ref.</th><th>Gestor</th><th>Filial</th><th>Pontuação</th><th>Classificação</th></tr></thead><tbody>';
+            avaliacoes.forEach(av => {
+                const mesAno = av.mes_referencia ? new Date(av.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { year: 'numeric', month: 'short'}) : 'N/A';
+                html += `<tr>
+                            <td>${mesAno}</td>
+                            <td>${this.escapeHTML(av.nome_gestor)}</td>
+                            <td>${this.escapeHTML(av.filial)}</td>
+                            <td><strong>${av.pontuacao}</strong></td>
+                            <td>${this.escapeHTML(av.classificacao)}</td>
+                        </tr>`;
+            });
+            html += '</tbody></table>'; 
+            historicoContainer.innerHTML = html;
+        }
+
+        // Estatísticas
+        const total = avaliacoes.length;
+        document.getElementById('colabTotalAvaliacoes').textContent = total;
+        
+        if (total > 0) {
+            const soma = avaliacoes.reduce((acc, av) => acc + av.pontuacao, 0);
+            const media = (soma / total).toFixed(1);
+            const ultimaNota = avaliacoes[total-1].pontuacao;
+            
+            document.getElementById('colabMediaGeral').textContent = media;
+            document.getElementById('colabUltimaNota').textContent = ultimaNota.toFixed(1);
+
+            let tendencia = '-';
+            if (total > 1) {
+                const penultimaNota = avaliacoes[total-2].pontuacao;
+                if (ultimaNota > penultimaNota) tendencia = '<span style="color: var(--primary);">Melhorou</span>';
+                else if (ultimaNota < penultimaNota) tendencia = '<span style="color: #dc2626;">Piorou</span>';
+                else tendencia = '<span style="color: #6c757d;">Manteve</span>';
+            }
+            document.getElementById('colabTendencia').innerHTML = tendencia;
+            
+            // Gráfico
+            const labels = avaliacoes.map(av => new Date(av.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }));
+            const data = avaliacoes.map(av => av.pontuacao);
+            this.renderizarChart('evolucaoColaborador', 'chartEvolucaoColaborador', 'line', labels, data, 'Pontuação');
+            
+        } else {
+             document.getElementById('colabMediaGeral').textContent = '0.0';
+             document.getElementById('colabUltimaNota').textContent = '0.0';
+             document.getElementById('colabTendencia').innerHTML = '-';
+             if (this.charts.evolucaoColaborador) this.charts.evolucaoColaborador.destroy();
+        }
+    },
+
+    // -----------------------------------------------------------------
+    // NOVO: Funções da View "Relatórios"
+    // -----------------------------------------------------------------
+
+    async inicializarRelatoriosView() {
+        if (this.currentUser.role !== 'admin') {
+            document.getElementById('accessStatusRelatorios').textContent = 'Acesso negado. Relatórios são restritos a Administradores.';
+            document.getElementById('accessStatusRelatorios').className = 'access-status alert alert-error';
+            document.getElementById('accessStatusRelatorios').style.display = 'block';
+            document.getElementById('relatoriosAdminOnly').style.display = 'none';
+            // Destruir charts se existirem
+            Object.values(this.charts).forEach(chart => { if (chart) chart.destroy(); });
+            return;
+        }
+        
+        document.getElementById('accessStatusRelatorios').style.display = 'none';
+        document.getElementById('relatoriosAdminOnly').style.display = 'block';
+        
+        this.gerarRelatorios();
+    },
+    
+    gerarRelatorios() {
+        this.mostrarLoading(true);
+        
+        try {
+            // 1. Média por Filial
+            const mediaFilial = this.processarMediaAgrupada('filial');
+            this.renderizarChart('mediaFilial', 'chartMediaFilial', 'bar', mediaFilial.labels, mediaFilial.data, 'Média de Pontuação');
+
+            // 2. Média por Seção
+            const mediaSecao = this.processarMediaAgrupada('secao');
+            this.renderizarChart('mediaSecao', 'chartMediaSecao', 'bar', mediaSecao.labels, mediaSecao.data, 'Média de Pontuação');
+
+            // 3. Evolução Geral
+            const evolucao = this.processarEvolucaoGeral();
+            this.renderizarChart('evolucaoGeral', 'chartEvolucaoGeral', 'line', evolucao.labels, evolucao.data, 'Média Geral');
+            
+        } catch (e) {
+            this.mostrarAlerta(`Erro ao gerar relatórios: ${e.message}`, 'error');
+            console.error(e);
+        } finally {
+            this.mostrarLoading(false);
+        }
+    },
+    
+    processarMediaAgrupada(campo) { // 'filial' ou 'secao'
+        const grupos = {};
+        const contagem = {};
+
+        this.dados.avaliacoes.forEach(av => {
+            const chave = av[campo] || 'Não definido';
+            if (!grupos[chave]) {
+                grupos[chave] = 0;
+                contagem[chave] = 0;
+            }
+            grupos[chave] += av.pontuacao;
+            contagem[chave]++;
+        });
+
+        const labels = Object.keys(grupos).sort();
+        const data = labels.map(chave => (grupos[chave] / contagem[chave]).toFixed(1));
+        
+        return { labels, data };
+    },
+    
+    processarEvolucaoGeral() {
+        const grupos = {};
+        const contagem = {};
+        
+        // Pega avaliações dos últimos 12 meses
+        const dozeMesesAtras = new Date();
+        dozeMesesAtras.setMonth(dozeMesesAtras.getMonth() - 12);
+
+        this.dados.avaliacoes.forEach(av => {
+            const dataAv = new Date(av.mes_referencia + 'T05:00:00');
+            if (dataAv >= dozeMesesAtras) {
+                const chave = av.mes_referencia.substring(0, 7); // "YYYY-MM"
+                if (!grupos[chave]) {
+                    grupos[chave] = 0;
+                    contagem[chave] = 0;
+                }
+                grupos[chave] += av.pontuacao;
+                contagem[chave]++;
+            }
+        });
+
+        const labels = Object.keys(grupos).sort();
+        const data = labels.map(chave => (grupos[chave] / contagem[chave]).toFixed(1));
+        // Formata labels para "MM/YYYY"
+        const labelsFormatados = labels.map(l => {
+            const [ano, mes] = l.split('-');
+            return `${mes}/${ano}`;
+        });
+        
+        return { labels: labelsFormatados, data };
+    },
+    
+    renderizarChart(chartCacheKey, canvasId, type, labels, data, label) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        
+        // Destrói chart anterior se existir
+        if (this.charts[chartCacheKey]) {
+            this.charts[chartCacheKey].destroy();
+        }
+        
+        this.charts[chartCacheKey] = new Chart(ctx, {
+            type: type,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: label,
+                    data: data,
+                    backgroundColor: type === 'line' ? 'rgba(0, 180, 216, 0.1)' : 'rgba(0, 180, 216, 0.7)',
+                    borderColor: 'rgba(0, 180, 216, 1)',
+                    borderWidth: type === 'bar' ? 1 : 2,
+                    fill: type === 'line' ? true : false,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 5 // Define o máximo da pontuação
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    },
+
+    // -----------------------------------------------------------------
     // FUNÇÕES DE PERFIL E UTILITÁRIOS
     // -----------------------------------------------------------------
 
     loadPerfilView() {
-        // ... (função existente, sem alterações) ...
         const form = document.getElementById('perfilForm');
         const alertContainer = document.getElementById('perfilAlert');
         if (!form || !alertContainer || !this.currentUser) return; 
@@ -1763,7 +2043,6 @@ window.GG = {
     },
 
     previewProfilePicture(event) {
-        // ... (função existente, sem alterações) ...
         const reader = new FileReader();
         reader.onload = function(){
             const output = document.getElementById('perfilPicturePreview');
@@ -1779,7 +2058,6 @@ window.GG = {
     },
 
     async handlePerfilFormSubmit(event) {
-        // ... (função existente, sem alterações) ...
         if (event) event.preventDefault(); 
         
         const alertContainer = document.getElementById('perfilAlert');
@@ -1862,15 +2140,12 @@ window.GG = {
         }
     },
     
-    gerarRelatorios(){ this.mostrarAlerta("Relatórios em desenvolvimento.", "info"); },
-    
     fecharModal() { document.getElementById('editModal').style.display = 'none'; },
     salvarEdicaoModal() { 
         this.mostrarAlerta('Função de salvar modal genérico não implementada.', 'info');
     },
 
     atualizarStatusDados(mensagem, tipo, timeout = 0) {
-        // ... (função existente, sem alterações) ...
         const el = document.getElementById('statusDados');
         if(el) { el.className = `alert alert-${tipo}`; el.innerHTML = `<p>${mensagem}</p>`; el.style.display = 'block';
             if(timeout > 0) setTimeout(() => { el.style.display = 'none'; }, timeout);
@@ -1878,7 +2153,6 @@ window.GG = {
     },
     
     atualizarStatusConexaoHome(conectado) {
-        // ... (função existente, sem alterações) ...
         const el = document.getElementById('statusConexaoHome');
         if(el) {
             el.className = `status-conexao status-${conectado ? 'conectado' : 'desconectado'}`;
@@ -1887,12 +2161,10 @@ window.GG = {
     },
     
     mostrarAlerta(msg, tipo = 'info', duracao = 4000) {
-        // ... (função existente, sem alterações) ...
         this.mostrarNotificacao(msg, tipo, duracao);
     },
     
     mostrarNotificacao(message, type = 'info', timeout = 4000) {
-        // ... (função existente, sem alterações) ...
         const container = document.getElementById('notificationContainer');
         if (!container) return;
         const notification = document.createElement('div');
@@ -1917,7 +2189,6 @@ window.GG = {
     mostrarLoading(mostrar) { document.getElementById('loading').style.display = mostrar ? 'flex' : 'none'; },
     
     atualizarEstatisticasHome() {
-        // ... (função existente, sem alterações) ...
         if (!this.dados.dadosCarregados) return;
         const totalColabs = Object.keys(this.dados.colaboradores).length;
         const totalGests = Object.keys(this.dados.gestores).length;
@@ -1931,87 +2202,30 @@ window.GG = {
     },
     
     injectIndicatorStyles() {
-        // ... (função existente, sem alterações) ...
         const oldStyle = document.getElementById('indicator-styles');
         if (oldStyle) oldStyle.remove();
 
         const style = document.createElement('style');
         style.id = 'indicator-styles';
         style.innerHTML = `
-            /* NOVOS ESTILOS PARA VISUALIZAÇÃO DE INDICADORES */
-            #indicadoresContainer {
-                padding-top: 10px;
-            }
-            .indicator-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-                gap: 16px;
-            }
-            .indicator-viz-card {
-                background-color: #f9fafb;
-                padding: 14px;
-                border-radius: 8px;
-                border-left: 4px solid var(--secondary);
-                box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-            }
-            .indicator-viz-card label {
-                font-size: 0.85em;
-                font-weight: 600;
-                color: var(--dark);
-                display: block;
-                margin-bottom: 10px;
-            }
-            
-            .indicador-texto div {
-                font-size: 0.9em;
-                color: #495057;
-                display: flex;
-                justify-content: space-between;
-            }
-            .indicador-texto div span {
-                font-weight: 600;
-            }
-
-            .indicador-numerico .indicador-valores {
-                display: flex;
-                justify-content: space-between;
-                font-size: 0.8em;
-                color: #495057;
-                margin-bottom: 6px;
-            }
-            .indicador-numerico .indicador-valores strong {
-                font-size: 1.1em;
-                font-weight: 700;
-                color: var(--dark);
-            }
-            .progress-bar-viz {
-                width: 100%;
-                height: 12px;
-                background: #e9ecef;
-                border-radius: 6px;
-                overflow: hidden;
-            }
-            .progress-bar-inner {
-                height: 100%;
-                border-radius: 6px;
-                transition: width 0.5s ease;
-                background-color: var(--accent);
-            }
-            .progress-bar-inner.bar-good {
-                background-color: var(--primary); 
-            }
-            .progress-bar-inner.bar-bad {
-                background-color: #dc2626; 
-            }
-            .progress-bar-inner.bar-excellent {
-                background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
-            }
+            #indicadoresContainer { padding-top: 10px; }
+            .indicator-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+            .indicator-viz-card { background-color: #f9fafb; padding: 14px; border-radius: 8px; border-left: 4px solid var(--secondary); box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+            .indicator-viz-card label { font-size: 0.85em; font-weight: 600; color: var(--dark); display: block; margin-bottom: 10px; }
+            .indicador-texto div { font-size: 0.9em; color: #495057; display: flex; justify-content: space-between; }
+            .indicador-texto div span { font-weight: 600; }
+            .indicador-numerico .indicador-valores { display: flex; justify-content: space-between; font-size: 0.8em; color: #495057; margin-bottom: 6px; }
+            .indicador-numerico .indicador-valores strong { font-size: 1.1em; font-weight: 700; color: var(--dark); }
+            .progress-bar-viz { width: 100%; height: 12px; background: #e9ecef; border-radius: 6px; overflow: hidden; }
+            .progress-bar-inner { height: 100%; border-radius: 6px; transition: width 0.5s ease; background-color: var(--accent); }
+            .progress-bar-inner.bar-good { background-color: var(--primary); }
+            .progress-bar-inner.bar-bad { background-color: #dc2626; }
+            .progress-bar-inner.bar-excellent { background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%); }
         `;
         document.head.appendChild(style);
     },
 
     escapeHTML(str) {
-        // ... (função existente, sem alterações) ...
         if (str === null || str === undefined) return '';
         return String(str)
              .replace(/&/g, '&amp;')
