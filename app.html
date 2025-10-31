@@ -102,6 +102,7 @@
             <main class="main-content">
                 <div class="container mx-auto px-6 py-8">
 
+                    <!-- Conteúdo: Home -->
                     <div id="homeView" class="view-content active">
                         <h1><i class="fas fa-tachometer-alt"></i> Painel Inicial</h1>
                         <div id="statusConexaoHome" class="status-conexao">
@@ -119,6 +120,7 @@
                         </div>
                     </div>
 
+                    <!-- Conteúdo: Nova Avaliação -->
                     <div id="avaliacaoView" class="view-content">
                         <h1><i class="fas fa-edit"></i> Nova Avaliação de Desempenho</h1>
                         <div id="statusDados" class="alert alert-info" style="display:none;"></div>
@@ -190,6 +192,7 @@
                         </form>
                     </div>
 
+                    <!-- Conteúdo: Histórico -->
                     <div id="historicoView" class="view-content">
                         <div id="accessStatusHistorico" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-history"></i> Histórico de Avaliações</h1>
@@ -214,18 +217,66 @@
                         </div>
                     </div>
 
+                    <!-- Conteúdo: Relatórios -->
                     <div id="relatoriosView" class="view-content">
                          <div id="accessStatusRelatorios" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-chart-bar"></i> Relatórios</h1>
                         <p>Seção de relatórios em desenvolvimento.</p>
                     </div>
 
+                    <!-- Conteúdo: Configurações -->
                     <div id="configuracoesView" class="view-content">
                         <div id="accessStatusConfig" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-cogs"></i> Configurações do Sistema</h1>
+                        
+                        <!-- Conteúdo visível apenas para Admins -->
                         <div id="configAdminOnly" style="display: none;">
-                            <div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Acesso restrito a administradores.</div>
+                            
+                            <!-- NOVO: Card de Solicitações de Acesso -->
+                            <div class="info-card">
+                                <h3><i data-feather="user-plus" class="h-5 w-5"></i> Solicitações de Acesso Pendentes</h3>
+                                <div class="table-container">
+                                    <table class="tabela" id="tabela-solicitacoes-admin">
+                                        <thead>
+                                            <tr>
+                                                <th>Nome</th>
+                                                <th>E-mail</th>
+                                                <th>Motivo</th>
+                                                <th>Solicitado em</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr><td colspan="5" style="text-align:center;">Carregando...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
 
+                            <!-- NOVO: Card de Gerenciamento de Usuários -->
+                            <div class="info-card">
+                                <h3><i data-feather="users" class="h-5 w-5"></i> Gerenciar Usuários do Sistema</h3>
+                                <div class="table-container">
+                                    <table class="tabela" id="tabela-usuarios-admin">
+                                        <thead>
+                                            <tr>
+                                                <th>Nome</th>
+                                                <th>E-mail</th>
+                                                <th>Matrícula</th>
+                                                <th>Permissão (Role)</th>
+                                                <th>Filial</th>
+                                                <th>Status</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr><td colspan="7" style="text-align:center;">Carregando...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <!-- Card Existente: Indicadores -->
                             <div class="info-card">
                                 <h3><i class="fas fa-list-alt"></i> Gerenciar Definições de Indicadores</h3>
                                 <form id="form-add-indicador" onsubmit="event.preventDefault(); window.GG.salvarIndicador();">
@@ -252,6 +303,7 @@
                                 </div>
                             </div>
 
+                            <!-- Card Existente: Resultados -->
                             <div class="info-card">
                                 <h3><i class="fas fa-calendar-check"></i> Gerenciar Resultados Mensais</h3>
                                 <form id="form-add-resultado" onsubmit="event.preventDefault(); window.GG.adicionarOuAtualizarResultado();">
@@ -300,11 +352,14 @@
                                 </div>
                             </div>
                         </div>
+                        
+                         <!-- Conteúdo visível para não-admins -->
                          <div id="configUserOnly" class="alert alert-info" style="display: none;">
                             Você não tem permissão de administrador para ver esta página.
                         </div>
                     </div>
                     
+                    <!-- Conteúdo: Perfil -->
                     <div id="perfilView" class="view-content">
                          <h1><i class="fas fa-user-circle"></i> Meu Perfil</h1>
                         <div class="bg-white p-6 rounded-lg shadow-md max-w-3xl mx-auto info-card">
@@ -348,10 +403,13 @@
         </div>
     </div>
 
+    <!-- Container de Notificações -->
     <div id="notificationContainer"></div>
     
-    <div class="loading" id="loading"><div class="spinner"></div><p>Processando...</p></div>
+    <!-- Tela de Loading -->
+     <div class="loading" id="loading"><div class="spinner"></div><p>Processando...</p></div>
     
+     <!-- Modal Genérico (Existente) -->
      <div id="editModal" class="modal">
        <div class="modal-content">
         <span class="modal-close" onclick="window.GG.fecharModal()">&times;</span>
@@ -365,6 +423,65 @@
         </form>
        </div>
      </div>
+     
+     <!-- NOVO: Modal de Edição de Usuário -->
+     <div id="userEditModal" class="modal">
+       <div class="modal-content" style="width: 600px; max-width: 95vw;">
+        <span class="modal-close" onclick="window.GG.fecharModalUsuario()">&times;</span>
+        <h3>Editar Usuário</h3>
+        <form id="userEditForm" onsubmit="event.preventDefault(); window.GG.salvarModalUsuario();">
+            <input type="hidden" id="modal-user-id">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-user-nome">Nome</label>
+                    <input type="text" id="modal-user-nome" required>
+                </div>
+                <div class="form-group">
+                    <label for="modal-user-email">E-mail (Login)</label>
+                    <input type="email" id="modal-user-email" readonly class="bg-gray-100">
+                </div>
+            </div>
+             <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-user-matricula">Matrícula</label>
+                    <input type="text" id="modal-user-matricula">
+                </div>
+                <div class="form-group">
+                    <label for="modal-user-filial">Filial Principal</label>
+                    <input type="text" id="modal-user-filial" placeholder="Ex: 101, 205...">
+                </div>
+            </div>
+             <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-user-role">Permissão (Role)</label>
+                    <select id="modal-user-role">
+                        <option value="user">Usuário (Padrão)</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="modal-user-status">Status</label>
+                     <select id="modal-user-status">
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Adicionar campo para permissoes_filiais (array) se necessário no futuro -->
+            
+            <div class="flex justify-end gap-4 mt-6">
+                <button type="submit" class="btn btn-success">
+                    <i data-feather="save" class="h-4 w-4 mr-2"></i> Salvar
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="window.GG.fecharModalUsuario()">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+       </div>
+     </div>
+
 
     <script src="script.js"></script>
     <script>
