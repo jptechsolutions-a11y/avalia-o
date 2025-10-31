@@ -1122,10 +1122,11 @@ window.GG = {
         selectIndicador.innerHTML = '<option value="">Selecione Indicador...</option>';
         this.dados.indicadores.forEach(ind => { selectIndicador.innerHTML += `<option value="${ind.id}">${this.escapeHTML(ind.indicador)} (${this.escapeHTML(ind.secao)})</option>`; });
 
-        const secoes = [...new Set(this.dados.indicadores.map(i => i.secao))].sort();
+        // Esta 'secoesIndicadores' é para o formulário de "Resultados Mensais" e se baseia em indicadores. Está CORRETO.
+        const secoesIndicadores = [...new Set(this.dados.indicadores.map(i => i.secao))].sort();
         selectSecaoAdd.innerHTML = '<option value="">Selecione Seção...</option>';
         selectSecaoFiltro.innerHTML = '<option value="">Todas</option>';
-        secoes.forEach(s => {
+        secoesIndicadores.forEach(s => {
             selectSecaoAdd.innerHTML += `<option value="${s}">${this.escapeHTML(s)}</option>`;
             selectSecaoFiltro.innerHTML += `<option value="${s}">${this.escapeHTML(s)}</option>`;
         });
@@ -1135,13 +1136,22 @@ window.GG = {
         const selectTipoAdmin = document.getElementById('add-indicador-tipo');
 
         // Popula Seções (Baseado nas seções existentes + GERAL)
+        // ATUALIZADO: Busca seções da TABELA DE COLABORADORES, como solicitado.
+        const secoesColaboradoresSet = new Set(
+            Object.values(this.dados.colaboradores) // Pega os valores do objeto de colaboradores
+                .map(c => c.secao) // Mapeia para pegar apenas a seção
+                .filter(s => s) // Remove seções nulas ou vazias
+        );
+        const secoesColaboradores = [...secoesColaboradoresSet].sort(); // Cria array único e ordenado
+
         selectSecaoAdmin.innerHTML = '<option value="">Selecione a Seção...</option>';
         selectSecaoAdmin.innerHTML += '<option value="GERAL">GERAL (Para todos)</option>';
-        secoes.forEach(s => {
-            if (s.toUpperCase() !== 'GERAL') { // Evita duplicar 'GERAL'
+        secoesColaboradores.forEach(s => {
+            if (s && s.toUpperCase() !== 'GERAL') { // Evita duplicar 'GERAL'
                 selectSecaoAdmin.innerHTML += `<option value="${this.escapeHTML(s)}">${this.escapeHTML(s)}</option>`;
             }
         });
+
 
          // Popula Tipos (Lista Estática)
         selectTipoAdmin.innerHTML = '<option value="">Selecione o Tipo...</option>';
@@ -1525,5 +1535,6 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Erro crítico. Verifique o console.");
     }
 });
+
 
 
