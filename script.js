@@ -14,6 +14,8 @@ window.GG = {
         gestores: {}, 
         indicadores: [], 
         resultadosIndicadores: [],
+        usuarios: [], // NOVO: Para admin gerenciar usuários
+        solicitacoes: [], // NOVO: Para admin gerenciar solicitações
         avaliacaoAtual: null, 
         dadosCarregados: false, 
         avaliacoesFiltradas: []
@@ -54,7 +56,7 @@ window.GG = {
     ],
 
     init() {
-        console.log('🚀 Iniciando Sistema G&G v5.0 (Proxy)...');
+        console.log('🚀 Iniciando Sistema G&G v5.1 (Admin UI)...');
         
         try {
             if (!SUPABASE_URL || SUPABASE_URL.includes('URL_DO_SEU_PROJETO')) {
@@ -112,7 +114,9 @@ window.GG = {
                     auth_user_id: this.authUser.id,
                     email: this.authUser.email,
                     nome: this.authUser.user_metadata?.full_name || this.authUser.email.split('@')[0],
-                    profile_picture_url: this.authUser.user_metadata?.avatar_url || null
+                    profile_picture_url: this.authUser.user_metadata?.avatar_url || null,
+                    role: 'user', // Define 'user' como padrão
+                    status: 'ativo' // Define 'ativo' como padrão
                 };
                 const createResponse = await this.supabaseRequest('usuarios', 'POST', newProfile);
                 if (!createResponse || !createResponse[0]) {
@@ -611,6 +615,7 @@ window.GG = {
         let dadosFiltrados;
         
         if (this.currentUser.role !== 'admin') {
+            // AJUSTE: Permite ao admin ver tudo, e user/gestor ver apenas o que ele avaliou
             dadosFiltrados = this.dados.avaliacoes.filter(av => av.avaliador_user_id === this.currentUser.id);
         } else {
             dadosFiltrados = [...this.dados.avaliacoes];
@@ -627,6 +632,18 @@ window.GG = {
         if (filtroClass) dadosFiltrados = dadosFiltrados.filter(av => av.classificacao === filtroClass);
         if (filtroNome) dadosFiltrados = dadosFiltrados.filter(av => av.nome_avaliado && av.nome_avaliado.toLowerCase().includes(filtroNome));
         if (filtroGestor) dadosFiltrados = dadosFiltrados.filter(av => av.nome_gestor && av.nome_gestor.toLowerCase().includes(filtroGestor));
+
+        // AJUSTE: Aplica filtro por filial do usuário, se ele NÃO for admin
+        if (this.currentUser.role !== 'admin' && this.currentUser.filial) {
+             // Se o usuário tiver permissões de filiais (array), use-o
+             if (Array.isArray(this.currentUser.permissoes_filiais) && this.currentUser.permissoes_filiais.length > 0) {
+                 dadosFiltrados = dadosFiltrados.filter(av => this.currentUser.permissoes_filiais.includes(av.filial));
+             } 
+             // Senão, use a filial principal dele
+             else if (this.currentUser.filial) {
+                 dadosFiltrados = dadosFiltrados.filter(av => av.filial === this.currentUser.filial);
+             }
+        }
 
         this.dados.avaliacoesFiltradas = dadosFiltrados;
         this.renderizarTabelaHistorico(dadosFiltrados);
@@ -702,6 +719,12 @@ window.GG = {
         if (!this.dados.dadosCarregados) {
             await this.carregarDadosIniciais();
         }
+        
+        // Carrega dados específicos do Admin (usuários, solicitações)
+        await this.carregarDadosAdmin();
+        this.renderizarTabelasAdmin();
+        
+        // Lógica existente
         this.limparFormIndicador(); this.limparFormResultado();
         this.renderizarTabelaIndicadores();
         this.popularDropdownsConfig();
@@ -709,6 +732,174 @@ window.GG = {
         this.mostrarLoading(false);
     },
     
+    // -----------------------------------------------------------------
+    // NOVAS FUNÇÕES DE ADMINISTRAÇÃO DE USUÁRIOS
+    // -----------------------------------------------------------------
+
+    async carregarDadosAdmin() {
+        try {
+            const [usuariosRes, solicitacoesRes] = await Promise.allSettled([
+                this.supabaseRequest('usuarios?select=*&order=nome.asc', 'GET'),
+                this.supabaseRequest('solicitacoes_acesso?status=eq.pendente&order=created_at.desc', 'GET')
+            ]);
+
+            this.dados.usuarios = (usuariosRes.status === 'fulfilled' && usuariosRes.value) ? usuariosRes.value : [];
+            this.dados.solicitacoes = (solicitacoesRes.status === 'fulfilled' && solicitacoesRes.value) ? solicitacoesRes.value : [];
+            
+        } catch (e) {
+            this.mostrarAlerta(`Erro ao carregar dados de admin: ${e.message}`, 'error');
+            console.error(e);
+        }
+    },
+    
+    renderizarTabelasAdmin() {
+        this.renderizarTabelaUsuarios();
+        this.renderizarTabelaSolicitacoes();
+        feather.replace();
+    },
+
+    renderizarTabelaSolicitacoes() {
+        const tbody = document.querySelector('#tabela-solicitacoes-admin tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (this.dados.solicitacoes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhuma solicitação pendente.</td></tr>';
+            return;
+        }
+        
+        this.dados.solicitacoes.forEach(s => {
+            const data = new Date(s.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            tbody.innerHTML += `<tr>
+                <td>${this.escapeHTML(s.nome)}</td>
+                <td>${this.escapeHTML(s.email)}</td>
+                <td style="white-space: normal; min-width: 250px;">${this.escapeHTML(s.motivo)}</td>
+                <td>${data}</td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-success" onclick="window.GG.mostrarAlerta('Função (Aprovar) ainda não implementada. Crie o usuário manualmente e rejeite a solicitação.', 'info', 10000)">
+                        <i data-feather="check" class="h-4 w-4"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="window.GG.rejeitarSolicitacao(${s.id})">
+                        <i data-feather="x" class="h-4 w-4"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+    },
+
+    async rejeitarSolicitacao(id) {
+        if (!confirm('Tem certeza que deseja rejeitar esta solicitação?')) return;
+        try {
+            this.mostrarLoading(true);
+            await this.supabaseRequest(`solicitacoes_acesso?id=eq.${id}`, 'PATCH', { status: 'rejeitado' });
+            this.mostrarAlerta('Solicitação rejeitada.', 'success');
+            await this.carregarDadosAdmin(); // Recarrega
+            this.renderizarTabelasAdmin(); // Re-renderiza
+        } catch(e) {
+            this.mostrarAlerta(`Erro ao rejeitar: ${e.message}`, 'error');
+        } finally {
+            this.mostrarLoading(false);
+        }
+    },
+
+    renderizarTabelaUsuarios() {
+        const tbody = document.querySelector('#tabela-usuarios-admin tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (this.dados.usuarios.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Nenhum usuário encontrado.</td></tr>';
+            return;
+        }
+        
+        this.dados.usuarios.forEach(u => {
+            const statusClass = u.status === 'ativo' ? 'text-green-600' : 'text-red-600';
+            const roleClass = u.role === 'admin' ? 'font-bold text-blue-600' : 'text-gray-700';
+            
+            tbody.innerHTML += `<tr>
+                <td>${this.escapeHTML(u.nome)}</td>
+                <td>${this.escapeHTML(u.email)}</td>
+                <td>${this.escapeHTML(u.matricula || '--')}</td>
+                <td class="${roleClass}">${this.escapeHTML(u.role || 'user')}</td>
+                <td>${this.escapeHTML(u.filial || '--')}</td>
+                <td class="${statusClass}">${this.escapeHTML(u.status || 'inativo')}</td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario(${u.id})">
+                        <i data-feather="edit-2" class="h-4 w-4"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+    },
+
+    abrirModalEdicaoUsuario(id) {
+        const usuario = this.dados.usuarios.find(u => u.id === id);
+        if (!usuario) {
+            this.mostrarAlerta('Usuário não encontrado.', 'error');
+            return;
+        }
+        
+        document.getElementById('modal-user-id').value = usuario.id;
+        document.getElementById('modal-user-nome').value = usuario.nome || '';
+        document.getElementById('modal-user-email').value = usuario.email || '';
+        document.getElementById('modal-user-matricula').value = usuario.matricula || '';
+        document.getElementById('modal-user-filial').value = usuario.filial || '';
+        document.getElementById('modal-user-role').value = usuario.role || 'user';
+        document.getElementById('modal-user-status').value = usuario.status || 'inativo';
+
+        document.getElementById('userEditModal').style.display = 'flex';
+        feather.replace();
+    },
+
+    fecharModalUsuario() {
+        document.getElementById('userEditModal').style.display = 'none';
+        document.getElementById('userEditForm').reset();
+    },
+
+    async salvarModalUsuario() {
+        const id = document.getElementById('modal-user-id').value;
+        const payload = {
+            nome: document.getElementById('modal-user-nome').value,
+            matricula: document.getElementById('modal-user-matricula').value || null,
+            filial: document.getElementById('modal-user-filial').value || null,
+            role: document.getElementById('modal-user-role').value,
+            status: document.getElementById('modal-user-status').value
+        };
+
+        if (!id || !payload.nome) {
+            this.mostrarAlerta('Nome é obrigatório.', 'warning');
+            return;
+        }
+
+        try {
+            this.mostrarLoading(true);
+            const resultado = await this.supabaseRequest(`usuarios?id=eq.${id}`, 'PATCH', payload);
+            
+            // Atualiza o usuário localmente
+            const index = this.dados.usuarios.findIndex(u => u.id == id);
+            if (index > -1) {
+                this.dados.usuarios[index] = { ...this.dados.usuarios[index], ...resultado[0] };
+            }
+            
+            // Atualiza o próprio usuário se ele estiver se editando
+            if (this.currentUser.id == id) {
+                this.currentUser = { ...this.currentUser, ...resultado[0] };
+                this.showMainSystem(); // Re-renderiza a barra superior, etc.
+            }
+            
+            this.renderizarTabelaUsuarios();
+            this.fecharModalUsuario();
+            this.mostrarAlerta('Usuário atualizado com sucesso!', 'success');
+            
+        } catch (e) {
+            this.mostrarAlerta(`Erro ao salvar usuário: ${e.message}`, 'error');
+        } finally {
+            this.mostrarLoading(false);
+        }
+    },
+    
+    // -----------------------------------------------------------------
+    // FIM DAS NOVAS FUNÇÕES DE ADMINISTRAÇÃO
+    // -----------------------------------------------------------------
+
     renderizarTabelaIndicadores() {
         const tbody = document.querySelector('#tabela-indicadores tbody');
         tbody.innerHTML = '';
@@ -759,6 +950,7 @@ window.GG = {
     },
     
     editarIndicador(id) {
+        // Esta função usa o formulário principal, não o modal genérico. Vamos manter assim.
         if (this.currentUser.role !== 'admin') return;
         const indicador = this.dados.indicadores.find(ind => ind.id === id);
         if (!indicador) return;
@@ -870,6 +1062,7 @@ window.GG = {
     },
     
     editarResultado(id) {
+        // Esta função usa o formulário principal, não o modal genérico. Vamos manter assim.
         if (this.currentUser.role !== 'admin') return;
         const resultado = this.dados.resultadosIndicadores.find(res => res.id === id);
         if (!resultado) return;
@@ -1010,8 +1203,13 @@ window.GG = {
     },
     
     gerarRelatorios(){ this.mostrarAlerta("Relatórios em desenvolvimento.", "info"); },
+    
+    // Modal Genérico (Existente)
     fecharModal() { document.getElementById('editModal').style.display = 'none'; },
-    salvarEdicaoModal() { },
+    salvarEdicaoModal() { 
+        // Esta função não estava implementada, você pode usá-la no futuro
+        this.mostrarAlerta('Função de salvar modal genérico não implementada.', 'info');
+    },
 
     atualizarStatusDados(mensagem, tipo, timeout = 0) {
         const el = document.getElementById('statusDados');
