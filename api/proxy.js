@@ -32,37 +32,29 @@ export default async (req, res) => {
         console.error("[proxy] Token JWT não encontrado no header");
         return res.status(401).json({ error: 'Não autorizado. Token JWT necessário.' });
     }
-    // NOTA: Nós *não* usamos esse token para falar com o Supabase,
-    // apenas para verificar se o usuário está logado.
+    // NOTA: Apenas verificamos se o token *existe*. Não o usamos para o Supabase.
     
     // 2. CONSTRUÇÃO DA URL FINAL
     const fullSupabaseUrl = `${SUPABASE_URL}/rest/v1/${decodedEndpoint}`;
     
-    // 3. CONFIGURAÇÃO DA REQUISIÇÃO PARA O SUPABASE
-    // Copia os headers que vieram do cliente (ex: 'Prefer')
-    const headersToSupabase = { ...req.headers };
+    // 3. CONFIGURAÇÃO DA REQUISIÇÃO (MAIS SEGURA)
+    // Criamos um objeto de headers "limpo", passando apenas o que é necessário.
+    const headersToSupabase = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        // Usa a CHAVE SECRETA (SERVICE_KEY) para ter acesso total e BURLAR O RLS
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 
+        'apiKey': SUPABASE_ANON_KEY
+    };
 
-    // !! ESTA É A CORREÇÃO !!
-    // Deleta o header de Autorização do *usuário* que veio em '...req.headers'
-    delete headersToSupabase.authorization; 
-    // Deleta outros headers internos
-    delete headersToSupabase.host;
-    delete headersToSupabase.connection;
-    delete headersToSupabase['content-length'];
-    delete headersToSupabase['x-vercel-id'];
-    delete headersToSupabase['x-real-ip'];
-    delete headersToSupabase['x-forwarded-for'];
+    // Passa o header 'Prefer' (para contagem, upsert, etc.) se ele foi enviado pelo cliente
+    if (req.headers.prefer) {
+        headersToSupabase.Prefer = req.headers.prefer;
+    }
     
     const options = {
         method: method,
-        headers: {
-            ...headersToSupabase, // Passa os headers limpos (ex: 'Prefer')
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            // Usa a CHAVE SECRETA (SERVICE_KEY) para ter acesso total
-            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 
-            'apiKey': SUPABASE_ANON_KEY
-        }
+        headers: headersToSupabase // Usa o objeto de headers limpo
     };
     
     if (body && ['POST', 'PATCH', 'PUT'].includes(method)) {
