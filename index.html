@@ -24,8 +24,10 @@
                 <!-- Card de Login -->
                 <div class="auth-card" id="loginCard">
                     <div class="auth-header">
-                        <img src="icon.png" alt="Logo G&G">
+                        <!-- MODIFICADO: Alterado o logo e adicionadas classes de alinhamento do controlebaixaconsumo -->
+                        <img src="teste.png" alt="Logo JP Tech" class="w-40 h-auto mb-6 mx-auto object-contain">
                         <h2 id="formTitle">Acesso ao Sistema</h2>
+                        <!-- MANTIDO: Subtítulo original do sistema de avaliação -->
                         <p id="formSubtitle">Avaliação de Desempenho G&G</p>
                     </div>
 
@@ -33,11 +35,13 @@
 
                     <form id="emailForm" class="auth-form">
                         <div class="form-group" style="margin-bottom: 20px;">
-                            <label for="email" class="font-semibold text-gray-700">E-mail:</label>
+                            <!-- MODIFICADO: Label escondida para corresponder ao estilo do controlebaixaconsumo -->
+                            <label for="email" class="font-semibold text-gray-700" style="display: none;">E-mail:</label>
                             <input type="email" id="email" placeholder="seu.email@dominio.com" required class="w-full">
                         </div>
                         <div class="form-group" style="margin-bottom: 20px;">
-                            <label for="password" class="font-semibold text-gray-700">Senha:</label>
+                            <!-- MODIFICADO: Label escondida para corresponder ao estilo do controlebaixaconsumo -->
+                            <label for="password" class="font-semibold text-gray-700" style="display: none;">Senha:</label>
                             <input type="password" id="password" placeholder="Sua senha" required class="w-full">
                         </div>
                         
@@ -55,7 +59,8 @@
                 <!-- Card de Solicitação de Acesso (Inicialmente oculto) -->
                 <div class="auth-card" id="requestAccessCard" style="display: none;">
                     <div class="auth-header">
-                        <img src="https://i.imgur.com/80SsE11.png" alt="Logo G&G">
+                        <!-- MODIFICADO: Alterado o logo e adicionadas classes de alinhamento -->
+                        <img src="teste.png" alt="Logo JP Tech" class="w-40 h-auto mb-6 mx-auto object-contain">
                         <h2 id="formTitleRequest">Solicitar Acesso</h2>
                         <p id="formSubtitleRequest">Preencha seus dados para solicitar a criação da sua conta.</p>
                     </div>
@@ -64,15 +69,18 @@
 
                     <form id="requestAccessForm" class="auth-form">
                         <div class="form-group" style="margin-bottom: 20px;">
-                            <label for="requestNome" class="font-semibold text-gray-700">Seu Nome Completo:</label>
-                            <input type="text" id="requestNome" placeholder="João da Silva" required class="w-full">
+                             <!-- MODIFICADO: Label escondida -->
+                            <label for="requestNome" class="font-semibold text-gray-700" style="display: none;">Seu Nome Completo:</label>
+                            <input type="text" id="requestNome" placeholder="Seu Nome Completo" required class="w-full">
                         </div>
                         <div class="form-group" style="margin-bottom: 20px;">
-                            <label for="requestEmail" class="font-semibold text-gray-700">Seu E-mail:</label>
-                            <input type="email" id="requestEmail" placeholder="joao.silva@empresa.com" required class="w-full">
+                             <!-- MODIFICADO: Label escondida -->
+                            <label for="requestEmail" class="font-semibold text-gray-700" style="display: none;">Seu E-mail:</label>
+                            <input type="email" id="requestEmail" placeholder="seu.email@empresa.com" required class="w-full">
                         </div>
                         <div class="form-group" style="margin-bottom: 20px;">
-                            <label for="requestMotivo" class="font-semibold text-gray-700">Motivo/Justificativa:</label>
+                             <!-- MODIFICADO: Label escondida -->
+                            <label for="requestMotivo" class="font-semibold text-gray-700" style="display: none;">Motivo/Justificativa:</label>
                             <textarea id="requestMotivo" placeholder="Ex: Sou gestor da filial X e preciso de acesso para avaliar..." required class="w-full" rows="3"></textarea>
                         </div>
                         <button id="requestSubmitBtn" type="submit" class="btn btn-primary w-full" style="padding: 14px; font-size: 1rem;">
@@ -120,4 +128,3 @@
     </script>
 </body>
 </html>
-
