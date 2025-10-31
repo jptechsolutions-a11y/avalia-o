@@ -1,6 +1,3 @@
-/* ========================================
-   IDENTIDADE VISUAL (DA REFERÊNCIA JProjects)
-   ======================================== */
 :root {
     --primary: #00D4AA;
     --secondary: #00B4D8;
@@ -13,42 +10,36 @@
 
 body {
     font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
-    background-color: var(--darker); /* Fundo escuro inicial (Login) */
-    transition: none; /* Sem transição no load */
-    color: var(--dark); /* Cor de texto padrão */
-    /* overflow: hidden; <-- REMOVIDO: Esta era a Causa 1 do problema */
+    background-color: var(--darker); 
+    transition: none; 
+    color: var(--dark); 
 }
 
 body.system-active {
-    background-color: #f7f9fc; /* Fundo ligeiramente azulado */
+    background-color: #f7f9fc; 
 }
 
-/* ========================================
-   LAYOUT (DA REFERÊNCIA JProjects)
-   ======================================== */
-
-/* --- Barra Superior --- */
 #topBar {
     display: flex;
     align-items: center;
-    gap: 1rem; /* 16px */
+    gap: 1rem; 
     background: var(--darker);
     color: white;
-    padding: 0 1.5rem; /* 24px */
+    padding: 0 1.5rem; 
     height: 64px;
-    border-bottom: 1px solid #334155; /* Cor escura (slate-700) */
+    border-bottom: 1px solid #334155; 
     flex-shrink: 0;
     z-index: 1010;
 }
 #topBar .separator {
     width: 1px;
     height: 24px;
-    background-color: #334155; /* slate-700 */
+    background-color: #334155; 
 }
 #topBar .btn-icon {
     background: transparent;
     color: var(--light);
-    padding: 0.5rem; /* 8px */
+    padding: 0.5rem; 
     border-radius: 6px;
     transition: all 0.2s ease;
 }
@@ -57,10 +48,10 @@ body.system-active {
 }
 #topBarSearch {
     background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid #334155; /* slate-700 */
+    border: 1px solid #334155; 
     color: white;
     font-size: 0.9rem;
-    padding: 0.5rem 1rem; /* 8px 16px */
+    padding: 0.5rem 1rem; 
     border-radius: 6px;
     transition: all 0.2s ease;
 }
@@ -72,18 +63,17 @@ body.system-active {
     box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.3);
 }
 
-/* --- Dropdown de Perfil --- */
 #profileDropdownButton {
     transition: background-color 0.2s ease;
 }
 .dropdown-menu {
-    display: none; /* Escondido por padrão */
+    display: none; 
     position: absolute;
-    top: 120%; /* Abaixo do botão */
+    top: 120%; 
     right: 0;
     width: 240px;
-    background: #1e293b; /* slate-800 */
-    border: 1px solid #334155; /* slate-700 */
+    background: #1e293b; 
+    border: 1px solid #334155; 
     border-radius: 8px;
     box-shadow: 0 10px 20px rgba(0,0,0,0.3);
     z-index: 1010;
@@ -93,37 +83,33 @@ body.system-active {
 .dropdown-item {
     display: flex;
     align-items: center;
-    padding: 0.75rem 1rem; /* 12px 16px */
+    padding: 0.75rem 1rem; 
     font-size: 0.9rem;
-    color: #e2e8f0; /* slate-200 */
+    color: #e2e8f0; 
     transition: background-color 0.2s ease;
 }
 .dropdown-item:hover {
-    background-color: #334155; /* slate-700 */
+    background-color: #334155; 
     color: white;
 }
 .dropdown-item .feather {
-    color: #94a3b8; /* slate-400 */
+    color: #94a3b8; 
     margin-right: 0.75rem;
 }
 
-/* --- Layout Principal (Sidebar + Conteúdo) --- */
 #mainSystem {
     display: flex;
     flex: 1;
-    /* overflow: hidden; <-- Este é removido pela classe no app.html, mas garantimos aqui */
-    overflow: visible; /* Garante que não corte */
-    /* ADICIONADO: Define a altura exata do container principal */
+    overflow: visible; 
     height: calc(100vh - 64px); 
 }
 
-/* --- Barra Lateral (Sidebar) --- */
 .sidebar {
-    width: 260px; /* Largura padrão */
+    width: 260px; 
     background: var(--darker);
     color: white;
     flex-shrink: 0;
-    height: 100%; /* Ocupa 100% do pai (#mainSystem) */
+    height: 100%; 
     overflow-y: auto;
     overflow-x: hidden; 
     display: flex;
@@ -138,20 +124,19 @@ body.system-active {
     flex-direction: column;
 }
 #logoutLink {
-    margin-top: auto; /* Empurra o logout para baixo */
+    margin-top: auto; 
 }
 
-/* Estado Recolhido (Collapsed) */
 .sidebar.collapsed {
-    width: 73px; /* Largura recolhida (ícone + padding) */
+    width: 73px; 
 }
 .sidebar.collapsed .nav-item {
-    padding-left: 1.5rem; /* 24px */
-    padding-right: 1.5rem; /* 24px */
+    padding-left: 1.5rem; 
+    padding-right: 1.5rem; 
     justify-content: center;
 }
 .sidebar.collapsed .nav-item .mr-3 {
-    margin-right: 0; /* Remove margem do ícone */
+    margin-right: 0; 
 }
 .sidebar.collapsed .nav-text {
     opacity: 0;
@@ -161,12 +146,11 @@ body.system-active {
     white-space: nowrap;
 }
 
-/* Itens da Barra Lateral (Nav) */
 .nav-item {
     display: flex;
     align-items: center;
-    padding: 0.75rem 1.5rem; /* 12px 24px */
-    margin: 0.25rem 0.5rem; /* 4px 8px */
+    padding: 0.75rem 1.5rem; 
+    margin: 0.25rem 0.5rem; 
     border-radius: 6px;
     transition: all 0.2s ease;
     color: var(--light);
@@ -194,20 +178,18 @@ body.system-active {
 }
 
 
-/* --- Conteúdo Principal (Main) --- */
 .main-content {
     flex: 1;
-    overflow-y: auto; /* Permite scroll SÓ no conteúdo principal */
-    overflow-x: hidden; /* Previne scroll horizontal acidental */
-    height: 100%; /* Ocupa 100% do pai (#mainSystem) */
-    background-color: #f7f9fc; /* Cor de fundo Asana */
+    overflow-y: auto; 
+    overflow-x: hidden; 
+    height: 100%; 
+    background-color: #f7f9fc; 
 }
 
 .view-content { display: none; }
 .view-content.active { display: block; animation: fadeIn 0.4s ease-out; } 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-/* Títulos das Views (Estilo JProjects/Asana) */
 .view-content h1 {
     font-size: 1.8rem;
     font-weight: 700;
@@ -221,11 +203,6 @@ body.system-active {
     color: var(--accent);
 }
 
-/* ========================================
-   COMPONENTES (Estilo JProjects/Asana)
-   ======================================== */
-
-/* --- Cards de Estatística (Dashboard) --- */
 .stat-card-dash {
     background: white;
     border: 1px solid #e5e7eb;
@@ -245,7 +222,7 @@ body.system-active {
 .stat-card-dash .stat-label {
     font-size: 0.85rem;
     font-weight: 500;
-    color: #64748b; /* slate-500 */
+    color: #64748b; 
     display: block;
 }
 .stats-grid {
@@ -256,7 +233,6 @@ body.system-active {
 }
 
 
-/* --- Cards Genéricos (Info, Gráficos) --- */
 .chart-card, .info-card, .progress-container, .resultado-card, .login-card {
     background: white;
     border: 1px solid #e5e7eb;
@@ -266,7 +242,7 @@ body.system-active {
     margin-bottom: 25px;
 }
 .chart-card h3, .info-card h3, .progress-container h3, .resultado-card h3, .login-card h3 {
-    font-size: 1.25rem; /* Aumentado */
+    font-size: 1.25rem; 
     font-weight: 600;
     color: var(--dark);
     margin-bottom: 16px;
@@ -280,12 +256,11 @@ body.system-active {
     color: var(--accent);
 }
 
-/* --- Forms --- */
 .form-group { margin-bottom: 10px; }
 .form-group label { margin-bottom: 6px; font-weight: 500; color: #4b5563; font-size: 0.85rem; display: block; }
 .form-group input, .form-group select, .form-group textarea {
     padding: 10px 14px;
-    border: 1px solid #d1d5db; /* gray-300 */
+    border: 1px solid #d1d5db; 
     border-radius: 6px;
     font-size: 0.95rem;
     background: #ffffff;
@@ -313,7 +288,6 @@ small { color: #6c757d; font-size: 0.8em; display: block; margin-top: 4px; }
 hr { border-top: 1px solid #e5e7eb; margin: 25px 0;}
 
 
-/* --- Botões --- */
 .btn {
     padding: 10px 18px;
     border: none;
@@ -321,7 +295,7 @@ hr { border-top: 1px solid #e5e7eb; margin: 25px 0;}
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 600;
-    text-transform: none; /* Sem uppercase */
+    text-transform: none; 
     transition: all 0.2s ease;
     display: inline-flex;
     align-items: center;
@@ -349,10 +323,9 @@ hr { border-top: 1px solid #e5e7eb; margin: 25px 0;}
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 
 
-/* --- Modais --- */
 .modal {
     display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-    background: rgba(0, 0, 0, 0.5); /* Menos escuro */
+    background: rgba(0, 0, 0, 0.5); 
     justify-content: center; align-items: center; z-index: 1001; padding: 20px; overflow-y: auto;
 }
 .modal-content {
@@ -365,7 +338,6 @@ hr { border-top: 1px solid #e5e7eb; margin: 25px 0;}
 .modal h3 { margin-top: 0; color: var(--dark); font-size: 1.3em;}
 
 
-/* --- Alertas --- */
 .alert { padding: 12px 16px; margin: 16px 0; border-radius: 6px; font-weight: 500; font-size: 0.9rem; border: 1px solid transparent; }
 .alert-success { background-color: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
 .alert-error { background-color: #fef2f2; color: #b91c1c; border-color: #fecaca; }
@@ -373,9 +345,9 @@ hr { border-top: 1px solid #e5e7eb; margin: 25px 0;}
 .alert-warning { background-color: #fffbeb; color: #b45309; border-color: #fde68a; }
 
 
-/* --- Notificações (Toast) --- */
 #notificationContainer { 
-    position: fixed; top: 84px; /* Abaixo do topbar */ right: 20px; 
+    position: fixed; top: 84px; 
+    right: 20px; 
     display: flex; flex-direction: column; gap: 12px; z-index: 2000; 
 }
 .notification {
@@ -396,7 +368,6 @@ hr { border-top: 1px solid #e5e7eb; margin: 25px 0;}
 .notification.info .notification-header { color: var(--accent); }
 .notification-body { font-size: 0.9rem; color: #555; }
 
-/* --- Tabelas --- */
 .table-container { border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb; background: white; }
 table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
 .tabela th, .tabela td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #e5e7eb; white-space: nowrap; font-size: 0.9rem; }
@@ -405,11 +376,6 @@ table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
 .tabela tbody tr:last-child td { border-bottom: none; }
 .tabela .actions { text-align: right; } .tabela .actions button { margin-left: 5px;}
 
-/* ========================================
-   ESTILOS ESPECÍFICOS (G&G)
-   ======================================== */
-
-/* --- Status de Conexão --- */
 .status-conexao { padding: 10px 15px; border-radius: 8px; margin: 15px 0; text-align: center; font-weight: 500; font-size: 0.9em;}
 .status-conectado { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
 .status-desconectado { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
@@ -424,7 +390,6 @@ table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
     font-size: 0.9em;
 }
 
-/* --- Formulário de Avaliação --- */
 .competencia-card {
     background: var(--white);
     border: 1px solid #e5e7eb;
@@ -449,11 +414,9 @@ table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
 .rating-option span { font-size: 0.9em; margin-top: 3px; }
 .rating-option input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
 
-/* --- Progresso --- */
 .progress-bar { width: 100%; height: 18px; background: #e9ecef; border-radius: 9px; overflow: hidden; margin-top: 10px; }
 .progress-fill { height: 100%; background: var(--primary-gradient); width: 0%; transition: width 0.5s ease; border-radius: 9px; }
 
-/* --- Resultado --- */
 .resultado-card {
     background: linear-gradient(135deg, #f7f9fc 0%, #ffffff 100%);
     border: 1px solid var(--primary);
@@ -471,28 +434,21 @@ table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
     background: var(--dark);
     color: white;
 }
-/* Cores de Classificação */
 .classificacao-EXCELENTE { background: var(--primary); color: white; }
 .classificacao-BOM { background: var(--secondary); color: white; }
 .classificacao-REGULAR { background: #f59e0b; color: white; }
 .classificacao-PRECISA-MELHORAR { background: #dc2626; color: white; }
 
 
-/* --- Indicadores --- */
 #indicadoresContainer .form-group { background-color: #f9fafb; padding: 12px; border-radius: 6px; border-left: 4px solid var(--secondary); margin-bottom: 10px;}
 #indicadoresContainer label { font-size: 0.85em; color: #495057; }
 #indicadoresContainer span { font-size: 0.8em; }
 
-/* --- Loading --- */
 .loading { display: none; flex-direction: column; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.7); z-index: 5000;}
 .spinner { border: 3px solid rgba(0, 212, 170, 0.1); border-top: 3px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-/* ========================================
-   RESPONSIVIDADE (Ajustes Finais)
-   ======================================== */
 @media (max-width: 768px) {
-    /* TopBar Mobile */
     #topBar { padding: 0 1rem; height: 60px; }
     #topBarSearch { display: none; } 
     #topBarOrgName { display: none; } 
@@ -500,13 +456,12 @@ table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
     #topBar .btn-success { padding: 0.5rem; }
     #topBar .btn-success .mr-2 { margin-right: 0; }
     
-    /* Sidebar Mobile (overlay) */
     .sidebar {
         position: fixed;
         top: 0;
         left: 0;
         height: 100vh;
-        z-index: 1020; /* Acima de tudo */
+        z-index: 1020; 
         transform: translateX(-100%);
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         width: 280px;
@@ -515,7 +470,6 @@ table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
         transform: translateX(0);
         box-shadow: 0 0 20px rgba(0,0,0,0.2);
     }
-    /* Overlay escuro */
     #sidebarOverlay {
         display: none;
         position: fixed;
@@ -530,7 +484,6 @@ table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
         transform: translateX(-100%);
     }
 
-    /* Conteúdo Principal */
     .main-content { padding-left: 1rem; padding-right: 1rem; }
     .view-content h1 { font-size: 1.5rem; margin-bottom: 1rem; }
 
@@ -538,12 +491,9 @@ table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
     .form-row { grid-template-columns: 1fr; }
     .rating-container { flex-wrap: wrap; justify-content: center; }
 
-    /* Ajuste modal */
     .modal-content { padding: 20px; }
 
-    /* Ajuste form perfil */
      #perfilView .flex-col.sm\:flex-row { flex-direction: column; }
      #perfilPicturePreview { margin-right: 0; margin-bottom: 1rem; }
      .grid.grid-cols-1.md\:grid-cols-2 { grid-template-columns: 1fr; }
 }
-
