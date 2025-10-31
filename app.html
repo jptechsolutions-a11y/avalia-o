@@ -231,75 +231,22 @@
                         
                         <!-- Conteúdo visível apenas para Admins -->
                         <div id="configAdminOnly" style="display: none;">
-                            
-                            <!-- NOVO: Card de Solicitações de Acesso -->
-                            <div class="info-card">
-                                <h3><i data-feather="user-plus" class="h-5 w-5"></i> Solicitações de Acesso Pendentes</h3>
-                                <div class="table-container">
-                                    <table class="tabela" id="tabela-solicitacoes-admin">
-                                        <thead>
-                                            <tr>
-                                                <th>Nome</th>
-                                                <th>E-mail</th>
-                                                <th>Motivo</th>
-                                                <th>Solicitado em</th>
-                                                <th>Ações</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr><td colspan="5" style="text-align:center;">Carregando...</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                            <div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Acesso restrito a administradores.</div>
 
-                            <!-- NOVO: Card de Gerenciamento de Usuários -->
+                            <!-- NOVO CARD: Apenas para criar o nome do indicador -->
                             <div class="info-card">
-                                <h3><i data-feather="users" class="h-5 w-5"></i> Gerenciar Usuários do Sistema</h3>
-                                <div class="table-container">
-                                    <table class="tabela" id="tabela-usuarios-admin">
-                                        <thead>
-                                            <tr>
-                                                <th>Nome</th>
-                                                <th>E-mail</th>
-                                                <th>Matrícula</th>
-                                                <th>Permissão (Role)</th>
-                                                <th>Filial</th>
-                                                <th>Status</th>
-                                                <th>Ações</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr><td colspan="7" style="text-align:center;">Carregando...</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            
-                            <!-- Card Existente: Indicadores -->
-                            <div class="info-card">
-                                <h3><i class="fas fa-list-alt"></i> Gerenciar Definições de Indicadores</h3>
+                                <h3><i class="fas fa-plus-circle"></i> Cadastrar Novo Indicador</h3>
                                 <form id="form-add-indicador" onsubmit="event.preventDefault(); window.GG.salvarIndicador();">
-                                    <h4>Adicionar/Editar Indicador</h4>
                                     <input type="hidden" id="edit-indicador-id">
                                     <div class="form-row">
-                                        <div class="form-group"><label for="add-indicador-nome">Nome do Indicador *</label><input type="text" id="add-indicador-nome" required></div>
+                                        <div class="form-group">
+                                            <label for="add-indicador-nome">Nome do Indicador *</label>
+                                            <input type="text" id="add-indicador-nome" required>
+                                        </div>
                                         <div class="form-group">
                                             <label for="add-indicador-secao">Seção *</label>
-                                            <!-- ATUALIZADO: De input para select -->
                                             <select id="add-indicador-secao" required>
                                                 <option value="">Carregando seções...</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="form-row">
-                                        <div class="form-group"><label for="add-indicador-meta">Meta</label><input type="text" id="add-indicador-meta" placeholder="Ex: >= 80, < 5%, R$ 1000"></div>
-                                        <div class="form-group">
-                                            <label for="add-indicador-tipo">Tipo</label>
-                                            <!-- ATUALIZADO: De input para select -->
-                                            <select id="add-indicador-tipo">
-                                                <option value="">Selecione o Tipo...</option>
-                                                <!-- Populado via JS -->
                                             </select>
                                         </div>
                                     </div>
@@ -307,16 +254,60 @@
                                     <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormIndicador()"><i class="fas fa-undo"></i> Limpar</button>
                                 </form>
                                 <hr>
-                                <h4>Indicadores Cadastrados</h4>
+                                <h4>Indicadores Cadastrados (Definições)</h4>
                                 <div class="table-container">
                                     <table class="tabela" id="tabela-indicadores">
-                                        <thead><tr><th>ID</th><th>Indicador</th><th>Seção</th><th>Meta</th><th>Tipo</th><th>Ações</th></tr></thead>
+                                        <thead><tr><th>ID</th><th>Indicador</th><th>Seção</th><th>Ações</th></tr></thead>
+                                        <tbody><tr><td colspan="4" style="text-align:center;">Carregando...</td></tr></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- CARD ATUALIZADO: Agora para gerenciar Metas -->
+                            <div class="info-card">
+                                <h3><i class="fas fa-list-alt"></i> Gerenciar Metas por Filial</h3>
+                                <form id="form-add-meta" onsubmit="event.preventDefault(); window.GG.salvarMeta();">
+                                    <h4>Adicionar/Editar Meta</h4>
+                                    <input type="hidden" id="edit-meta-id">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="add-meta-indicador">Indicador *</label>
+                                            <select id="add-meta-indicador" required>
+                                                <option value="">Selecione...</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="add-meta-filial">Filial *</label>
+                                            <select id="add-meta-filial" required>
+                                                <option value="">Carregando filiais...</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="add-meta-meta">Meta *</label>
+                                            <input type="text" id="add-meta-meta" required placeholder="Ex: >= 80, < 5%">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="add-meta-tipo">Tipo *</label>
+                                            <select id="add-meta-tipo" required>
+                                                <option value="">Selecione o Tipo...</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Meta</button>
+                                    <button type="button" class="btn btn-secondary" onclick="window.GG.limparFormMeta()"><i class="fas fa-undo"></i> Limpar</button>
+                                </form>
+                                <hr>
+                                <h4>Metas Cadastradas</h4>
+                                <div class="table-container">
+                                    <table class="tabela" id="tabela-metas">
+                                        <thead><tr><th>ID</th><th>Indicador</th><th>Filial</th><th>Meta</th><th>Tipo</th><th>Ações</th></tr></thead>
                                         <tbody><tr><td colspan="6" style="text-align:center;">Carregando...</td></tr></tbody>
                                     </table>
                                 </div>
                             </div>
 
-                            <!-- Card Existente: Resultados -->
                             <div class="info-card">
                                 <h3><i class="fas fa-calendar-check"></i> Gerenciar Resultados Mensais</h3>
                                 <form id="form-add-resultado" onsubmit="event.preventDefault(); window.GG.adicionarOuAtualizarResultado();">
@@ -328,8 +319,9 @@
                                             <select id="add-resultado-indicador" required><option value="">Carregando...</option></select>
                                         </div>
                                         <div class="form-group">
-                                            <label for="add-resultado-secao">Seção *</label>
-                                            <select id="add-resultado-secao" required><option value="">Carregando...</option></select>
+                                            <!-- ATUALIZADO: De Seção para Filial -->
+                                            <label for="add-resultado-filial">Filial *</label>
+                                            <select id="add-resultado-filial" required><option value="">Carregando...</option></select>
                                         </div>
                                     </div>
                                     <div class="form-row">
@@ -353,20 +345,20 @@
                                         <input type="month" id="filtro-resultado-mes" onchange="window.GG.renderizarTabelaResultados()">
                                     </div>
                                     <div class="form-group">
-                                        <label for="filtro-resultado-secao">Filtrar por Seção:</label>
-                                        <select id="filtro-resultado-secao" onchange="window.GG.renderizarTabelaResultados()"><option value="">Todas</option></select>
+                                        <!-- ATUALIZADO: De Seção para Filial -->
+                                        <label for="filtro-resultado-filial">Filtrar por Filial:</label>
+                                        <select id="filtro-resultado-filial" onchange="window.GG.renderizarTabelaResultados()"><option value="">Todas</option></select>
                                     </div>
                                 </div>
                                 <div class="table-container">
                                     <table class="tabela" id="tabela-resultados">
-                                        <thead><tr><th>Mês</th><th>Seção</th><th>Indicador</th><th>Realizado</th><th>Ações</th></tr></thead>
+                                        <!-- ATUALIZADO: De Seção para Filial -->
+                                        <thead><tr><th>Mês</th><th>Filial</th><th>Indicador</th><th>Realizado</th><th>Ações</th></tr></thead>
                                         <tbody><tr><td colspan="5" style="text-align:center;">Selecione filtros para carregar...</td></tr></tbody>
                                     </table>
                                 </div>
                             </div>
                         </div>
-                        
-                         <!-- Conteúdo visível para não-admins -->
                          <div id="configUserOnly" class="alert alert-info" style="display: none;">
                             Você não tem permissão de administrador para ver esta página.
                         </div>
@@ -502,4 +494,5 @@
     </script>
 </body>
 </html>
+
 
