@@ -1,0 +1,14 @@
+{
+  "name": "avalia-o",
+  "version": "1.0.0",
+  "description": "Sistema de Avaliação de Desempenho G&G",
+  "private": true,
+  "scripts": {
+    "dev": "echo \"Execute 'vercel dev' para rodar localmente\" && exit 1"
+  },
+  "author": "Juliano Patrick",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  }
+}
