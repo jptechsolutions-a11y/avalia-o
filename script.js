@@ -14,6 +14,7 @@ window.GG = {
         gestores: {}, 
         indicadores: [], 
         resultadosIndicadores: [],
+        metas: [], // NOVO: Para guardar as metas por filial
         usuarios: [], // NOVO: Para admin gerenciar usuários
         solicitacoes: [], // NOVO: Para admin gerenciar solicitações
         avaliacaoAtual: null, 
@@ -364,20 +365,23 @@ window.GG = {
                 this.supabaseRequest('colaboradores?select=*', 'GET'), 
                 this.supabaseRequest('gestores?select=*', 'GET'),
                 this.supabaseRequest('avaliacoes?select=*', 'GET'), 
-                this.supabaseRequest('indicadores?select=*&order=indicador.asc', 'GET'),
-                this.supabaseRequest('resultados_indicadores?select=*', 'GET')
-            ]);
-            
-            const [colabRes, gestRes, avalRes, indRes, resIndRes] = results;
+            this.supabaseRequest('indicadores?select=*&order=indicador.asc', 'GET'),
+            this.supabaseRequest('resultados_indicadores?select=*', 'GET'),
+            this.supabaseRequest('indicadores_metas?select=*', 'GET') // NOVO: Carrega as metas
+        ]);
+        
+        // ATUALIZADO: Adiciona o 'metasRes'
+        const [colabRes, gestRes, avalRes, indRes, resIndRes, metasRes] = results;
 
-            this.dados.colaboradores = (colabRes.status === 'fulfilled' && colabRes.value) ? colabRes.value.reduce((acc, c) => { if(c.matricula) acc[String(c.matricula).trim()] = c; return acc; }, {}) : {};
+        this.dados.colaboradores = (colabRes.status === 'fulfilled' && colabRes.value) ? colabRes.value.reduce((acc, c) => { if(c.matricula) acc[String(c.matricula).trim()] = c; return acc; }, {}) : {};
             this.dados.gestores = (gestRes.status === 'fulfilled' && gestRes.value) ? gestRes.value.reduce((acc, g) => { if(g.matricula) acc[String(g.matricula).trim()] = g; return acc; }, {}) : {};
-            this.dados.avaliacoes = (avalRes.status === 'fulfilled' && avalRes.value) ? avalRes.value : [];
-            this.dados.indicadores = (indRes.status === 'fulfilled' && indRes.value) ? indRes.value : [];
-            this.dados.resultadosIndicadores = (resIndRes.status === 'fulfilled' && resIndRes.value) ? resIndRes.value : [];
-            
-            results.forEach((res, i) => {
-                if (res.status === 'rejected') {
+        this.dados.avaliacoes = (avalRes.status === 'fulfilled' && avalRes.value) ? avalRes.value : [];
+        this.dados.indicadores = (indRes.status === 'fulfilled' && indRes.value) ? indRes.value : [];
+        this.dados.resultadosIndicadores = (resIndRes.status === 'fulfilled' && resIndRes.value) ? resIndRes.value : [];
+        this.dados.metas = (metasRes.status === 'fulfilled' && metasRes.value) ? metasRes.value : []; // NOVO
+        
+        results.forEach((res, i) => {
+            if (res.status === 'rejected') {
                     console.error(`Falha ao carregar dados [${i}]:`, res.reason);
                 }
             });
@@ -420,15 +424,33 @@ window.GG = {
         const matricula = document.getElementById('matriculaAvaliado').value;
         const mesReferenciaInput = document.getElementById('mesReferencia').value;
         if (!matricula || !mesReferenciaInput) { this.limparIndicadores(); return; }
+        
         const colaborador = this.dados.colaboradores[String(matricula).trim()];
         if (!colaborador) { this.limparIndicadores(); return; }
         
+        // ATUALIZADO: Pega a SEÇÃO e a FILIAL do colaborador
         const secao = colaborador.secao || 'GERAL'; 
+        const filial = colaborador.filial; // Pega a filial
         const mesFormatado = `${mesReferenciaInput}-01`;
+
+        if (!filial) {
+            container.innerHTML = `<p style="color: #dc2626; font-style: italic;">Colaborador sem filial definida. Não é possível carregar indicadores.</p>`;
+            return;
+        }
+
+        // 1. Filtra indicadores pela seção do colaborador
         const indicadoresAplicaveis = this.dados.indicadores.filter(ind => ind.secao === 'GERAL' || ind.secao === secao);
-        const resultadosDoMes = this.dados.resultadosIndicadores.filter(res => res.mes_referencia === mesFormatado && (res.secao === secao || res.secao === 'GERAL'));
         
-        this.renderizarIndicadores(indicadoresAplicaveis, resultadosDoMes);
+        // 2. Filtra as METAS pela FILIAL do colaborador
+        const metasDaFilial = this.dados.metas.filter(m => m.filial === filial);
+        
+        // 3. Filtra os RESULTADOS pela FILIAL do colaborador e MÊS
+        const resultadosDaFilial = this.dados.resultadosIndicadores.filter(res => 
+            res.mes_referencia === mesFormatado && res.filial === filial
+        );
+        
+        // 4. Renderiza usando os dados filtrados
+        this.renderizarIndicadores(indicadoresAplicaveis, metasDaFilial, resultadosDaFilial);
     },
     
     // NOVO: Helper para extrair número de strings (R$ 1.000,50 | 90% | < 5)
@@ -452,28 +474,49 @@ window.GG = {
     },
 
     // ATUALIZADO: Renderiza indicadores com barras de progresso
-    renderizarIndicadores(indicadores, resultados) {
+    // Recebe as metas e resultados já filtrados por filial/mês
+    renderizarIndicadores(indicadores, metasDaFilial, resultadosDaFilial) {
         const container = document.getElementById('indicadoresContainer');
         if (!indicadores || indicadores.length === 0) {
             container.innerHTML = `<p style="color: #6c757d; font-style: italic;">Nenhum indicador aplicável para esta seção.</p>`; return;
         }
         
-        const mapaResultados = resultados.reduce((acc, res) => { acc[res.indicador_id] = res.valor_realizado; return acc; }, {});
+        // Cria mapas para busca rápida
+        const mapaMetas = metasDaFilial.reduce((acc, m) => {
+            acc[m.indicador_id] = { meta: m.meta, tipo: m.tipo };
+            return acc;
+        }, {});
+        
+        const mapaResultados = resultadosDaFilial.reduce((acc, res) => {
+            acc[res.indicador_id] = res.valor_realizado;
+            return acc;
+        }, {});
         
         // Mudar de form-row para um grid
         let html = '<div class="indicator-grid">'; 
+        let indicadoresRenderizados = 0;
         
         indicadores.forEach((ind) => {
-            const metaStr = ind.meta || 'N/A';
+            // Pega a meta e o resultado específico para este indicador
+            const metaObj = mapaMetas[ind.id];
             const realizadoStr = mapaResultados[ind.id] !== undefined ? String(mapaResultados[ind.id]) : 'N/A';
-            
+
+            // Se não houver meta cadastrada PARA ESTA FILIAL, pula o indicador
+            if (!metaObj) {
+                return;
+            }
+
+            indicadoresRenderizados++;
+            const metaStr = metaObj.meta || 'N/A';
+            const tipo = metaObj.tipo || 'texto'; // Pega o TIPO da meta
+
             const metaNum = this.parseIndicadorValor(metaStr);
             const realizadoNum = this.parseIndicadorValor(realizadoStr);
             
             let vizHtml = '';
             
             // Se o tipo for texto ou não for numérico, exibe apenas texto
-            if (ind.tipo === 'texto' || isNaN(metaNum) || isNaN(realizadoNum) || metaNum === 0) {
+            if (tipo === 'texto' || isNaN(metaNum) || isNaN(realizadoNum) || metaNum === 0) {
                 vizHtml = `
                     <div class="indicador-texto">
                         <div>Meta: <span>${this.escapeHTML(metaStr)}</span></div>
@@ -482,7 +525,7 @@ window.GG = {
                 `;
             } else {
                 // É numérico, vamos fazer a barra
-                const isInverse = metaStr.includes('<'); // Meta é "menor que" (ex: < 5 faltas)
+                const isInverse = metaStr.includes('<') || tipo === 'inverso'; // Meta é "menor que"
                 let percent = (realizadoNum / metaNum) * 100;
                 
                 let isGood = false;
@@ -517,28 +560,13 @@ window.GG = {
                     barWidthPercent = 100; // Capa em 100% mas com cor diferente
                 }
                 
-                vizHtml = `
-                    <div class="indicador-numerico">
-                        <div class="indicador-valores">
-                            <span>Realizado: <strong>${this.escapeHTML(realizadoStr)}</strong></span>
-                            <span>Meta: ${this.escapeHTML(metaStr)}</span>
-                        </div>
-                        <div class="progress-bar-viz">
-                            <div class="progress-bar-inner ${barColorClass}" style="width: ${barWidthPercent}%;"></div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            html += `
-                <div class="indicator-viz-card">
-                    <label>${this.escapeHTML(ind.indicador)}</label>
-                    ${vizHtml}
-                </div>
-            `;
-        });
+        html += '</div>';
         
-        html += '</div>'; 
+        if (indicadoresRenderizados === 0) {
+            container.innerHTML = `<p style="color: #6c757d; font-style: italic;">Nenhuma meta de indicador cadastrada para a filial deste colaborador.</p>`;
+            return;
+        }
+
         container.innerHTML = html;
     },
     
@@ -860,8 +888,13 @@ window.GG = {
         this.renderizarTabelasAdmin();
         
         // Lógica existente
-        this.limparFormIndicador(); this.limparFormResultado();
-        this.renderizarTabelaIndicadores();
+        this.limparFormIndicador(); // NOVO
+        this.limparFormMeta(); // RENOMEADO
+        this.limparFormResultado();
+        
+        this.renderizarTabelaIndicadores(); // NOVO
+        this.renderizarTabelaMetas(); // RENOMEADO
+        
         this.popularDropdownsConfig();
         this.renderizarTabelaResultados();
         this.mostrarLoading(false);
@@ -1035,16 +1068,20 @@ window.GG = {
     // FIM DAS NOVAS FUNÇÕES DE ADMINISTRAÇÃO
     // -----------------------------------------------------------------
 
+    // NOVO: Renderiza a tabela simples de Indicadores (Nome/Seção)
     renderizarTabelaIndicadores() {
         const tbody = document.querySelector('#tabela-indicadores tbody');
         tbody.innerHTML = '';
-        if (!this.dados.indicadores || this.dados.indicadores.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhum indicador cadastrado.</td></tr>'; return; }
+        if (!this.dados.indicadores || this.dados.indicadores.length === 0) { 
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum indicador cadastrado.</td></tr>'; 
+            return; 
+        }
         
         this.dados.indicadores.forEach(ind => {
             tbody.innerHTML += `<tr id="indicador-row-${ind.id}">
-                <td>${ind.id}</td><td>${this.escapeHTML(ind.indicador)}</td>
-                <td>${this.escapeHTML(ind.secao)}</td><td>${this.escapeHTML(ind.meta || '--')}</td>
-                <td>${this.escapeHTML(ind.tipo || '--')}</td>
+                <td>${ind.id}</td>
+                <td>${this.escapeHTML(ind.indicador)}</td>
+                <td>${this.escapeHTML(ind.secao)}</td>
                 <td class="actions">
                     <button class="btn btn-sm btn-warning" onclick="window.GG.editarIndicador(${ind.id})"><i data-feather="edit-2" class="h-4 w-4"></i></button>
                     <button class="btn btn-sm btn-danger" onclick="window.GG.excluirIndicador(${ind.id})"><i data-feather="trash-2" class="h-4 w-4"></i></button>
@@ -1052,17 +1089,19 @@ window.GG = {
         });
         feather.replace();
     },
-    
+
+    // NOVO: Salva a definição simples do Indicador (Nome/Seção)
     async salvarIndicador() {
         if (this.currentUser.role !== 'admin') return;
         const id = document.getElementById('edit-indicador-id').value;
         const dadosIndicador = {
             indicador: document.getElementById('add-indicador-nome').value.trim(),
             secao: document.getElementById('add-indicador-secao').value.trim().toUpperCase() || 'GERAL',
-            meta: document.getElementById('add-indicador-meta').value.trim() || null,
-            tipo: document.getElementById('add-indicador-tipo').value.trim() || null
         };
-        if (!dadosIndicador.indicador || !dadosIndicador.secao) { this.mostrarAlerta('Nome e Seção são obrigatórios.', 'warning'); return; }
+        if (!dadosIndicador.indicador || !dadosIndicador.secao) { 
+            this.mostrarAlerta('Nome e Seção são obrigatórios.', 'warning'); 
+            return; 
+        }
         
         try {
             this.mostrarLoading(true);
@@ -1079,41 +1118,191 @@ window.GG = {
             this.dados.indicadores.sort((a,b) => a.indicador.localeCompare(b.indicador)); 
             this.limparFormIndicador();
             this.renderizarTabelaIndicadores();
-            this.popularDropdownsConfig();
-        } catch (e) { this.mostrarAlerta(`Erro ao salvar indicador: ${e.message}`, 'danger'); }
-        finally { this.mostrarLoading(false); }
+            this.popularDropdownsConfig(); // Atualiza os dropdowns de metas
+        } catch (e) { 
+            this.mostrarAlerta(`Erro ao salvar indicador: ${e.message}`, 'danger'); 
+        } finally { 
+            this.mostrarLoading(false); 
+        }
     },
-    
+
+    // NOVO: Edita a definição simples do Indicador
     editarIndicador(id) {
-        // Esta função usa o formulário principal, não o modal genérico. Vamos manter assim.
         if (this.currentUser.role !== 'admin') return;
         const indicador = this.dados.indicadores.find(ind => ind.id === id);
-        if (!indicador) return;
+        if (!indicador) return; 
+        
         document.getElementById('edit-indicador-id').value = id;
         document.getElementById('add-indicador-nome').value = indicador.indicador;
-        document.getElementById('add-indicador-secao').value = indicador.secao;
-        document.getElementById('add-indicador-meta').value = indicador.meta || '';
-        document.getElementById('add-indicador-tipo').value = indicador.tipo || '';
+        document.getElementById('add-indicador-secao').value = indicador.secao; // Funciona com select
         document.getElementById('add-indicador-nome').focus();
         this.mostrarAlerta(`Editando Indicador #${id}. Altere e clique em Salvar.`, 'info');
     },
-    
-    limparFormIndicador(){ document.getElementById('form-add-indicador').reset(); document.getElementById('edit-indicador-id').value = ''; },
-    
-    async excluirIndicador(id) {
-        if (this.currentUser.role !== 'admin') return;
-        if (!confirm(`Tem certeza que deseja excluir o indicador ID ${id}? Isso PODE excluir resultados históricos associados (se o CASCADE estiver ativo no banco).`)) return;
-        try {
-            this.mostrarLoading(true);
-            await this.supabaseRequest(`indicadores?id=eq.${id}`, 'DELETE');
-            this.dados.indicadores = this.dados.indicadores.filter(ind => ind.id !== id);
-            this.dados.resultadosIndicadores = this.dados.resultadosIndicadores.filter(res => res.indicador_id !== id);
-            this.renderizarTabelaIndicadores(); this.popularDropdownsConfig(); this.renderizarTabelaResultados();
-            this.mostrarAlerta('Indicador excluído!', 'success');
-        } catch (e) { this.mostrarAlerta(`Erro ao excluir: ${e.message}`, 'danger'); }
-        finally { this.mostrarLoading(false); }
+
+    // NOVO: Limpa o formulário de definição de indicador
+    limparFormIndicador(){ 
+        document.getElementById('form-add-indicador').reset(); 
+        document.getElementById('edit-indicador-id').value = ''; 
     },
 
+    // NOVO: Exclui a definição do indicador (e suas metas/resultados)
+    async excluirIndicador(id) {
+        if (this.currentUser.role !== 'admin') return;
+        if (!confirm(`Tem certeza que deseja excluir o indicador ID ${id}? ISSO EXCLUIRÁ TODAS AS METAS E RESULTADOS associados a ele.`)) return;
+        try {
+            this.mostrarLoading(true);
+            // Deixa o CASCADE do banco (se configurado) fazer o trabalho pesado
+            await this.supabaseRequest(`indicadores?id=eq.${id}`, 'DELETE');
+            
+            // Limpa localmente
+            this.dados.indicadores = this.dados.indicadores.filter(ind => ind.id !== id);
+            this.dados.metas = this.dados.metas.filter(m => m.indicador_id !== id);
+            this.dados.resultadosIndicadores = this.dados.resultadosIndicadores.filter(res => res.indicador_id !== id);
+            
+            // Re-renderiza tudo
+            this.renderizarTabelaIndicadores(); 
+            this.renderizarTabelaMetas();
+            this.renderizarTabelaResultados();
+            this.popularDropdownsConfig();
+            
+            this.mostrarAlerta('Indicador excluído!', 'success');
+        } catch (e) { 
+            this.mostrarAlerta(`Erro ao excluir: ${e.message}`, 'danger'); 
+        } finally { 
+            this.mostrarLoading(false); 
+        }
+    },
+
+
+    // ----- Funções de Metas (Antigas 'Indicadores') -----
+
+    // RENOMEADO: de renderizarTabelaIndicadores para renderizarTabelaMetas
+    renderizarTabelaMetas() {
+        const tbody = document.querySelector('#tabela-metas tbody');
+        tbody.innerHTML = '';
+        if (!this.dados.metas || this.dados.metas.length === 0) { 
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhuma meta cadastrada.</td></tr>'; 
+            return; 
+        }
+        
+        // Mapa para pegar nome do indicador
+        const indicadorMap = this.dados.indicadores.reduce((map, ind) => {
+            map[ind.id] = ind.indicador;
+            return map;
+        }, {});
+
+        this.dados.metas.forEach(meta => {
+            const nomeIndicador = indicadorMap[meta.indicador_id] || `ID ${meta.indicador_id}`;
+            tbody.innerHTML += `<tr id="meta-row-${meta.id}">
+                <td>${meta.id}</td>
+                <td>${this.escapeHTML(nomeIndicador)}</td>
+                <td>${this.escapeHTML(meta.filial)}</td>
+                <td>${this.escapeHTML(meta.meta || '--')}</td>
+                <td>${this.escapeHTML(meta.tipo || '--')}</td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-warning" onclick="window.GG.editarMeta(${meta.id})"><i data-feather="edit-2" class="h-4 w-4"></i></button>
+                    <button class="btn btn-sm btn-danger" onclick="window.GG.excluirMeta(${meta.id})"><i data-feather="trash-2" class="h-4 w-4"></i></button>
+                </td></tr>`;
+        });
+        feather.replace();
+    },
+    
+    // RENOMEADO: de salvarIndicador para salvarMeta
+    async salvarMeta() {
+        if (this.currentUser.role !== 'admin') return;
+        const id = document.getElementById('edit-meta-id').value;
+        
+        const dadosMeta = {
+            indicador_id: document.getElementById('add-meta-indicador').value,
+            filial: document.getElementById('add-meta-filial').value,
+            meta: document.getElementById('add-meta-meta').value.trim() || null,
+            tipo: document.getElementById('add-meta-tipo').value.trim() || null
+        };
+
+        if (!dadosMeta.indicador_id || !dadosMeta.filial || !dadosMeta.meta || !dadosMeta.tipo) { 
+            this.mostrarAlerta('Todos os campos da meta são obrigatórios.', 'warning'); 
+            return; 
+        }
+        
+        try {
+            this.mostrarLoading(true);
+            if (id) { 
+                // Se está editando, só permite mudar meta e tipo
+                const updateData = { meta: dadosMeta.meta, tipo: dadosMeta.tipo };
+                const resultado = await this.supabaseRequest(`indicadores_metas?id=eq.${id}`, 'PATCH', updateData);
+                const index = this.dados.metas.findIndex(m => m.id == id);
+                if (index > -1) this.dados.metas[index] = resultado[0];
+                this.mostrarAlerta('Meta atualizada!', 'success');
+            } else { 
+                // Se for novo, usa on_conflict para evitar duplicatas de indicador+filial
+                const endpoint = 'indicadores_metas?on_conflict=indicador_id,filial';
+                const headers = { 'Prefer': 'return=representation,resolution=merge-duplicates' };
+                const resultado = await this.supabaseRequest(endpoint, 'POST', dadosMeta, headers);
+
+                const existingIndex = this.dados.metas.findIndex(m => m.id == resultado[0].id);
+                if (existingIndex > -1) this.dados.metas[existingIndex] = resultado[0];
+                else this.dados.metas.push(resultado[0]);
+                
+                this.mostrarAlerta('Meta salva (criada ou atualizada)!', 'success');
+            }
+            
+            this.limparFormMeta();
+            this.renderizarTabelaMetas();
+        } catch (e) { 
+            this.mostrarAlerta(`Erro ao salvar meta: ${e.message}`, 'danger'); 
+        } finally { 
+            this.mostrarLoading(false); 
+        }
+    },
+    
+    // RENOMEADO: de editarIndicador para editarMeta
+    editarMeta(id) {
+        if (this.currentUser.role !== 'admin') return;
+        const meta = this.dados.metas.find(m => m.id === id);
+        if (!meta) return; 
+        
+        document.getElementById('edit-meta-id').value = id;
+        document.getElementById('add-meta-indicador').value = meta.indicador_id;
+        document.getElementById('add-meta-filial').value = meta.filial;
+        document.getElementById('add-meta-meta').value = meta.meta || '';
+        document.getElementById('add-meta-tipo').value = meta.tipo || '';
+
+        // Desabilita a troca de indicador e filial na edição
+        document.getElementById('add-meta-indicador').disabled = true;
+        document.getElementById('add-meta-filial').disabled = true;
+
+        document.getElementById('add-meta-meta').focus();
+        this.mostrarAlerta(`Editando Meta #${id}. Altere e clique em Salvar.`, 'info');
+    },
+    
+    // RENOMEADO: de limparFormIndicador para limparFormMeta
+    limparFormMeta(){ 
+        document.getElementById('form-add-meta').reset(); 
+        document.getElementById('edit-meta-id').value = ''; 
+        // Reabilita os campos
+        document.getElementById('add-meta-indicador').disabled = false;
+        document.getElementById('add-meta-filial').disabled = false;
+    },
+    
+    // RENOMEADO: de excluirIndicador para excluirMeta
+    async excluirMeta(id) {
+        if (this.currentUser.role !== 'admin') return;
+        if (!confirm(`Tem certeza que deseja excluir esta meta (ID ${id})?`)) return;
+        try {
+            this.mostrarLoading(true);
+            await this.supabaseRequest(`indicadores_metas?id=eq.${id}`, 'DELETE');
+            this.dados.metas = this.dados.metas.filter(m => m.id !== id);
+            this.renderizarTabelaMetas();
+            this.mostrarAlerta('Meta excluída!', 'success');
+        } catch (e) { 
+            this.mostrarAlerta(`Erro ao excluir meta: ${e.message}`, 'danger'); 
+        } finally { 
+            this.mostrarLoading(false); 
+        }
+    },
+    
+    // (Função existente, mas movida para referência)
+    // ...
     // (Função existente, mas movida para referência)
     editarResultado(id) {
         if (this.currentUser.role !== 'admin') return;
@@ -1129,51 +1318,77 @@ window.GG = {
     },
     
     popularDropdownsConfig() {
-        const selectIndicador = document.getElementById('add-resultado-indicador');
-        const selectSecaoAdd = document.getElementById('add-resultado-secao');
-        const selectSecaoFiltro = document.getElementById('filtro-resultado-secao');
-        
-        selectIndicador.innerHTML = '<option value="">Selecione Indicador...</option>';
-        this.dados.indicadores.forEach(ind => { selectIndicador.innerHTML += `<option value="${ind.id}">${this.escapeHTML(ind.indicador)} (${this.escapeHTML(ind.secao)})</option>`; });
+        // --- Pega todas as listas de filiais e seções ---
+        const filiaisSet = new Set(
+            Object.values(this.dados.colaboradores)
+                .map(c => c.filial)
+                .filter(s => s)
+        );
+        const filiais = [...filiaisSet].sort();
 
-        // Esta 'secoesIndicadores' é para o formulário de "Resultados Mensais" e se baseia em indicadores. Está CORRETO.
-        const secoesIndicadores = [...new Set(this.dados.indicadores.map(i => i.secao))].sort();
-        selectSecaoAdd.innerHTML = '<option value="">Selecione Seção...</option>';
-        selectSecaoFiltro.innerHTML = '<option value="">Todas</option>';
-        secoesIndicadores.forEach(s => {
-            selectSecaoAdd.innerHTML += `<option value="${s}">${this.escapeHTML(s)}</option>`;
-            selectSecaoFiltro.innerHTML += `<option value="${s}">${this.escapeHTML(s)}</option>`;
+        const secoesSet = new Set(
+            Object.values(this.dados.colaboradores)
+                .map(c => c.secao)
+                .filter(s => s)
+        );
+        const secoes = [...secoesSet].sort();
+
+        const tiposEstaticos = [
+            { valor: "numérico", texto: "Numérico (Ex: 10, 15.5)" },
+            { valor: "percentual", texto: "Percentual (Ex: 90%)" },
+            { valor: "monetário", texto: "Monetário (Ex: R$ 500)" },
+            { valor: "texto", texto: "Texto (Ex: Conforme)" },
+            { valor: "inverso", texto: "Numérico Inverso (Ex: < 5)" }
+        ];
+
+        // --- Pega os Elementos SELECT ---
+        const selectIndicadorResultado = document.getElementById('add-resultado-indicador');
+        const selectFilialResultado = document.getElementById('add-resultado-filial');
+        const selectFilialFiltro = document.getElementById('filtro-resultado-filial');
+        
+        const selectSecaoIndicador = document.getElementById('add-indicador-secao');
+        
+        const selectIndicadorMeta = document.getElementById('add-meta-indicador');
+        const selectFilialMeta = document.getElementById('add-meta-filial');
+        const selectTipoMeta = document.getElementById('add-meta-tipo');
+
+        // --- Popula Dropdowns de RESULTADOS ---
+        selectIndicadorResultado.innerHTML = '<option value="">Selecione Indicador...</option>';
+        this.dados.indicadores.forEach(ind => { 
+            selectIndicadorResultado.innerHTML += `<option value="${ind.id}">${this.escapeHTML(ind.indicador)} (${this.escapeHTML(ind.secao)})</option>`; 
         });
 
-        // ATUALIZADO: Popula os novos selects do formulário de indicadores
-        const selectSecaoAdmin = document.getElementById('add-indicador-secao');
-        const selectTipoAdmin = document.getElementById('add-indicador-tipo');
+        selectFilialResultado.innerHTML = '<option value="">Selecione Filial...</option>';
+        selectFilialFiltro.innerHTML = '<option value="">Todas</option>';
+        filiais.forEach(f => {
+            selectFilialResultado.innerHTML += `<option value="${this.escapeHTML(f)}">${this.escapeHTML(f)}</option>`;
+            selectFilialFiltro.innerHTML += `<option value="${this.escapeHTML(f)}">${this.escapeHTML(f)}</option>`;
+        });
 
-        // Popula Seções (Baseado nas seções existentes + GERAL)
-        // ATUALIZADO: Busca seções da TABELA DE COLABORADORES, como solicitado.
-        const secoesColaboradoresSet = new Set(
-            Object.values(this.dados.colaboradores) // Pega os valores do objeto de colaboradores
-                .map(c => c.secao) // Mapeia para pegar apenas a seção
-                .filter(s => s) // Remove seções nulas ou vazias
-        );
-        const secoesColaboradores = [...secoesColaboradoresSet].sort(); // Cria array único e ordenado
-
-        selectSecaoAdmin.innerHTML = '<option value="">Selecione a Seção...</option>';
-        selectSecaoAdmin.innerHTML += '<option value="GERAL">GERAL (Para todos)</option>';
-        secoesColaboradores.forEach(s => {
-            if (s && s.toUpperCase() !== 'GERAL') { // Evita duplicar 'GERAL'
-                selectSecaoAdmin.innerHTML += `<option value="${this.escapeHTML(s)}">${this.escapeHTML(s)}</option>`;
+        // --- Popula Dropdowns de INDICADORES (Definição) ---
+        selectSecaoIndicador.innerHTML = '<option value="">Selecione a Seção...</option>';
+        selectSecaoIndicador.innerHTML += '<option value="GERAL">GERAL (Para todos)</option>';
+        secoes.forEach(s => {
+            if (s && s.toUpperCase() !== 'GERAL') {
+                selectSecaoIndicador.innerHTML += `<option value="${this.escapeHTML(s)}">${this.escapeHTML(s)}</option>`;
             }
         });
 
+        // --- Popula Dropdowns de METAS ---
+        selectIndicadorMeta.innerHTML = '<option value="">Selecione Indicador...</option>';
+        this.dados.indicadores.forEach(ind => { 
+            selectIndicadorMeta.innerHTML += `<option value="${ind.id}">${this.escapeHTML(ind.indicador)} (${this.escapeHTML(ind.secao)})</option>`; 
+        });
 
-         // Popula Tipos (Lista Estática)
-        selectTipoAdmin.innerHTML = '<option value="">Selecione o Tipo...</option>';
-        selectTipoAdmin.innerHTML += '<option value="numérico">Numérico (Ex: 10, 15.5)</option>';
-        selectTipoAdmin.innerHTML += '<option value="percentual">Percentual (Ex: 90%)</option>';
-        selectTipoAdmin.innerHTML += '<option value="monetário">Monetário (Ex: R$ 500)</option>';
-        selectTipoAdmin.innerHTML += '<option value="texto">Texto (Ex: Conforme)</option>';
-        selectTipoAdmin.innerHTML += '<option value="inverso">Numérico Inverso (Ex: < 5)</option>';
+        selectFilialMeta.innerHTML = '<option value="">Selecione Filial...</option>';
+        filiais.forEach(f => {
+            selectFilialMeta.innerHTML += `<option value="${this.escapeHTML(f)}">${this.escapeHTML(f)}</option>`;
+        });
+        
+        selectTipoMeta.innerHTML = '<option value="">Selecione o Tipo...</option>';
+        tiposEstaticos.forEach(t => {
+            selectTipoMeta.innerHTML += `<option value="${t.valor}">${t.texto}</option>`;
+        });
     },
     
     // -----------------------------------------------------------------
@@ -1186,15 +1401,16 @@ window.GG = {
         
         // CORPO CORRETO RESTAURADO:
         const indicadorId = document.getElementById('add-resultado-indicador').value;
-        const secao = document.getElementById('add-resultado-secao').value;
+        const filial = document.getElementById('add-resultado-filial').value; // ATUALIZADO
         const mesInput = document.getElementById('add-resultado-mes').value;
         const valor = document.getElementById('add-resultado-valor').value.trim();
         const editId = document.getElementById('edit-resultado-id').value;
 
-        if (!indicadorId || !secao || !mesInput || valor === '') { this.mostrarAlerta('Todos os campos são obrigatórios.', 'warning'); return; }
+        if (!indicadorId || !filial || !mesInput || valor === '') { this.mostrarAlerta('Todos os campos são obrigatórios.', 'warning'); return; } // ATUALIZADO
         const mesReferencia = `${mesInput}-01`;
         
-        const dadosResultado = { indicador_id: parseInt(indicadorId), secao: secao, mes_referencia: mesReferencia, valor_realizado: valor };
+        // ATUALIZADO
+        const dadosResultado = { indicador_id: parseInt(indicadorId), filial: filial, mes_referencia: mesReferencia, valor_realizado: valor };
 
         try {
             this.mostrarLoading(true);
@@ -1204,7 +1420,8 @@ window.GG = {
                 if (index > -1) this.dados.resultadosIndicadores[index] = resultado[0];
                 this.mostrarAlerta('Resultado atualizado!', 'success');
             } else { 
-                const endpoint = 'resultados_indicadores?on_conflict=indicador_id,mes_referencia,secao';
+                // ATUALIZADO: on_conflict por filial
+                const endpoint = 'resultados_indicadores?on_conflict=indicador_id,mes_referencia,filial';
                 const headers = { 'Prefer': 'return=representation,resolution=merge-duplicates' };
                 const resultado = await this.supabaseRequest(endpoint, 'POST', dadosResultado, headers);
                  
@@ -1222,11 +1439,11 @@ window.GG = {
     renderizarTabelaResultados() {
         const tbody = document.querySelector('#tabela-resultados tbody');
         const mesFiltro = document.getElementById('filtro-resultado-mes').value;
-        const secaoFiltro = document.getElementById('filtro-resultado-secao').value;
+        const filialFiltro = document.getElementById('filtro-resultado-filial').value; // ATUALIZADO
         tbody.innerHTML = '';
         let resultadosFiltrados = this.dados.resultadosIndicadores;
         if (mesFiltro) resultadosFiltrados = resultadosFiltrados.filter(r => r.mes_referencia === `${mesFiltro}-01`);
-        if (secaoFiltro) resultadosFiltrados = resultadosFiltrados.filter(r => r.secao === secaoFiltro);
+        if (filialFiltro) resultadosFiltrados = resultadosFiltrados.filter(r => r.filial === filialFiltro); // ATUALIZADO
         
         if (resultadosFiltrados.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhum resultado para os filtros.</td></tr>'; return; }
         
@@ -1239,7 +1456,9 @@ window.GG = {
             const nomeIndicador = indicadorMap[res.indicador_id] || `ID ${res.indicador_id}`;
             const mesAno = new Date(res.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { year: 'numeric', month: 'short'});
             tbody.innerHTML += `<tr id="resultado-row-${res.id}">
-                <td>${mesAno}</td> <td>${this.escapeHTML(res.secao)}</td> <td>${this.escapeHTML(nomeIndicador)}</td> 
+                <td>${mesAno}</td> 
+                <td>${this.escapeHTML(res.filial)}</td> <!-- ATUALIZADO -->
+                <td>${this.escapeHTML(nomeIndicador)}</td> 
                 <td>${this.escapeHTML(res.valor_realizado || '--')}</td>
                 <td class="actions">
                     <button class="btn btn-sm btn-warning" onclick="window.GG.editarResultado(${res.id})"><i data-feather="edit-2" class="h-4 w-4"></i></button>
@@ -1251,26 +1470,9 @@ window.GG = {
     
     // CORRIGIDO: Esta era a função que causava o erro da imagem (estava duplicada e quebrada)
     // Corrigi a lógica interna para buscar 'indicador' e não 'resultado'
-    editarIndicador(id) {
-        // Esta função usa o formulário principal, não o modal genérico. Vamos manter assim.
-        if (this.currentUser.role !== 'admin') return;
-        
-        // CORREÇÃO: Buscar em 'this.dados.indicadores'
-        const indicador = this.dados.indicadores.find(ind => ind.id === id);
-        
-        // CORREÇÃO: Verificar a variável 'indicador'
-        if (!indicador) return; 
-        
-        document.getElementById('edit-indicador-id').value = id;
-        
-        // CORREÇÃO: Usar o objeto 'indicador'
-        document.getElementById('add-indicador-nome').value = indicador.indicador;
-        document.getElementById('add-indicador-secao').value = indicador.secao; // Funciona com select
-        document.getElementById('add-indicador-meta').value = indicador.meta || '';
-        document.getElementById('add-indicador-tipo').value = indicador.tipo || ''; // Funciona com select
-        document.getElementById('add-indicador-nome').focus();
-        this.mostrarAlerta(`Editando Indicador #${id}. Altere e clique em Salvar.`, 'info');
-    },
+    // RE-CORRIGIDO: Esta função agora é 'editarMeta' e foi movida para cima.
+    // Esta 'editarIndicador' é a NOVA e correta.
+    // editarIndicador(id) { ... } -> Esta função agora está na seção "NOVAS FUNÇÕES" acima.
     
     limparFormResultado(){ document.getElementById('form-add-resultado').reset(); document.getElementById('edit-resultado-id').value = ''; },
     
@@ -1566,4 +1768,5 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Erro crítico. Verifique o console.");
     }
 });
+
 
