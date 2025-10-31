@@ -6,6 +6,8 @@
     --darker: #011627;
     --light: #90E0EF;
     --primary-gradient: linear-gradient(135deg, #00D4AA 0%, #00B4D8 50%, #0077B6 100%);
+    /* CORREÇÃO: Adicionando o gradiente que faltava */
+    --secondary-gradient: linear-gradient(135deg, #90E0EF 0%, #00D4AA 100%);
 }
 
 body {
@@ -1207,4 +1209,24 @@ body.login-body {
     bottom: 0;
     left: 0;
     z-index: 10;
+}
+.info-card {
+    padding: 40px; /* Padding da sua referência */
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.info-card-gradient {
+    /* CORREÇÃO: Trocando o gradiente para bater com o do controlebaixaconsumo */
+    background: var(--secondary-gradient); 
+    color: white;
+    box-shadow: 0 15px 50px rgba(0, 119, 182, 0.3); /* Sombra da referência */
+}
+.info-card-gradient h3 { 
+/* ... existing code ... */
+.btn-gradient:disabled {
+    opacity: 0.6; 
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
