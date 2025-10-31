@@ -56,7 +56,7 @@ window.GG = {
     ],
 
     init() {
-        console.log('🚀 Iniciando Sistema G&G v5.1 (Admin UI)...');
+        console.log('🚀 Iniciando Sistema G&G v5.2 (Indicador Viz)...');
         
         try {
             if (!SUPABASE_URL || SUPABASE_URL.includes('URL_DO_SEU_PROJETO')) {
@@ -73,7 +73,11 @@ window.GG = {
             return;
         }
 
+        this.injectIndicatorStyles(); // NOVO: Injeta os estilos dos indicadores
         this.setupUIListeners();
+
+        // ATUALIZADO: Adiciona listener para o hash (navegação)
+        window.addEventListener('hashchange', () => this.handleHashChange());
 
         this.supabaseClient.auth.onAuthStateChange((event, session) => {
             console.log("Auth Event:", event);
@@ -133,7 +137,9 @@ window.GG = {
             
             await this.carregarDadosIniciais();
             
-            this.showView('homeView', document.querySelector('a[href="#home"]'));
+            // ATUALIZADO: Em vez de forçar a 'homeView', chama o
+            // handleHashChange para carregar a view correta da URL (ou a home por padrão)
+            this.handleHashChange();
             
         } catch (error) {
             console.error("Erro detalhado na inicialização do app:", error);
@@ -231,6 +237,13 @@ window.GG = {
             if (matchingLink) matchingLink.classList.add('active');
         }
 
+        // ATUALIZADO: Garante que a URL (hash) mude ao navegar
+        const newHash = '#' + viewId.replace('View', '');
+        if (window.location.hash !== newHash) {
+            // Usamos pushState para uma navegação mais suave que permite usar o botão "Voltar"
+            history.pushState(null, '', newHash);
+        }
+
         const profileDropdown = document.getElementById('profileDropdown');
         if (profileDropdown) profileDropdown.classList.remove('open');
 
@@ -245,6 +258,33 @@ window.GG = {
             }
         } catch(e) { console.error(`Erro ao carregar view ${viewId}:`, e); }
         feather.replace();
+    },
+
+    // NOVO: Função para ler o HASH da URL e mostrar a view correta
+    handleHashChange() {
+        if (!this.currentUser) return; // Não faz nada se o app não estiver pronto
+        
+        const hash = window.location.hash;
+        let viewId = 'homeView'; // Padrão
+        let navElement = document.querySelector('a[href="#home"]');
+
+        if (hash && hash !== '#') {
+            const cleanHash = hash.substring(1);
+            const newViewId = cleanHash + 'View';
+            const newNavElement = document.querySelector(`a[href="${hash}"]`);
+            
+            // Verifica se a view (Ex: 'historicoView') existe no HTML
+            if (document.getElementById(newViewId)) {
+                viewId = newViewId;
+                navElement = newNavElement;
+            }
+        }
+        
+        // Verifica se a view correta já está ativa (evita recarregamento desnecessário)
+        const currentActive = document.querySelector('.view-content.active');
+        if (!currentActive || currentActive.id !== viewId) {
+             this.showView(viewId, navElement);
+        }
     },
 
     async supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
@@ -391,20 +431,115 @@ window.GG = {
         this.renderizarIndicadores(indicadoresAplicaveis, resultadosDoMes);
     },
     
+    // NOVO: Helper para extrair número de strings (R$ 1.000,50 | 90% | < 5)
+    parseIndicadorValor(valorStr) {
+        if (typeof valorStr !== 'string' || !valorStr) return NaN;
+        
+        // 1. Remove R$, %, <, >, =
+        let cleanStr = valorStr.replace(/R\$|%|<|>|=/g, "").trim();
+        
+        // 2. Verifica se usa '.' como milhar e ',' como decimal (padrão BR)
+        if (cleanStr.includes(',') && cleanStr.includes('.')) {
+            cleanStr = cleanStr.replace(/\./g, ''); // Remove milhar
+            cleanStr = cleanStr.replace(',', '.'); // Troca decimal
+        } 
+        // 3. Se não tem ponto, só vírgula, troca a vírgula
+        else if (cleanStr.includes(',')) {
+             cleanStr = cleanStr.replace(',', '.'); // Só troca decimal
+        }
+        // Neste ponto, o formato deve ser "1500.50"
+        return parseFloat(cleanStr);
+    },
+
+    // ATUALIZADO: Renderiza indicadores com barras de progresso
     renderizarIndicadores(indicadores, resultados) {
         const container = document.getElementById('indicadoresContainer');
         if (!indicadores || indicadores.length === 0) {
             container.innerHTML = `<p style="color: #6c757d; font-style: italic;">Nenhum indicador aplicável para esta seção.</p>`; return;
         }
+        
         const mapaResultados = resultados.reduce((acc, res) => { acc[res.indicador_id] = res.valor_realizado; return acc; }, {});
-        let html = '<div class="form-row">';
-        indicadores.forEach((ind, i) => {
-            const valorRealizado = mapaResultados[ind.id];
-            const valorExibido = (valorRealizado !== null && valorRealizado !== undefined && valorRealizado !== '') ? valorRealizado : '--';
-            html += `<div class="form-group"> <label>${this.escapeHTML(ind.indicador)}</label> <div> <span style="font-size: 0.8em;">Meta: ${this.escapeHTML(ind.meta || 'N/A')}</span> <span style="float: right; font-weight: bold; font-size: 1.1em;">${this.escapeHTML(valorExibido)}</span> </div> </div>`;
-            if ((i + 1) % 2 === 0 && (i + 1) < indicadores.length) html += '</div><div class="form-row">';
+        
+        // Mudar de form-row para um grid
+        let html = '<div class="indicator-grid">'; 
+        
+        indicadores.forEach((ind) => {
+            const metaStr = ind.meta || 'N/A';
+            const realizadoStr = mapaResultados[ind.id] !== undefined ? String(mapaResultados[ind.id]) : 'N/A';
+            
+            const metaNum = this.parseIndicadorValor(metaStr);
+            const realizadoNum = this.parseIndicadorValor(realizadoStr);
+            
+            let vizHtml = '';
+            
+            // Se o tipo for texto ou não for numérico, exibe apenas texto
+            if (ind.tipo === 'texto' || isNaN(metaNum) || isNaN(realizadoNum) || metaNum === 0) {
+                vizHtml = `
+                    <div class="indicador-texto">
+                        <div>Meta: <span>${this.escapeHTML(metaStr)}</span></div>
+                        <div>Realizado: <span>${this.escapeHTML(realizadoStr)}</span></div>
+                    </div>
+                `;
+            } else {
+                // É numérico, vamos fazer a barra
+                const isInverse = metaStr.includes('<'); // Meta é "menor que" (ex: < 5 faltas)
+                let percent = (realizadoNum / metaNum) * 100;
+                
+                let isGood = false;
+                if (isInverse) {
+                    isGood = (realizadoNum <= metaNum);
+                } else {
+                    isGood = (realizadoNum >= metaNum);
+                }
+                
+                // A largura da barra é o percentual, mas "invertido" para metas '<'
+                // Se meta é <10 e realizado 5 (50%), a barra deve ficar "cheia" (boa)
+                // Se meta é <10 e realizado 15 (150%), a barra deve ficar "ruim"
+                // Vamos simplificar: a barra sempre mostra (realizado / meta)
+                let barWidthPercent = percent;
+
+                // Se for inversa e o realizado for MENOR, consideramos 100% (atingiu)
+                // Se for inversa e o realizado for MAIOR, calculamos o "excesso"
+                if (isInverse) {
+                     if (realizadoNum <= metaNum) {
+                        barWidthPercent = (realizadoNum / metaNum) * 100; // Ex: (5 / 10) * 100 = 50% (bom)
+                     } else {
+                        barWidthPercent = 100; // Estoura a barra (ruim)
+                     }
+                }
+                
+                barWidthPercent = Math.max(0, Math.min(barWidthPercent, 100)); // Cap bar at 100%
+                
+                let barColorClass = isGood ? 'bar-good' : 'bar-bad';
+                // Se superou a meta (e não for inversa), fica excelente
+                if (percent > 100 && !isInverse) {
+                    barColorClass = 'bar-excellent';
+                    barWidthPercent = 100; // Capa em 100% mas com cor diferente
+                }
+                
+                vizHtml = `
+                    <div class="indicador-numerico">
+                        <div class="indicador-valores">
+                            <span>Realizado: <strong>${this.escapeHTML(realizadoStr)}</strong></span>
+                            <span>Meta: ${this.escapeHTML(metaStr)}</span>
+                        </div>
+                        <div class="progress-bar-viz">
+                            <div class="progress-bar-inner ${barColorClass}" style="width: ${barWidthPercent}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="indicator-viz-card">
+                    <label>${this.escapeHTML(ind.indicador)}</label>
+                    ${vizHtml}
+                </div>
+            `;
         });
-        html += '</div>'; container.innerHTML = html;
+        
+        html += '</div>'; 
+        container.innerHTML = html;
     },
     
     limparIndicadores() { document.getElementById('indicadoresContainer').innerHTML = `<p style="color: #6c757d;">Selecione o colaborador e o mês de referência.</p>`; },
@@ -994,17 +1129,38 @@ window.GG = {
             selectSecaoAdd.innerHTML += `<option value="${s}">${this.escapeHTML(s)}</option>`;
             selectSecaoFiltro.innerHTML += `<option value="${s}">${this.escapeHTML(s)}</option>`;
         });
+
+        // ATUALIZADO: Popula os novos selects do formulário de indicadores
+        const selectSecaoAdmin = document.getElementById('add-indicador-secao');
+        const selectTipoAdmin = document.getElementById('add-indicador-tipo');
+
+        // Popula Seções (Baseado nas seções existentes + GERAL)
+        selectSecaoAdmin.innerHTML = '<option value="">Selecione a Seção...</option>';
+        selectSecaoAdmin.innerHTML += '<option value="GERAL">GERAL (Para todos)</option>';
+        secoes.forEach(s => {
+            if (s.toUpperCase() !== 'GERAL') { // Evita duplicar 'GERAL'
+                selectSecaoAdmin.innerHTML += `<option value="${this.escapeHTML(s)}">${this.escapeHTML(s)}</option>`;
+            }
+        });
+
+         // Popula Tipos (Lista Estática)
+        selectTipoAdmin.innerHTML = '<option value="">Selecione o Tipo...</option>';
+        selectTipoAdmin.innerHTML += '<option value="numérico">Numérico (Ex: 10, 15.5)</option>';
+        selectTipoAdmin.innerHTML += '<option value="percentual">Percentual (Ex: 90%)</option>';
+        selectTipoAdmin.innerHTML += '<option value="monetário">Monetário (Ex: R$ 500)</option>';
+        selectTipoAdmin.innerHTML += '<option value="texto">Texto (Ex: Conforme)</option>';
+        selectTipoAdmin.innerHTML += '<option value="inverso">Numérico Inverso (Ex: < 5)</option>';
     },
     
     async adicionarOuAtualizarResultado() {
-        if (this.currentUser.role !== 'admin') return;
-        const indicadorId = document.getElementById('add-resultado-indicador').value;
-        const secao = document.getElementById('add-resultado-secao').value;
-        const mesInput = document.getElementById('add-resultado-mes').value;
-        const valor = document.getElementById('add-resultado-valor').value.trim();
-        const editId = document.getElementById('edit-resultado-id').value;
-        if (!indicadorId || !secao || !mesInput || valor === '') { this.mostrarAlerta('Todos os campos são obrigatórios.', 'warning'); return; }
-        const mesReferencia = `${mesInput}-01`;
+        const id = document.getElementById('edit-indicador-id').value;
+        const dadosIndicador = {
+            indicador: document.getElementById('add-indicador-nome').value.trim(),
+            secao: document.getElementById('add-indicador-secao').value.trim().toUpperCase() || 'GERAL', // Lê do select
+            meta: document.getElementById('add-indicador-meta').value.trim() || null,
+            tipo: document.getElementById('add-indicador-tipo').value.trim() || null // Lê do select
+        };
+        if (!dadosIndicador.indicador || !dadosIndicador.secao) { this.mostrarAlerta('Nome e Seção são obrigatórios.', 'warning'); return; }
         
         const dadosResultado = { indicador_id: parseInt(indicadorId), secao: secao, mes_referencia: mesReferencia, valor_realizado: valor };
 
@@ -1061,18 +1217,18 @@ window.GG = {
         feather.replace();
     },
     
-    editarResultado(id) {
+    editarIndicador(id) {
         // Esta função usa o formulário principal, não o modal genérico. Vamos manter assim.
         if (this.currentUser.role !== 'admin') return;
         const resultado = this.dados.resultadosIndicadores.find(res => res.id === id);
-        if (!resultado) return;
-        document.getElementById('add-resultado-indicador').value = resultado.indicador_id;
-        document.getElementById('add-resultado-secao').value = resultado.secao;
-        document.getElementById('add-resultado-mes').value = resultado.mes_referencia.substring(0, 7);
-        document.getElementById('add-resultado-valor').value = resultado.valor_realizado || '';
-        document.getElementById('edit-resultado-id').value = id;
-        document.getElementById('add-resultado-valor').focus();
-        this.mostrarAlerta(`Editando resultado. Altere o valor e salve.`, 'info');
+        if (!indicador) return;
+        document.getElementById('edit-indicador-id').value = id;
+        document.getElementById('add-indicador-nome').value = indicador.indicador;
+        document.getElementById('add-indicador-secao').value = indicador.secao; // Funciona com select
+        document.getElementById('add-indicador-meta').value = indicador.meta || '';
+        document.getElementById('add-indicador-tipo').value = indicador.tipo || ''; // Funciona com select
+        document.getElementById('add-indicador-nome').focus();
+        this.mostrarAlerta(`Editando Indicador #${id}. Altere e clique em Salvar.`, 'info');
     },
     
     limparFormResultado(){ document.getElementById('form-add-resultado').reset(); document.getElementById('edit-resultado-id').value = ''; },
@@ -1114,7 +1270,7 @@ window.GG = {
             reader.readAsDataURL(event.target.files[0]);
         } else {
              if(window.GG && window.GG.currentUser) {
-                document.getElementById('perfilPicturePreview').src = window.GG.currentUser.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
+                 document.getElementById('perfilPicturePreview').src = window.GG.currentUser.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
              }
         }
     },
@@ -1267,6 +1423,89 @@ window.GG = {
         document.getElementById('mediaGeralHome').textContent = media.toFixed(1);
     },
     
+    // NOVO: Função para injetar os estilos das barras de indicadores
+    injectIndicatorStyles() {
+        // Remove o estilo antigo se ele existir, para evitar conflito
+        const oldStyle = document.getElementById('indicator-styles');
+        if (oldStyle) oldStyle.remove();
+
+        const style = document.createElement('style');
+        style.id = 'indicator-styles';
+        style.innerHTML = `
+            /* NOVOS ESTILOS PARA VISUALIZAÇÃO DE INDICADORES */
+            #indicadoresContainer {
+                padding-top: 10px;
+            }
+            .indicator-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 16px;
+            }
+            .indicator-viz-card {
+                background-color: #f9fafb;
+                padding: 14px;
+                border-radius: 8px;
+                border-left: 4px solid var(--secondary);
+                box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            }
+            .indicator-viz-card label {
+                font-size: 0.85em;
+                font-weight: 600;
+                color: var(--dark);
+                display: block;
+                margin-bottom: 10px;
+            }
+            
+            /* Estilo para indicadores de TEXTO */
+            .indicador-texto div {
+                font-size: 0.9em;
+                color: #495057;
+                display: flex;
+                justify-content: space-between;
+            }
+            .indicador-texto div span {
+                font-weight: 600;
+            }
+
+            /* Estilo para indicadores NUMÉRICOS (barra) */
+            .indicador-numerico .indicador-valores {
+                display: flex;
+                justify-content: space-between;
+                font-size: 0.8em;
+                color: #495057;
+                margin-bottom: 6px;
+            }
+            .indicador-numerico .indicador-valores strong {
+                font-size: 1.1em;
+                font-weight: 700;
+                color: var(--dark);
+            }
+            .progress-bar-viz {
+                width: 100%;
+                height: 12px;
+                background: #e9ecef;
+                border-radius: 6px;
+                overflow: hidden;
+            }
+            .progress-bar-inner {
+                height: 100%;
+                border-radius: 6px;
+                transition: width 0.5s ease;
+                background-color: var(--accent);
+            }
+            .progress-bar-inner.bar-good {
+                background-color: var(--primary); /* Verde */
+            }
+            .progress-bar-inner.bar-bad {
+                background-color: #dc2626; /* Vermelho */
+            }
+            .progress-bar-inner.bar-excellent {
+                background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
+            }
+        `;
+        document.head.appendChild(style);
+    },
+
     escapeHTML(str) {
         if (str === null || str === undefined) return '';
         return String(str)
@@ -1286,3 +1525,5 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Erro crítico. Verifique o console.");
     }
 });
+
+
