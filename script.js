@@ -14,9 +14,10 @@ window.GG = {
         gestores: {}, 
         indicadores: [], 
         resultadosIndicadores: [],
-        metas: [], // NOVO: Para guardar as metas por filial
-        usuarios: [], // NOVO: Para admin gerenciar usuários
-        solicitacoes: [], // NOVO: Para admin gerenciar solicitações
+        metas: [], 
+        usuarios: [], 
+        solicitacoes: [], 
+        colaboradoresGestores: [], // NOVO: Lista combinada para aba Pessoal
         avaliacaoAtual: null, 
         dadosCarregados: false, 
         avaliacoesFiltradas: []
@@ -57,7 +58,7 @@ window.GG = {
     ],
 
     init() {
-        console.log('🚀 Iniciando Sistema G&G v5.2 (Indicador Viz)...');
+        console.log('🚀 Iniciando Sistema G&G v5.3 (Abas de Configuração)...');
         
         try {
             if (!SUPABASE_URL || SUPABASE_URL.includes('URL_DO_SEU_PROJETO')) {
@@ -74,10 +75,9 @@ window.GG = {
             return;
         }
 
-        this.injectIndicatorStyles(); // NOVO: Injeta os estilos dos indicadores
+        this.injectIndicatorStyles();
         this.setupUIListeners();
 
-        // ATUALIZADO: Adiciona listener para o hash (navegação)
         window.addEventListener('hashchange', () => this.handleHashChange());
 
         this.supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -120,8 +120,8 @@ window.GG = {
                     email: this.authUser.email,
                     nome: this.authUser.user_metadata?.full_name || this.authUser.email.split('@')[0],
                     profile_picture_url: this.authUser.user_metadata?.avatar_url || null,
-                    role: 'user', // Define 'user' como padrão
-                    status: 'ativo' // Define 'ativo' como padrão
+                    role: 'user', 
+                    status: 'ativo' 
                 };
                 const createResponse = await this.supabaseRequest('usuarios', 'POST', newProfile);
                 if (!createResponse || !createResponse[0]) {
@@ -138,8 +138,6 @@ window.GG = {
             
             await this.carregarDadosIniciais();
             
-            // ATUALIZADO: Em vez de forçar a 'homeView', chama o
-            // handleHashChange para carregar a view correta da URL (ou a home por padrão)
             this.handleHashChange();
             
         } catch (error) {
@@ -238,10 +236,8 @@ window.GG = {
             if (matchingLink) matchingLink.classList.add('active');
         }
 
-        // ATUALIZADO: Garante que a URL (hash) mude ao navegar
         const newHash = '#' + viewId.replace('View', '');
         if (window.location.hash !== newHash) {
-            // Usamos pushState para uma navegação mais suave que permite usar o botão "Voltar"
             history.pushState(null, '', newHash);
         }
 
@@ -261,12 +257,11 @@ window.GG = {
         feather.replace();
     },
 
-    // NOVO: Função para ler o HASH da URL e mostrar a view correta
     handleHashChange() {
-        if (!this.currentUser) return; // Não faz nada se o app não estiver pronto
+        if (!this.currentUser) return; 
         
         const hash = window.location.hash;
-        let viewId = 'homeView'; // Padrão
+        let viewId = 'homeView'; 
         let navElement = document.querySelector('a[href="#home"]');
 
         if (hash && hash !== '#') {
@@ -274,14 +269,12 @@ window.GG = {
             const newViewId = cleanHash + 'View';
             const newNavElement = document.querySelector(`a[href="${hash}"]`);
             
-            // Verifica se a view (Ex: 'historicoView') existe no HTML
             if (document.getElementById(newViewId)) {
                 viewId = newViewId;
                 navElement = newNavElement;
             }
         }
         
-        // Verifica se a view correta já está ativa (evita recarregamento desnecessário)
         const currentActive = document.querySelector('.view-content.active');
         if (!currentActive || currentActive.id !== viewId) {
              this.showView(viewId, navElement);
@@ -362,15 +355,15 @@ window.GG = {
         this.atualizarStatusDados('🔄 Carregando dados...', 'info');
         try {
             const results = await Promise.allSettled([
+                // O select=* aqui já vai pegar a nova coluna 'status'
                 this.supabaseRequest('colaboradores?select=*', 'GET'), 
                 this.supabaseRequest('gestores?select=*', 'GET'),
                 this.supabaseRequest('avaliacoes?select=*', 'GET'), 
                 this.supabaseRequest('indicadores?select=*&order=indicador.asc', 'GET'),
                 this.supabaseRequest('resultados_indicadores?select=*', 'GET'),
-                this.supabaseRequest('indicadores_metas?select=*', 'GET') // NOVO: Carrega as metas
+                this.supabaseRequest('indicadores_metas?select=*', 'GET') 
             ]);
             
-            // ATUALIZADO: Adiciona o 'metasRes'
             const [colabRes, gestRes, avalRes, indRes, resIndRes, metasRes] = results;
 
             this.dados.colaboradores = (colabRes.status === 'fulfilled' && colabRes.value) ? colabRes.value.reduce((acc, c) => { if(c.matricula) acc[String(c.matricula).trim()] = c; return acc; }, {}) : {};
@@ -378,7 +371,7 @@ window.GG = {
             this.dados.avaliacoes = (avalRes.status === 'fulfilled' && avalRes.value) ? avalRes.value : [];
             this.dados.indicadores = (indRes.status === 'fulfilled' && indRes.value) ? indRes.value : [];
             this.dados.resultadosIndicadores = (resIndRes.status === 'fulfilled' && resIndRes.value) ? resIndRes.value : [];
-            this.dados.metas = (metasRes.status === 'fulfilled' && metasRes.value) ? metasRes.value : []; // NOVO
+            this.dados.metas = (metasRes.status === 'fulfilled' && metasRes.value) ? metasRes.value : []; 
             
             results.forEach((res, i) => {
                 if (res.status === 'rejected') {
@@ -407,7 +400,16 @@ window.GG = {
         if (!matricula) { this.limparCamposColaborador(); return; }
         const colaborador = this.dados.colaboradores[String(matricula).trim()];
         const campoMatricula = document.getElementById('matriculaAvaliado');
+        
         if (colaborador) {
+            // VERIFICA O STATUS
+            if (colaborador.status && colaborador.status !== 'ativo') {
+                this.limparCamposColaborador();
+                campoMatricula.style.borderColor = '#f59e0b'; // Amarelo
+                this.mostrarAlerta(`Colaborador ${matricula} não está 'ativo'. Status: ${colaborador.status}.`, 'warning');
+                return;
+            }
+
             document.getElementById('nomeAvaliado').value = colaborador.nome || '';
             document.getElementById('funcaoAvaliado').value = colaborador.funcao || '';
             document.getElementById('filial').value = colaborador.filial || '';
@@ -421,7 +423,7 @@ window.GG = {
     },
     
     atualizarIndicadoresExibidos() {
-        const container = document.getElementById('indicadoresContainer'); // Cache o container
+        const container = document.getElementById('indicadoresContainer'); 
         const matricula = document.getElementById('matriculaAvaliado').value;
         const mesReferenciaInput = document.getElementById('mesReferencia').value;
         if (!matricula || !mesReferenciaInput) { this.limparIndicadores(); return; }
@@ -429,9 +431,8 @@ window.GG = {
         const colaborador = this.dados.colaboradores[String(matricula).trim()];
         if (!colaborador) { this.limparIndicadores(); return; }
         
-        // ATUALIZADO: Pega a SEÇÃO e a FILIAL do colaborador
         const secao = colaborador.secao || 'GERAL'; 
-        const filial = colaborador.filial; // Pega a filial
+        const filial = colaborador.filial; 
         const mesFormatado = `${mesReferenciaInput}-01`;
 
         if (!filial) {
@@ -439,50 +440,36 @@ window.GG = {
             return;
         }
 
-        // 1. Filtra indicadores pela seção do colaborador
         const indicadoresAplicaveis = this.dados.indicadores.filter(ind => ind.secao === 'GERAL' || ind.secao === secao);
-        
-        // 2. Filtra as METAS pela FILIAL do colaborador
         const metasDaFilial = this.dados.metas.filter(m => m.filial === filial);
-        
-        // 3. Filtra os RESULTADOS pela FILIAL do colaborador e MÊS
         const resultadosDaFilial = this.dados.resultadosIndicadores.filter(res => 
             res.mes_referencia === mesFormatado && res.filial === filial
         );
         
-        // 4. Renderiza usando os dados filtrados
         this.renderizarIndicadores(indicadoresAplicaveis, metasDaFilial, resultadosDaFilial);
     },
     
-    // NOVO: Helper para extrair número de strings (R$ 1.000,50 | 90% | < 5)
     parseIndicadorValor(valorStr) {
         if (typeof valorStr !== 'string' || !valorStr) return NaN;
         
-        // 1. Remove R$, %, <, >, =
         let cleanStr = valorStr.replace(/R\$|%|<|>|=/g, "").trim();
         
-        // 2. Verifica se usa '.' como milhar e ',' como decimal (padrão BR)
         if (cleanStr.includes(',') && cleanStr.includes('.')) {
-            cleanStr = cleanStr.replace(/\./g, ''); // Remove milhar
-            cleanStr = cleanStr.replace(',', '.'); // Troca decimal
+            cleanStr = cleanStr.replace(/\./g, ''); 
+            cleanStr = cleanStr.replace(',', '.'); 
         } 
-        // 3. Se não tem ponto, só vírgula, troca a vírgula
         else if (cleanStr.includes(',')) {
-             cleanStr = cleanStr.replace(',', '.'); // Só troca decimal
+             cleanStr = cleanStr.replace(',', '.'); 
         }
-        // Neste ponto, o formato deve ser "1500.50"
         return parseFloat(cleanStr);
     },
 
-    // ATUALIZADO: Renderiza indicadores com barras de progresso
-    // Recebe as metas e resultados já filtrados por filial/mês
     renderizarIndicadores(indicadores, metasDaFilial, resultadosDaFilial) {
         const container = document.getElementById('indicadoresContainer');
         if (!indicadores || indicadores.length === 0) {
             container.innerHTML = `<p style="color: #6c757d; font-style: italic;">Nenhum indicador aplicável para esta seção.</p>`; return;
         }
         
-        // Cria mapas para busca rápida
         const mapaMetas = metasDaFilial.reduce((acc, m) => {
             acc[m.indicador_id] = { meta: m.meta, tipo: m.tipo };
             return acc;
@@ -493,30 +480,26 @@ window.GG = {
             return acc;
         }, {});
         
-        // Mudar de form-row para um grid
         let html = '<div class="indicator-grid">'; 
         let indicadoresRenderizados = 0;
         
         indicadores.forEach((ind) => {
-            // Pega a meta e o resultado específico para este indicador
             const metaObj = mapaMetas[ind.id];
             const realizadoStr = mapaResultados[ind.id] !== undefined ? String(mapaResultados[ind.id]) : 'N/A';
 
-            // Se não houver meta cadastrada PARA ESTA FILIAL, pula o indicador
             if (!metaObj) {
                 return;
             }
 
             indicadoresRenderizados++;
             const metaStr = metaObj.meta || 'N/A';
-            const tipo = metaObj.tipo || 'texto'; // Pega o TIPO da meta
+            const tipo = metaObj.tipo || 'texto'; 
 
             const metaNum = this.parseIndicadorValor(metaStr);
             const realizadoNum = this.parseIndicadorValor(realizadoStr);
             
             let vizHtml = '';
             
-            // Se o tipo for texto ou não for numérico, exibe apenas texto
             if (tipo === 'texto' || isNaN(metaNum) || isNaN(realizadoNum) || metaNum === 0) {
                 vizHtml = `
                     <div class="indicador-texto">
@@ -525,8 +508,7 @@ window.GG = {
                     </div>
                 `;
             } else {
-                // É numérico, vamos fazer a barra
-                const isInverse = metaStr.includes('<') || tipo === 'inverso'; // Meta é "menor que"
+                const isInverse = metaStr.includes('<') || tipo === 'inverso'; 
                 let percent = (realizadoNum / metaNum) * 100;
                 
                 let isGood = false;
@@ -536,29 +518,22 @@ window.GG = {
                     isGood = (realizadoNum >= metaNum);
                 }
                 
-                // A largura da barra é o percentual, mas "invertido" para metas '<'
-                // Se meta é <10 e realizado 5 (50%), a barra deve ficar "cheia" (boa)
-                // Se meta é <10 e realizado 15 (150%), a barra deve ficar "ruim"
-                // Vamos simplificar: a barra sempre mostra (realizado / meta)
                 let barWidthPercent = percent;
 
-                // Se for inversa e o realizado for MENOR, consideramos 100% (atingiu)
-                // Se for inversa e o realizado for MAIOR, calculamos o "excesso"
                 if (isInverse) {
                      if (realizadoNum <= metaNum) {
-                        barWidthPercent = (realizadoNum / metaNum) * 100; // Ex: (5 / 10) * 100 = 50% (bom)
+                        barWidthPercent = (realizadoNum / metaNum) * 100; 
                      } else {
-                        barWidthPercent = 100; // Estoura a barra (ruim)
+                        barWidthPercent = 100; 
                      }
                 }
                 
-                barWidthPercent = Math.max(0, Math.min(barWidthPercent, 100)); // Cap bar at 100%
+                barWidthPercent = Math.max(0, Math.min(barWidthPercent, 100)); 
                 
                 let barColorClass = isGood ? 'bar-good' : 'bar-bad';
-                // Se superou a meta (e não for inversa), fica excelente
                 if (percent > 100 && !isInverse) {
                     barColorClass = 'bar-excellent';
-                    barWidthPercent = 100; // Capa em 100% mas com cor diferente
+                    barWidthPercent = 100; 
                 }
 
                 vizHtml = `
@@ -604,7 +579,16 @@ window.GG = {
         if (!matricula) { this.limparCamposGestor(); return; }
         const gestor = this.dados.gestores[String(matricula).trim()];
         const campoMatricula = document.getElementById('matriculaGestor');
+        
         if (gestor) {
+             // VERIFICA O STATUS
+            if (gestor.status && gestor.status !== 'ativo') {
+                this.limparCamposGestor();
+                campoMatricula.style.borderColor = '#f59e0b'; // Amarelo
+                this.mostrarAlerta(`Gestor ${matricula} não está 'ativo'. Status: ${gestor.status}.`, 'warning');
+                return;
+            }
+            
             document.getElementById('nomeGestor').value = gestor.nome || '';
             campoMatricula.style.borderColor = 'var(--primary)';
         } else {
@@ -800,7 +784,6 @@ window.GG = {
         let dadosFiltrados;
         
         if (this.currentUser.role !== 'admin') {
-            // AJUSTE: Permite ao admin ver tudo, e user/gestor ver apenas o que ele avaliou
             dadosFiltrados = this.dados.avaliacoes.filter(av => av.avaliador_user_id === this.currentUser.id);
         } else {
             dadosFiltrados = [...this.dados.avaliacoes];
@@ -818,13 +801,10 @@ window.GG = {
         if (filtroNome) dadosFiltrados = dadosFiltrados.filter(av => av.nome_avaliado && av.nome_avaliado.toLowerCase().includes(filtroNome));
         if (filtroGestor) dadosFiltrados = dadosFiltrados.filter(av => av.nome_gestor && av.nome_gestor.toLowerCase().includes(filtroGestor));
 
-        // AJUSTE: Aplica filtro por filial do usuário, se ele NÃO for admin
         if (this.currentUser.role !== 'admin' && this.currentUser.filial) {
-             // Se o usuário tiver permissões de filiais (array), use-o
              if (Array.isArray(this.currentUser.permissoes_filiais) && this.currentUser.permissoes_filiais.length > 0) {
                  dadosFiltrados = dadosFiltrados.filter(av => this.currentUser.permissoes_filiais.includes(av.filial));
              } 
-             // Senão, use a filial principal dele
              else if (this.currentUser.filial) {
                  dadosFiltrados = dadosFiltrados.filter(av => av.filial === this.currentUser.filial);
              }
@@ -884,6 +864,7 @@ window.GG = {
         this.mostrarAlerta("Download iniciado.", "success");
     },
     
+    // ATUALIZADO: inicializarConfiguracoes agora gerencia as abas
     async inicializarConfiguracoes() {
         if (this.currentUser.role !== 'admin') {
             document.getElementById('configAdminOnly').style.display = 'none';
@@ -902,28 +883,59 @@ window.GG = {
 
         this.mostrarLoading(true);
         if (!this.dados.dadosCarregados) {
-            await this.carregarDadosIniciais();
+            await this.carregarDadosIniciais(); // Garante colab/gestores
         }
         
         // Carrega dados específicos do Admin (usuários, solicitações)
-        await this.carregarDadosAdmin();
-        this.renderizarTabelasAdmin();
+        await this.carregarDadosAdmin(); // Já existe
+
+        // Renderiza tabelas das abas
+        this.renderizarTabelasAdmin(); // Aba Usuários
         
-        // Lógica existente
-        this.limparFormIndicador(); // NOVO
-        this.limparFormMeta(); // RENOMEADO
+        this.renderizarTabelaIndicadores(); // Aba Indicadores
+        this.renderizarTabelaMetas();       // Aba Indicadores
+        this.popularDropdownsConfig();    // Aba Indicadores
+        this.renderizarTabelaResultados();  // Aba Indicadores
+        
+        this.renderizarTabelaColaboradoresGestores(); // NOVA Aba Pessoal
+        
+        // Limpa formulários da aba Indicadores
+        this.limparFormIndicador(); 
+        this.limparFormMeta(); 
         this.limparFormResultado();
+
+        // Ativa a primeira aba por padrão
+        this.showConfigTab('usuarios', document.querySelector('.config-tab-item')); 
         
-        this.renderizarTabelaIndicadores(); // NOVO
-        this.renderizarTabelaMetas(); // RENOMEADO
-        
-        this.popularDropdownsConfig();
-        this.renderizarTabelaResultados();
         this.mostrarLoading(false);
+        feather.replace(); // Garante que os ícones das abas renderizem
+    },
+
+    // NOVO: Função para mostrar a aba de configuração correta
+    showConfigTab(tabId, element) {
+        // Esconde todos os conteúdos
+        document.querySelectorAll('#configAdminOnly .config-tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        // Remove 'active' de todos os botões
+        document.querySelectorAll('.config-tabs .config-tab-item').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Mostra o conteúdo da aba clicada
+        const content = document.getElementById(`configTab${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`);
+        if (content) {
+            content.classList.add('active');
+        }
+        // Adiciona 'active' ao botão clicado
+        if (element) {
+            element.classList.add('active');
+        }
+        feather.replace();
     },
     
     // -----------------------------------------------------------------
-    // NOVAS FUNÇÕES DE ADMINISTRAÇÃO DE USUÁRIOS
+    // FUNÇÕES DE ADMINISTRAÇÃO (Aba Usuários)
     // -----------------------------------------------------------------
 
     async carregarDadosAdmin() {
@@ -982,8 +994,8 @@ window.GG = {
             this.mostrarLoading(true);
             await this.supabaseRequest(`solicitacoes_acesso?id=eq.${id}`, 'PATCH', { status: 'rejeitado' });
             this.mostrarAlerta('Solicitação rejeitada.', 'success');
-            await this.carregarDadosAdmin(); // Recarrega
-            this.renderizarTabelasAdmin(); // Re-renderiza
+            await this.carregarDadosAdmin(); 
+            this.renderizarTabelasAdmin(); 
         } catch(e) {
             this.mostrarAlerta(`Erro ao rejeitar: ${e.message}`, 'error');
         } finally {
@@ -1063,16 +1075,14 @@ window.GG = {
             this.mostrarLoading(true);
             const resultado = await this.supabaseRequest(`usuarios?id=eq.${id}`, 'PATCH', payload);
             
-            // Atualiza o usuário localmente
             const index = this.dados.usuarios.findIndex(u => u.id == id);
             if (index > -1) {
                 this.dados.usuarios[index] = { ...this.dados.usuarios[index], ...resultado[0] };
             }
             
-            // Atualiza o próprio usuário se ele estiver se editando
             if (this.currentUser.id == id) {
                 this.currentUser = { ...this.currentUser, ...resultado[0] };
-                this.showMainSystem(); // Re-renderiza a barra superior, etc.
+                this.showMainSystem(); 
             }
             
             this.renderizarTabelaUsuarios();
@@ -1087,10 +1097,123 @@ window.GG = {
     },
     
     // -----------------------------------------------------------------
-    // FIM DAS NOVAS FUNÇÕES DE ADMINISTRAÇÃO
+    // FUNÇÕES DE ADMINISTRAÇÃO (Aba Pessoal) - NOVAS
     // -----------------------------------------------------------------
 
-    // NOVO: Renderiza a tabela simples de Indicadores (Nome/Seção)
+    renderizarTabelaColaboradoresGestores() {
+        const tbody = document.querySelector('#tabela-colaboradores-gestores tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        
+        const colabs = Object.values(this.dados.colaboradores).map(c => ({...c, tipo: 'Colaborador'}));
+        const gests = Object.values(this.dados.gestores).map(g => ({...g, tipo: 'Gestor'}));
+        
+        // Combina e ordena por nome
+        const pessoal = [...colabs, ...gests].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+        this.dados.colaboradoresGestores = pessoal; // Salva a lista combinada para edição
+
+        if (pessoal.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhum colaborador ou gestor encontrado.</td></tr>';
+            return;
+        }
+        
+        pessoal.forEach(p => {
+            const status = p.status || 'ativo'; // Default para 'ativo' se for nulo
+            let statusClass = '';
+            switch(status) {
+                case 'ativo': statusClass = 'status-ativo'; break;
+                case 'inativo': statusClass = 'status-inativo'; break;
+                case 'demitido': statusClass = 'status-demitido'; break;
+                case 'aviso': statusClass = 'status-aviso'; break;
+                default: statusClass = 'status-inativo';
+            }
+            
+            tbody.innerHTML += `<tr>
+                <td>${this.escapeHTML(p.nome)}</td>
+                <td>${this.escapeHTML(p.matricula)}</td>
+                <td>${this.escapeHTML(p.tipo)}</td>
+                <td><span class="status-badge ${statusClass}">${this.escapeHTML(status)}</span></td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoPessoal('${p.tipo}', '${p.matricula}')">
+                        <i data-feather="edit-2" class="h-4 w-4"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+        feather.replace();
+    },
+
+    abrirModalEdicaoPessoal(tipo, matricula) {
+        const TabelaDados = (tipo === 'Colaborador') ? this.dados.colaboradores : this.dados.gestores;
+        const pessoa = TabelaDados[String(matricula).trim()];
+        
+        if (!pessoa) {
+            this.mostrarAlerta('Pessoa não encontrada.', 'error');
+            return;
+        }
+        
+        document.getElementById('modal-pessoal-matricula').value = matricula;
+        document.getElementById('modal-pessoal-tipo').value = tipo;
+        document.getElementById('modal-pessoal-nome').value = pessoa.nome || '';
+        document.getElementById('modal-pessoal-funcao').value = pessoa.funcao || '';
+        document.getElementById('modal-pessoal-filial').value = pessoa.filial || '';
+        document.getElementById('modal-pessoal-status').value = pessoa.status || 'ativo';
+
+        document.getElementById('pessoalEditModal').style.display = 'flex';
+        feather.replace();
+    },
+
+    fecharModalPessoal() {
+        document.getElementById('pessoalEditModal').style.display = 'none';
+        document.getElementById('pessoalEditForm').reset();
+    },
+
+    async salvarModalPessoal() {
+        const matricula = document.getElementById('modal-pessoal-matricula').value;
+        const tipo = document.getElementById('modal-pessoal-tipo').value;
+        
+        if (!matricula || !tipo) {
+            this.mostrarAlerta('Erro: Matrícula ou Tipo não definidos.', 'error');
+            return;
+        }
+        
+        const payload = {
+            nome: document.getElementById('modal-pessoal-nome').value,
+            funcao: document.getElementById('modal-pessoal-funcao').value || null,
+            filial: document.getElementById('modal-pessoal-filial').value || null,
+            status: document.getElementById('modal-pessoal-status').value
+        };
+        
+        const TabelaNome = (tipo === 'Colaborador') ? 'colaboradores' : 'gestores';
+        const TabelaDados = (tipo === 'Colaborador') ? this.dados.colaboradores : this.dados.gestores;
+
+        try {
+            this.mostrarLoading(true);
+            // Usamos a matrícula como chave de busca
+            const resultado = await this.supabaseRequest(`${TabelaNome}?matricula=eq.${matricula}`, 'PATCH', payload);
+            
+            if (resultado && resultado[0]) {
+                // Atualiza o objeto local
+                TabelaDados[String(matricula).trim()] = { ...TabelaDados[String(matricula).trim()], ...resultado[0] };
+                
+                this.renderizarTabelaColaboradoresGestores(); // Re-renderiza a tabela
+                this.fecharModalPessoal();
+                this.mostrarAlerta('Dados atualizados com sucesso!', 'success');
+            } else {
+                throw new Error('Nenhum dado retornado após a atualização.');
+            }
+            
+        } catch (e) {
+            this.mostrarAlerta(`Erro ao salvar: ${e.message}`, 'error');
+        } finally {
+            this.mostrarLoading(false);
+        }
+    },
+
+    // -----------------------------------------------------------------
+    // FUNÇÕES DE ADMINISTRAÇÃO (Aba Indicadores)
+    // -----------------------------------------------------------------
+
     renderizarTabelaIndicadores() {
         const tbody = document.querySelector('#tabela-indicadores tbody');
         tbody.innerHTML = '';
@@ -1112,7 +1235,6 @@ window.GG = {
         feather.replace();
     },
 
-    // NOVO: Salva a definição simples do Indicador (Nome/Seção)
     async salvarIndicador() {
         if (this.currentUser.role !== 'admin') return;
         const id = document.getElementById('edit-indicador-id').value;
@@ -1140,7 +1262,7 @@ window.GG = {
             this.dados.indicadores.sort((a,b) => a.indicador.localeCompare(b.indicador)); 
             this.limparFormIndicador();
             this.renderizarTabelaIndicadores();
-            this.popularDropdownsConfig(); // Atualiza os dropdowns de metas
+            this.popularDropdownsConfig(); 
         } catch (e) { 
             this.mostrarAlerta(`Erro ao salvar indicador: ${e.message}`, 'danger'); 
         } finally { 
@@ -1148,7 +1270,6 @@ window.GG = {
         }
     },
 
-    // NOVO: Edita a definição simples do Indicador
     editarIndicador(id) {
         if (this.currentUser.role !== 'admin') return;
         const indicador = this.dados.indicadores.find(ind => ind.id === id);
@@ -1156,32 +1277,27 @@ window.GG = {
         
         document.getElementById('edit-indicador-id').value = id;
         document.getElementById('add-indicador-nome').value = indicador.indicador;
-        document.getElementById('add-indicador-secao').value = indicador.secao; // Funciona com select
+        document.getElementById('add-indicador-secao').value = indicador.secao; 
         document.getElementById('add-indicador-nome').focus();
         this.mostrarAlerta(`Editando Indicador #${id}. Altere e clique em Salvar.`, 'info');
     },
 
-    // NOVO: Limpa o formulário de definição de indicador
     limparFormIndicador(){ 
         document.getElementById('form-add-indicador').reset(); 
         document.getElementById('edit-indicador-id').value = ''; 
     },
 
-    // NOVO: Exclui a definição do indicador (e suas metas/resultados)
     async excluirIndicador(id) {
         if (this.currentUser.role !== 'admin') return;
         if (!confirm(`Tem certeza que deseja excluir o indicador ID ${id}? ISSO EXCLUIRÁ TODAS AS METAS E RESULTADOS associados a ele.`)) return;
         try {
             this.mostrarLoading(true);
-            // Deixa o CASCADE do banco (se configurado) fazer o trabalho pesado
             await this.supabaseRequest(`indicadores?id=eq.${id}`, 'DELETE');
             
-            // Limpa localmente
             this.dados.indicadores = this.dados.indicadores.filter(ind => ind.id !== id);
             this.dados.metas = this.dados.metas.filter(m => m.indicador_id !== id);
             this.dados.resultadosIndicadores = this.dados.resultadosIndicadores.filter(res => res.indicador_id !== id);
             
-            // Re-renderiza tudo
             this.renderizarTabelaIndicadores(); 
             this.renderizarTabelaMetas();
             this.renderizarTabelaResultados();
@@ -1195,10 +1311,6 @@ window.GG = {
         }
     },
 
-
-    // ----- Funções de Metas (Antigas 'Indicadores') -----
-
-    // RENOMEADO: de renderizarTabelaIndicadores para renderizarTabelaMetas
     renderizarTabelaMetas() {
         const tbody = document.querySelector('#tabela-metas tbody');
         tbody.innerHTML = '';
@@ -1207,7 +1319,6 @@ window.GG = {
             return; 
         }
         
-        // Mapa para pegar nome do indicador
         const indicadorMap = this.dados.indicadores.reduce((map, ind) => {
             map[ind.id] = ind.indicador;
             return map;
@@ -1229,7 +1340,6 @@ window.GG = {
         feather.replace();
     },
     
-    // RENOMEADO: de salvarIndicador para salvarMeta
     async salvarMeta() {
         if (this.currentUser.role !== 'admin') return;
         const id = document.getElementById('edit-meta-id').value;
@@ -1249,14 +1359,12 @@ window.GG = {
         try {
             this.mostrarLoading(true);
             if (id) { 
-                // Se está editando, só permite mudar meta e tipo
                 const updateData = { meta: dadosMeta.meta, tipo: dadosMeta.tipo };
                 const resultado = await this.supabaseRequest(`indicadores_metas?id=eq.${id}`, 'PATCH', updateData);
                 const index = this.dados.metas.findIndex(m => m.id == id);
                 if (index > -1) this.dados.metas[index] = resultado[0];
                 this.mostrarAlerta('Meta atualizada!', 'success');
             } else { 
-                // Se for novo, usa on_conflict para evitar duplicatas de indicador+filial
                 const endpoint = 'indicadores_metas?on_conflict=indicador_id,filial';
                 const headers = { 'Prefer': 'return=representation,resolution=merge-duplicates' };
                 const resultado = await this.supabaseRequest(endpoint, 'POST', dadosMeta, headers);
@@ -1277,7 +1385,6 @@ window.GG = {
         }
     },
     
-    // RENOMEADO: de editarIndicador para editarMeta
     editarMeta(id) {
         if (this.currentUser.role !== 'admin') return;
         const meta = this.dados.metas.find(m => m.id === id);
@@ -1289,7 +1396,6 @@ window.GG = {
         document.getElementById('add-meta-meta').value = meta.meta || '';
         document.getElementById('add-meta-tipo').value = meta.tipo || '';
 
-        // Desabilita a troca de indicador e filial na edição
         document.getElementById('add-meta-indicador').disabled = true;
         document.getElementById('add-meta-filial').disabled = true;
 
@@ -1297,16 +1403,13 @@ window.GG = {
         this.mostrarAlerta(`Editando Meta #${id}. Altere e clique em Salvar.`, 'info');
     },
     
-    // RENOMEADO: de limparFormIndicador para limparFormMeta
     limparFormMeta(){ 
         document.getElementById('form-add-meta').reset(); 
         document.getElementById('edit-meta-id').value = ''; 
-        // Reabilita os campos
         document.getElementById('add-meta-indicador').disabled = false;
         document.getElementById('add-meta-filial').disabled = false;
     },
     
-    // RENOMEADO: de excluirIndicador para excluirMeta
     async excluirMeta(id) {
         if (this.currentUser.role !== 'admin') return;
         if (!confirm(`Tem certeza que deseja excluir esta meta (ID ${id})?`)) return;
@@ -1323,21 +1426,17 @@ window.GG = {
         }
     },
     
-    // ATENÇÃO: Esta função (editarResultado) estava com a lógica errada
-    // e foi corrigida na versão 5.2.
     editarResultado(id) {
         if (this.currentUser.role !== 'admin') return;
         const resultado = this.dados.resultadosIndicadores.find(res => res.id === id);
         if (!resultado) return;
         
-        // Preenche os campos do formulário de *resultados*
         document.getElementById('add-resultado-indicador').value = resultado.indicador_id;
-        document.getElementById('add-resultado-filial').value = resultado.filial; // ATUALIZADO
+        document.getElementById('add-resultado-filial').value = resultado.filial; 
         document.getElementById('add-resultado-mes').value = resultado.mes_referencia.substring(0, 7);
         document.getElementById('add-resultado-valor').value = resultado.valor_realizado || '';
         document.getElementById('edit-resultado-id').value = id;
         
-        // Desabilita a troca de indicador e filial na edição
         document.getElementById('add-resultado-indicador').disabled = true;
         document.getElementById('add-resultado-filial').disabled = true;
 
@@ -1346,7 +1445,6 @@ window.GG = {
     },
     
     popularDropdownsConfig() {
-        // --- Pega todas as listas de filiais e seções ---
         const filiaisSet = new Set(
             Object.values(this.dados.colaboradores)
                 .map(c => c.filial)
@@ -1369,18 +1467,14 @@ window.GG = {
             { valor: "inverso", texto: "Numérico Inverso (Ex: < 5)" }
         ];
 
-        // --- Pega os Elementos SELECT ---
         const selectIndicadorResultado = document.getElementById('add-resultado-indicador');
         const selectFilialResultado = document.getElementById('add-resultado-filial');
         const selectFilialFiltro = document.getElementById('filtro-resultado-filial');
-        
         const selectSecaoIndicador = document.getElementById('add-indicador-secao');
-        
         const selectIndicadorMeta = document.getElementById('add-meta-indicador');
         const selectFilialMeta = document.getElementById('add-meta-filial');
         const selectTipoMeta = document.getElementById('add-meta-tipo');
 
-        // --- Popula Dropdowns de RESULTADOS ---
         selectIndicadorResultado.innerHTML = '<option value="">Selecione Indicador...</option>';
         this.dados.indicadores.forEach(ind => { 
             selectIndicadorResultado.innerHTML += `<option value="${ind.id}">${this.escapeHTML(ind.indicador)} (${this.escapeHTML(ind.secao)})</option>`; 
@@ -1393,7 +1487,6 @@ window.GG = {
             selectFilialFiltro.innerHTML += `<option value="${this.escapeHTML(f)}">${this.escapeHTML(f)}</option>`;
         });
 
-        // --- Popula Dropdowns de INDICADORES (Definição) ---
         selectSecaoIndicador.innerHTML = '<option value="">Selecione a Seção...</option>';
         selectSecaoIndicador.innerHTML += '<option value="GERAL">GERAL (Para todos)</option>';
         secoes.forEach(s => {
@@ -1402,7 +1495,6 @@ window.GG = {
             }
         });
 
-        // --- Popula Dropdowns de METAS ---
         selectIndicadorMeta.innerHTML = '<option value="">Selecione Indicador...</option>';
         this.dados.indicadores.forEach(ind => { 
             selectIndicadorMeta.innerHTML += `<option value="${ind.id}">${this.escapeHTML(ind.indicador)} (${this.escapeHTML(ind.secao)})</option>`; 
@@ -1419,25 +1511,18 @@ window.GG = {
         });
     },
     
-    // -----------------------------------------------------------------
-    // FUNÇÕES CORRIGIDAS
-    // -----------------------------------------------------------------
-
-    // CORRIGIDO: Esta função tinha o corpo errado (corpo de 'salvarIndicador')
     async adicionarOuAtualizarResultado() {
         if (this.currentUser.role !== 'admin') return;
         
-        // CORPO CORRETO RESTAURADO:
         const indicadorId = document.getElementById('add-resultado-indicador').value;
-        const filial = document.getElementById('add-resultado-filial').value; // ATUALIZADO
+        const filial = document.getElementById('add-resultado-filial').value; 
         const mesInput = document.getElementById('add-resultado-mes').value;
         const valor = document.getElementById('add-resultado-valor').value.trim();
         const editId = document.getElementById('edit-resultado-id').value;
 
-        if (!indicadorId || !filial || !mesInput || valor === '') { this.mostrarAlerta('Todos os campos são obrigatórios.', 'warning'); return; } // ATUALIZADO
+        if (!indicadorId || !filial || !mesInput || valor === '') { this.mostrarAlerta('Todos os campos são obrigatórios.', 'warning'); return; } 
         const mesReferencia = `${mesInput}-01`;
         
-        // ATUALIZADO
         const dadosResultado = { indicador_id: parseInt(indicadorId), filial: filial, mes_referencia: mesReferencia, valor_realizado: valor };
 
         try {
@@ -1448,7 +1533,6 @@ window.GG = {
                 if (index > -1) this.dados.resultadosIndicadores[index] = resultado[0];
                 this.mostrarAlerta('Resultado atualizado!', 'success');
             } else { 
-                // ATUALIZADO: on_conflict por filial
                 const endpoint = 'resultados_indicadores?on_conflict=indicador_id,mes_referencia,filial';
                 const headers = { 'Prefer': 'return=representation,resolution=merge-duplicates' };
                 const resultado = await this.supabaseRequest(endpoint, 'POST', dadosResultado, headers);
@@ -1467,11 +1551,11 @@ window.GG = {
     renderizarTabelaResultados() {
         const tbody = document.querySelector('#tabela-resultados tbody');
         const mesFiltro = document.getElementById('filtro-resultado-mes').value;
-        const filialFiltro = document.getElementById('filtro-resultado-filial').value; // ATUALIZADO
+        const filialFiltro = document.getElementById('filtro-resultado-filial').value; 
         tbody.innerHTML = '';
         let resultadosFiltrados = this.dados.resultadosIndicadores;
         if (mesFiltro) resultadosFiltrados = resultadosFiltrados.filter(r => r.mes_referencia === `${mesFiltro}-01`);
-        if (filialFiltro) resultadosFiltrados = resultadosFiltrados.filter(r => r.filial === filialFiltro); // ATUALIZADO
+        if (filialFiltro) resultadosFiltrados = resultadosFiltrados.filter(r => r.filial === filialFiltro); 
         
         if (resultadosFiltrados.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhum resultado para os filtros.</td></tr>'; return; }
         
@@ -1485,7 +1569,7 @@ window.GG = {
             const mesAno = new Date(res.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { year: 'numeric', month: 'short'});
             tbody.innerHTML += `<tr id="resultado-row-${res.id}">
                 <td>${mesAno}</td> 
-                <td>${this.escapeHTML(res.filial)}</td> <!-- ATUALIZADO -->
+                <td>${this.escapeHTML(res.filial)}</td> 
                 <td>${this.escapeHTML(nomeIndicador)}</td> 
                 <td>${this.escapeHTML(res.valor_realizado || '--')}</td>
                 <td class="actions">
@@ -1499,7 +1583,6 @@ window.GG = {
     limparFormResultado(){ 
         document.getElementById('form-add-resultado').reset(); 
         document.getElementById('edit-resultado-id').value = ''; 
-        // Reabilita os campos
         document.getElementById('add-resultado-indicador').disabled = false;
         document.getElementById('add-resultado-filial').disabled = false;
     },
@@ -1517,6 +1600,10 @@ window.GG = {
         finally { this.mostrarLoading(false); }
     },
     
+    // -----------------------------------------------------------------
+    // FUNÇÕES DE PERFIL E UTILITÁRIOS
+    // -----------------------------------------------------------------
+
     loadPerfilView() {
         const form = document.getElementById('perfilForm');
         const alertContainer = document.getElementById('perfilAlert');
@@ -1631,10 +1718,8 @@ window.GG = {
     
     gerarRelatorios(){ this.mostrarAlerta("Relatórios em desenvolvimento.", "info"); },
     
-    // Modal Genérico (Existente)
     fecharModal() { document.getElementById('editModal').style.display = 'none'; },
     salvarEdicaoModal() { 
-        // Esta função não estava implementada, você pode usá-la no futuro
         this.mostrarAlerta('Função de salvar modal genérico não implementada.', 'info');
     },
 
@@ -1694,9 +1779,7 @@ window.GG = {
         document.getElementById('mediaGeralHome').textContent = media.toFixed(1);
     },
     
-    // NOVO: Função para injetar os estilos das barras de indicadores
     injectIndicatorStyles() {
-        // Remove o estilo antigo se ele existir, para evitar conflito
         const oldStyle = document.getElementById('indicator-styles');
         if (oldStyle) oldStyle.remove();
 
@@ -1727,7 +1810,6 @@ window.GG = {
                 margin-bottom: 10px;
             }
             
-            /* Estilo para indicadores de TEXTO */
             .indicador-texto div {
                 font-size: 0.9em;
                 color: #495057;
@@ -1738,7 +1820,6 @@ window.GG = {
                 font-weight: 600;
             }
 
-            /* Estilo para indicadores NUMÉRICOS (barra) */
             .indicador-numerico .indicador-valores {
                 display: flex;
                 justify-content: space-between;
@@ -1765,10 +1846,10 @@ window.GG = {
                 background-color: var(--accent);
             }
             .progress-bar-inner.bar-good {
-                background-color: var(--primary); /* Verde */
+                background-color: var(--primary); 
             }
             .progress-bar-inner.bar-bad {
-                background-color: #dc2626; /* Vermelho */
+                background-color: #dc2626; 
             }
             .progress-bar-inner.bar-excellent {
                 background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
