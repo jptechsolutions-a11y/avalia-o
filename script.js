@@ -365,23 +365,23 @@ window.GG = {
                 this.supabaseRequest('colaboradores?select=*', 'GET'), 
                 this.supabaseRequest('gestores?select=*', 'GET'),
                 this.supabaseRequest('avaliacoes?select=*', 'GET'), 
-            this.supabaseRequest('indicadores?select=*&order=indicador.asc', 'GET'),
-            this.supabaseRequest('resultados_indicadores?select=*', 'GET'),
-            this.supabaseRequest('indicadores_metas?select=*', 'GET') // NOVO: Carrega as metas
-        ]);
-        
-        // ATUALIZADO: Adiciona o 'metasRes'
-        const [colabRes, gestRes, avalRes, indRes, resIndRes, metasRes] = results;
+                this.supabaseRequest('indicadores?select=*&order=indicador.asc', 'GET'),
+                this.supabaseRequest('resultados_indicadores?select=*', 'GET'),
+                this.supabaseRequest('indicadores_metas?select=*', 'GET') // NOVO: Carrega as metas
+            ]);
+            
+            // ATUALIZADO: Adiciona o 'metasRes'
+            const [colabRes, gestRes, avalRes, indRes, resIndRes, metasRes] = results;
 
-        this.dados.colaboradores = (colabRes.status === 'fulfilled' && colabRes.value) ? colabRes.value.reduce((acc, c) => { if(c.matricula) acc[String(c.matricula).trim()] = c; return acc; }, {}) : {};
+            this.dados.colaboradores = (colabRes.status === 'fulfilled' && colabRes.value) ? colabRes.value.reduce((acc, c) => { if(c.matricula) acc[String(c.matricula).trim()] = c; return acc; }, {}) : {};
             this.dados.gestores = (gestRes.status === 'fulfilled' && gestRes.value) ? gestRes.value.reduce((acc, g) => { if(g.matricula) acc[String(g.matricula).trim()] = g; return acc; }, {}) : {};
-        this.dados.avaliacoes = (avalRes.status === 'fulfilled' && avalRes.value) ? avalRes.value : [];
-        this.dados.indicadores = (indRes.status === 'fulfilled' && indRes.value) ? indRes.value : [];
-        this.dados.resultadosIndicadores = (resIndRes.status === 'fulfilled' && resIndRes.value) ? resIndRes.value : [];
-        this.dados.metas = (metasRes.status === 'fulfilled' && metasRes.value) ? metasRes.value : []; // NOVO
-        
-        results.forEach((res, i) => {
-            if (res.status === 'rejected') {
+            this.dados.avaliacoes = (avalRes.status === 'fulfilled' && avalRes.value) ? avalRes.value : [];
+            this.dados.indicadores = (indRes.status === 'fulfilled' && indRes.value) ? indRes.value : [];
+            this.dados.resultadosIndicadores = (resIndRes.status === 'fulfilled' && resIndRes.value) ? resIndRes.value : [];
+            this.dados.metas = (metasRes.status === 'fulfilled' && metasRes.value) ? metasRes.value : []; // NOVO
+            
+            results.forEach((res, i) => {
+                if (res.status === 'rejected') {
                     console.error(`Falha ao carregar dados [${i}]:`, res.reason);
                 }
             });
@@ -421,6 +421,7 @@ window.GG = {
     },
     
     atualizarIndicadoresExibidos() {
+        const container = document.getElementById('indicadoresContainer'); // Cache o container
         const matricula = document.getElementById('matriculaAvaliado').value;
         const mesReferenciaInput = document.getElementById('mesReferencia').value;
         if (!matricula || !mesReferenciaInput) { this.limparIndicadores(); return; }
@@ -559,7 +560,28 @@ window.GG = {
                     barColorClass = 'bar-excellent';
                     barWidthPercent = 100; // Capa em 100% mas com cor diferente
                 }
-                
+
+                vizHtml = `
+                    <div class="indicador-numerico">
+                        <div class="indicador-valores">
+                            <span>Meta: ${this.escapeHTML(metaStr)}</span>
+                            <strong>${this.escapeHTML(realizadoStr)}</strong>
+                        </div>
+                        <div class="progress-bar-viz">
+                            <div class="progress-bar-inner ${barColorClass}" style="width: ${barWidthPercent}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="indicator-viz-card">
+                    <label>${this.escapeHTML(ind.indicador)}</label>
+                    ${vizHtml}
+                </div>
+            `;
+        });
+        
         html += '</div>';
         
         if (indicadoresRenderizados === 0) {
@@ -1301,18 +1323,24 @@ window.GG = {
         }
     },
     
-    // (Função existente, mas movida para referência)
-    // ...
-    // (Função existente, mas movida para referência)
+    // ATENÇÃO: Esta função (editarResultado) estava com a lógica errada
+    // e foi corrigida na versão 5.2.
     editarResultado(id) {
         if (this.currentUser.role !== 'admin') return;
         const resultado = this.dados.resultadosIndicadores.find(res => res.id === id);
         if (!resultado) return;
+        
+        // Preenche os campos do formulário de *resultados*
         document.getElementById('add-resultado-indicador').value = resultado.indicador_id;
-        document.getElementById('add-resultado-secao').value = resultado.secao;
+        document.getElementById('add-resultado-filial').value = resultado.filial; // ATUALIZADO
         document.getElementById('add-resultado-mes').value = resultado.mes_referencia.substring(0, 7);
         document.getElementById('add-resultado-valor').value = resultado.valor_realizado || '';
         document.getElementById('edit-resultado-id').value = id;
+        
+        // Desabilita a troca de indicador e filial na edição
+        document.getElementById('add-resultado-indicador').disabled = true;
+        document.getElementById('add-resultado-filial').disabled = true;
+
         document.getElementById('add-resultado-valor').focus();
         this.mostrarAlerta(`Editando resultado. Altere o valor e salve.`, 'info');
     },
@@ -1468,13 +1496,13 @@ window.GG = {
         feather.replace();
     },
     
-    // CORRIGIDO: Esta era a função que causava o erro da imagem (estava duplicada e quebrada)
-    // Corrigi a lógica interna para buscar 'indicador' e não 'resultado'
-    // RE-CORRIGIDO: Esta função agora é 'editarMeta' e foi movida para cima.
-    // Esta 'editarIndicador' é a NOVA e correta.
-    // editarIndicador(id) { ... } -> Esta função agora está na seção "NOVAS FUNÇÕES" acima.
-    
-    limparFormResultado(){ document.getElementById('form-add-resultado').reset(); document.getElementById('edit-resultado-id').value = ''; },
+    limparFormResultado(){ 
+        document.getElementById('form-add-resultado').reset(); 
+        document.getElementById('edit-resultado-id').value = ''; 
+        // Reabilita os campos
+        document.getElementById('add-resultado-indicador').disabled = false;
+        document.getElementById('add-resultado-filial').disabled = false;
+    },
     
     async excluirResultado(id) {
         if (this.currentUser.role !== 'admin') return;
@@ -1768,5 +1796,3 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Erro crítico. Verifique o console.");
     }
 });
-
-
