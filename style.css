@@ -3744,16 +3744,20 @@ body.login-body {
  * ESTILOS DO MODAL DE LAUDO
  * ==========================================================
  */
+/* POR ISSO: */
 #laudoModal .modal-content {
     width: 900px;
     max-width: 95vw;
-    height: 90vh;
+    /* AJUSTE: Trocado 'height' por 'max-height' para o modal 
+       se ajustar ao conteúdo, sem ser "gigante" */
+    max-height: 90vh; 
+    height: auto; /* Permite que o modal seja menor se o conteúdo for pequeno */
     padding: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: hidden; /* Mantém o overflow, pois o laudo-body tem seu próprio scroll */
 }
-
+    
 .laudo-container {
     background: #f7f9fc;
 }
