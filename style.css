@@ -138,7 +138,7 @@ body.system-active {
     width: 100%; /* Faz o item ocupar os 60px totais */
     margin-left: 0;
     margin-right: 0;
-    border-radius: 0; /* Opcional: Remove o radius lateral quando recolhido */
+    border-radius: 6; /* Opcional: Remove o radius lateral quando recolhido */
 
     padding-top: 0.75rem;
     padding-bottom: 0.75rem;
