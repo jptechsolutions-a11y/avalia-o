@@ -8,7 +8,6 @@
     <meta name="theme-color" content="#011627">
     <link rel="stylesheet" href="style.css">
     <!-- Link para o CSS do Laudo/Relatórios -->
-    <link rel="stylesheet" href="laudo_relatorios_estilos.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -23,7 +22,7 @@
                 <button id="sidebarToggle" class="btn-icon">
                     <i data-feather="menu" class="h-5 w-5"></i>
                 </button>
-                <img src="logo.png" class="h-8 w-8" alt="Logo G&G">
+                <img src="icon.png" class="h-8 w-auto" alt="Logo G&G">
                 <div class="separator"></div>
                 <div class="flex flex-col">
                     <span class="text-sm font-semibold text-white" id="topBarProjectName">Sistema G&G</span>
@@ -723,7 +722,7 @@
        <div class="laudo-container modal-content">
             <!-- ATUALIZADO: Adicionado Logo -->
             <div class="laudo-header">
-                <img src="logo.png" alt="Logo" class="laudo-logo">
+               <img src="icon.png" alt="Logo" class="laudo-logo">
                 <h3>Laudo da Avaliação</h3>
                 <button class="btn btn-primary" onclick="window.GG.imprimirLaudo()">
                     <i data-feather="printer" class="h-4 w-4 mr-2"></i> Imprimir
