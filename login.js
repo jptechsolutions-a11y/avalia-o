@@ -82,8 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event === 'PASSWORD_RECOVERY') {
             window.location.hash = '#reset';
             checkHash();
-        } else if (event === 'SIGNED_IN') {
-             window.location.href = 'app.html';
         }
     });
 
@@ -243,7 +241,7 @@ async function handleEmailFormSubmit(e) {
                 password: password,
             });
             if (error) throw error;
-            // O redirecionamento agora é tratado pelo onAuthStateChange
+            window.location.href = 'app.html';
         }
     } catch (error) {
         console.error("Erro de autenticação:", error.message);
