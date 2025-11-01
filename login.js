@@ -87,11 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    supabaseClient.auth.getSession().then(({ data: { session } }) => {
-        if (session && window.location.hash !== '#reset') {
-            window.location.href = 'app.html';
-        }
-    });
+
 });
 
 function checkHash() {
