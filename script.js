@@ -74,8 +74,23 @@ window.GG = {
             if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('SUA_CHAVE_PUBLICA')) {
                 throw new Error('Supabase Anon Key não configurada em script.js');
             }
-            const { createClient } = supabase;
-            this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+           const { createClient } = supabase;
+
+// Define o adaptador para sessionStorage
+const sessionStorageAdapter = {
+  getItem: (key) => sessionStorage.getItem(key),
+  setItem: (key, value) => sessionStorage.setItem(key, value),
+  removeItem: (key) => sessionStorage.removeItem(key),
+};
+
+this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        storage: sessionStorageAdapter,
+        persistSession: true, // Manter a sessão (agora no sessionStorage)
+        autoRefreshToken: true
+    }
+});
+            
         } catch (error) {
             console.error("Erro ao inicializar Supabase:", error.message);
             this.mostrarAlerta("Erro crítico na configuração do cliente. Verifique o console.", 'error', 60000);
