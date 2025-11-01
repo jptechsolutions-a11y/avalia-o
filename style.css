@@ -858,7 +858,8 @@ body.login-body {
 }
 
 .laudo-body {
-    flex-grow: 1;
+    flex-grow: 0; /* NÃO deixa o corpo crescer automaticamente */
+    flex-shrink: 1; /* Permite que ele encolha se necessário */
     overflow-y: auto;
     padding: 24px;
 }
@@ -1010,11 +1011,15 @@ body.login-body {
 }
 
 @media print {
+    body {
+        visibility: hidden; /* Esconde tudo da página */
+    }
     body > *:not(#laudoModal) {
         display: none;
     }
     
     #laudoModal {
+        visibility: visible; /* Mostra APENAS o laudo */
         display: block !important;
         position: static;
         width: 100%;
