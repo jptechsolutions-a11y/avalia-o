@@ -7,7 +7,7 @@
     <link rel="icon" href="https://i.imgur.com/80SsE11.png" type="image/png">
     <meta name="theme-color" content="#011627">
     <link rel="stylesheet" href="style.css">
-    <!-- NOVO: Link para o CSS do Laudo/Relatórios -->
+    <!-- Link para o CSS do Laudo/Relatórios -->
     <link rel="stylesheet" href="laudo_relatorios_estilos.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
@@ -83,7 +83,6 @@
                     <a href="#relatorios" class="nav-item" title="Relatórios" onclick="window.GG.showView('relatoriosView', this)">
                         <i data-feather="bar-chart-2" class="h-5 w-5 mr-3"></i> <span class="nav-text">Relatórios</span>
                     </a>
-                    <!-- NOVO: Link Colaborador -->
                     <a href="#colaborador" class="nav-item" title="Desempenho Colaborador" onclick="window.GG.showView('colaboradorView', this)">
                         <i data-feather="trending-up" class="h-5 w-5 mr-3"></i> <span class="nav-text">Colaborador</span>
                     </a>
@@ -223,7 +222,7 @@
                         </div>
                     </div>
 
-                    <!-- Conteúdo: Relatórios (NOVO CONTEÚDO) -->
+                    <!-- Conteúdo: Relatórios -->
                     <div id="relatoriosView" class="view-content">
                          <div id="accessStatusRelatorios" class="access-status" style="display: none;"></div>
                         <h1><i class="fas fa-chart-bar"></i> Relatórios Gerenciais</h1>
@@ -253,17 +252,21 @@
                         </div>
                     </div>
 
-                    <!-- Conteúdo: Colaborador (NOVA VIEW) -->
+                    <!-- Conteúdo: Colaborador -->
                     <div id="colaboradorView" class="view-content">
                         <h1><i class="fas fa-chart-line"></i> Desempenho do Colaborador</h1>
                         <div class="info-card">
                             <h3><i class="fas fa-filter"></i> Selecionar Colaborador</h3>
-                            <div class="form-group">
-                                <label for="colaboradorSelect">Selecione um colaborador para ver seu histórico</label>
-                                <select id="colaboradorSelect" onchange="window.GG.carregarDadosColaborador(this.value)">
-                                    <option value="">Selecione...</option>
-                                    <!-- Será populado pelo JS -->
-                                </select>
+                            <!-- ATUALIZADO: Substituído Select por Input com Datalist -->
+                            <div class="form-row">
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label for="colaboradorSearchInput">Buscar Colaborador (Nome ou Matrícula)</label>
+                                    <input list="colaboradorList" id="colaboradorSearchInput" class="w-full" placeholder="Digite a matrícula ou nome..." onchange="window.GG.carregarDadosColaborador(this.value)">
+                                    <datalist id="colaboradorList">
+                                        <!-- Options serão populados pelo JS com colaboradores que têm avaliações -->
+                                    </datalist>
+                                    <small>A lista sugere apenas colaboradores com avaliações existentes.</small>
+                                </div>
                             </div>
                         </div>
                         
@@ -715,10 +718,12 @@
        </div>
      </div>
 
-     <!-- NOVO: Modal de Laudo/Impressão -->
+     <!-- Modal de Laudo/Impressão -->
      <div id="laudoModal" class="modal">
        <div class="laudo-container modal-content">
+            <!-- ATUALIZADO: Adicionado Logo -->
             <div class="laudo-header">
+                <img src="logo.png" alt="Logo" class="laudo-logo">
                 <h3>Laudo da Avaliação</h3>
                 <button class="btn btn-primary" onclick="window.GG.imprimirLaudo()">
                     <i data-feather="printer" class="h-4 w-4 mr-2"></i> Imprimir
@@ -759,6 +764,11 @@
                     <div id="laudoFeedback">
                         <!-- Conteúdo dinâmico -->
                     </div>
+                </div>
+                
+                <!-- NOVO: Seção de Assinaturas -->
+                <div class="laudo-section laudo-assinaturas" id="laudoAssinaturas">
+                    <!-- Conteúdo dinâmico -->
                 </div>
                 
                 <div class="laudo-footer">
