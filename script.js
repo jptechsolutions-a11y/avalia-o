@@ -1036,7 +1036,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         }
     },
 
-    renderizarTabelaUsuarios() {
+  renderizarTabelaUsuarios() {
         const tbody = document.querySelector('#tabela-usuarios-admin tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
@@ -1047,34 +1047,37 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         
         this.dados.usuarios.forEach(u => {
             const status = u.status || 'ativo'; // Default para 'ativo'
-let statusClass = '';
-switch(status) {
-    case 'ativo': statusClass = 'status-ativo'; break;
-    case 'inativo': statusClass = 'status-inativo'; break;
-    default: statusClass = 'status-inativo';
-}
-const roleClass = u.role === 'admin' ? 'font-bold text-blue-600' : 'text-gray-700';
+            let statusClass = '';
+            switch(status) {
+                case 'ativo': statusClass = 'status-ativo'; break;
+                case 'inativo': statusClass = 'status-inativo'; break;
+                default: statusClass = 'status-inativo';
+            }
+            const roleClass = u.role === 'admin' ? 'font-bold text-blue-600' : 'text-gray-700';
+
+            // *** Bloco de HTML que estava faltando ***
+            tbody.innerHTML += `
+                <tr>
+                    <td>${this.escapeHTML(u.nome)}</td>
+                    <td>${this.escapeHTML(u.email)}</td>
+                    <td>${this.escapeHTML(u.matricula || '--')}</td>
+                    <td class="${roleClass}">${this.escapeHTML(u.role)}</td>
+                    <td>${this.escapeHTML(u.filial || '--')}</td>
+                    <td><span class="status-badge ${statusClass}">${this.escapeHTML(status)}</span></td>
+                    <td class="actions">
+                        <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario(${u.id})">
+                            <i data-feather="edit-2" class="h-4 w-4"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            // *** Fim do Bloco ***
         });
-    },
-
-    abrirModalEdicaoUsuario(id) {
-       const usuario = this.dados.usuarios.find(u => u.id == id); // Use '==' para comparar string com número/string
-        if (!usuario) {
-            this.mostrarAlerta('Usuário não encontrado.', 'error');
-            return;
-        }
         
-        document.getElementById('modal-user-id').value = usuario.id;
-        document.getElementById('modal-user-nome').value = usuario.nome || '';
-        document.getElementById('modal-user-email').value = usuario.email || '';
-        document.getElementById('modal-user-matricula').value = usuario.matricula || '';
-        document.getElementById('modal-user-filial').value = usuario.filial || '';
-        document.getElementById('modal-user-role').value = usuario.role || 'user';
-        document.getElementById('modal-user-status').value = usuario.status || 'inativo';
-
-        document.getElementById('userEditModal').style.display = 'flex';
+        // Garante que os ícones de edição sejam renderizados
         feather.replace();
     },
+    
 
     fecharModalUsuario() {
         document.getElementById('userEditModal').style.display = 'none';
