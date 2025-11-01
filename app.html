@@ -717,65 +717,6 @@
        </div>
      </div>
 
-     <!-- Modal de Laudo/Impressão -->
-     <div id="laudoModal" class="modal">
-       <div class="laudo-container modal-content">
-            <!-- ATUALIZADO: Adicionado Logo -->
-            <div class="laudo-header">
-               <img src="icon.png" alt="Logo" class="laudo-logo">
-                <h3>Laudo da Avaliação</h3>
-                <button class="btn btn-primary" onclick="window.GG.imprimirLaudo()">
-                    <i data-feather="printer" class="h-4 w-4 mr-2"></i> Imprimir
-                </button>
-                <span class="modal-close" onclick="window.GG.fecharLaudo()">&times;</span>
-            </div>
-            <div class="laudo-body" id="laudoBody">
-                <div class="laudo-section">
-                    <h4 class="laudo-titulo">Dados da Avaliação</h4>
-                    <div id="laudoInfo" class="laudo-info-grid">
-                        <!-- Conteúdo dinâmico -->
-                    </div>
-                </div>
-                
-                <div class="laudo-section">
-                     <h4 class="laudo-titulo">Resultado Final</h4>
-                     <div id="laudoResultado" class="laudo-resultado-grid">
-                        <!-- Conteúdo dinâmico -->
-                     </div>
-                </div>
-
-                <div class="laudo-section">
-                    <h4 class="laudo-titulo">Competências Avaliadas</h4>
-                    <div id="laudoCompetencias">
-                        <!-- Conteúdo dinâmico -->
-                    </div>
-                </div>
-
-                <div class="laudo-section">
-                    <h4 class="laudo-titulo">Indicadores (Referente ao Mês)</h4>
-                    <div id="laudoIndicadores">
-                        <!-- Conteúdo dinâmico -->
-                    </div>
-                </div>
-                
-                <div class="laudo-section">
-                    <h4 class="laudo-titulo">Feedback e Comentários</h4>
-                    <div id="laudoFeedback">
-                        <!-- Conteúdo dinâmico -->
-                    </div>
-                </div>
-                
-                <!-- NOVO: Seção de Assinaturas -->
-                <div class="laudo-section laudo-assinaturas" id="laudoAssinaturas">
-                    <!-- Conteúdo dinâmico -->
-                </div>
-                
-                <div class="laudo-footer">
-                    <p>Documento gerado pelo Sistema G&G em: <span id="laudoDataGeracao">--</span></p>
-                </div>
-            </div>
-       </div>
-     </div>
 
 
     <script src="script.js"></script>
