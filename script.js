@@ -1712,10 +1712,7 @@ window.GG = {
             return;
         }
         
-        // NOVO: Adiciona o logo da empresa no cabeçalho do laudo
-        const logoSrc = document.querySelector('#topBar img') ? document.querySelector('#topBar img').src : 'logo.png';
-        const logoEl = document.querySelector('#laudoModal .laudo-logo');
-        if (logoEl) logoEl.src = logoSrc;
+        
 
         // 1. Dados da Avaliação
         const mesAno = new Date(avaliacao.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
