@@ -23,12 +23,13 @@ body {
 
 .page {
     width: 210mm;
-    min-height: 297mm;
+    /* min-height: 297mm; <-- REMOVIDO */
     margin: 30px auto;
     background: white;
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     border-radius: 8px;
     overflow: hidden;
+    padding-bottom: 32px; /* Adiciona um respiro no final */
 }
 
 .laudo-header {
