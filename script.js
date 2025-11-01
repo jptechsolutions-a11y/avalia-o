@@ -1705,102 +1705,28 @@ window.GG = {
     // Funções do Laudo/Impressão
     // -----------------------------------------------------------------
     
-    exibirLaudo(avaliacaoId) {
+exibirLaudo(avaliacaoId) {
         const avaliacao = this.dados.avaliacoes.find(a => a.id === avaliacaoId);
         if (!avaliacao) {
             this.mostrarAlerta('Não foi possível encontrar os detalhes desta avaliação.', 'error');
             return;
         }
-        
-        
 
-        // 1. Dados da Avaliação
-        const mesAno = new Date(avaliacao.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-        document.getElementById('laudoInfo').innerHTML = `
-            <div><strong>Avaliado:</strong> ${this.escapeHTML(avaliacao.nome_avaliado)} (${this.escapeHTML(avaliacao.matricula_avaliado)})</div>
-            <div><strong>Filial:</strong> ${this.escapeHTML(avaliacao.filial)}</div>
-            <div><strong>Avaliador:</strong> ${this.escapeHTML(avaliacao.nome_gestor)} (${this.escapeHTML(avaliacao.matricula_gestor)})</div>
-            <div><strong>Mês Referência:</strong> ${mesAno}</div>
-        `;
-
-        // 2. Resultado Final
-        document.getElementById('laudoResultado').innerHTML = `
-            <div><strong>Pontuação Final:</strong> <span class="laudo-pontuacao">${avaliacao.pontuacao}</span></div>
-            <div><strong>Classificação:</strong> <span class="laudo-classificacao classificacao-${this.escapeHTML(avaliacao.classificacao.replace(' ', '-'))}">${this.escapeHTML(avaliacao.classificacao)}</span></div>
-        `;
-        
-        // 3. Respostas das Competências
-        const containerCompetencias = document.getElementById('laudoCompetencias');
-        containerCompetencias.innerHTML = '';
-        let fatorIndex = 0;
-        this.COMPETENCIAS.forEach(c => {
-            let html = `<div class="laudo-competencia-grupo">
-                            <div class="laudo-competencia-header">${this.escapeHTML(c.nome)}</div>`;
+        try {
+            // Salva os dados no localStorage para a outra página pegar
+            localStorage.setItem('avaliacaoParaLaudo', JSON.stringify(avaliacao));
             
-            c.fatores.forEach(f => {
-                const resposta = avaliacao.respostas_competencias ? avaliacao.respostas_competencias[`fator_${fatorIndex}`] : 'N/A';
-                html += `<div class="laudo-fator-item">
-                            <span class="laudo-fator-nota">${resposta || 'N/A'}</span>
-                            <span class="laudo-fator-texto">${this.escapeHTML(f)}</span>
-                         </div>`;
-                fatorIndex++;
-            });
-
-            if (c.dissertativa) {
-                html += `<div class="laudo-fator-item dissertativa">
-                            <strong>${this.escapeHTML(c.dissertativa)}</strong>
-                            <p>${this.escapeHTML(avaliacao.dissertativa_lideranca || '(Não preenchido)')}</p>
-                         </div>`;
+            // Abre o laudo.html em uma nova aba
+            const laudoWindow = window.open('laudo.html', '_blank');
+            if (!laudoWindow) {
+                this.mostrarAlerta('Seu navegador bloqueou a abertura do laudo. Por favor, habilite pop-ups para este site.', 'warning', 6000);
             }
-            
-            html += `</div>`;
-            containerCompetencias.innerHTML += html;
-        });
-
-        // 4. Indicadores
-        document.getElementById('laudoIndicadores').innerHTML = avaliacao.html_indicadores || '<p><i>Indicadores não registrados para esta avaliação.</i></p>';
-
-        // 5. Feedback
-        document.getElementById('laudoFeedback').innerHTML = `
-            <div class="laudo-feedback-item">
-                <strong>Pontos Fortes Observados</strong>
-                <p>${this.escapeHTML(avaliacao.pontos_fortes || '(Não preenchido)')}</p>
-            </div>
-            <div class="laudo-feedback-item">
-                <strong>Oportunidades de Desenvolvimento</strong>
-                <p>${this.escapeHTML(avaliacao.oportunidades || '(Não preenchido)')}</p>
-            </div>
-            <div class="laudo-feedback-item">
-                <strong>Comentários Gerais</strong>
-                <p>${this.escapeHTML(avaliacao.comentarios || '(Não preenchido)')}</p>
-            </div>
-        `;
-        
-        // NOVO: 6. Assinaturas
-        document.getElementById('laudoAssinaturas').innerHTML = `
-            <div class="laudo-assinatura-bloco">
-                <strong>${this.escapeHTML(avaliacao.nome_avaliado)}</strong>
-                <span>(Colaborador)</span>
-            </div>
-            <div class="laudo-assinatura-bloco">
-                <strong>${this.escapeHTML(avaliacao.nome_gestor)}</strong>
-                <span>(Gestor/Avaliador)</span>
-            </div>
-        `;
-        
-        // 7. Data de Geração e Abrir Modal
-        document.getElementById('laudoDataGeracao').textContent = new Date().toLocaleString('pt-BR');
-        document.getElementById('laudoModal').style.display = 'flex';
-        feather.replace();
-    },
-    
-    fecharLaudo() {
-        document.getElementById('laudoModal').style.display = 'none';
-    },
-    
-    imprimirLaudo() {
-        window.print();
-    },
+        } catch (e) {
+            console.error("Erro ao salvar dados para o laudo:", e);
+            this.mostrarAlerta('Erro ao preparar o laudo: ' + e.message, 'error');
+        }
+    },    
+   
 
     // -----------------------------------------------------------------
     // Funções da View "Colaborador"
