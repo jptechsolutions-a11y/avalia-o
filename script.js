@@ -8,7 +8,6 @@ window.GG = {
     currentUser: null, 
     authUser: null, 
     
-    // NOVO: Cache para os charts
     charts: {
         mediaFilial: null,
         mediaSecao: null,
@@ -66,7 +65,7 @@ window.GG = {
     ],
 
     init() {
-        console.log('🚀 Iniciando Sistema G&G v5.5 (Laudos e Relatórios)...');
+        console.log('🚀 Iniciando Sistema G&G v5.6 (Laudo V2 e Filtro Colab)...');
         
         try {
             if (!SUPABASE_URL || SUPABASE_URL.includes('URL_DO_SEU_PROJETO')) {
@@ -257,8 +256,8 @@ window.GG = {
                 case 'homeView': this.atualizarEstatisticasHome(); break;
                 case 'avaliacaoView': this.inicializarFormularioAvaliacao(); break;
                 case 'historicoView': this.carregarHistorico(); break;
-                case 'relatoriosView': this.inicializarRelatoriosView(); break; // ATUALIZADO
-                case 'colaboradorView': this.inicializarColaboradorView(); break; // NOVO
+                case 'relatoriosView': this.inicializarRelatoriosView(); break; 
+                case 'colaboradorView': this.inicializarColaboradorView(); break; 
                 case 'configuracoesView': this.inicializarConfiguracoes(); break;
                 case 'perfilView': this.loadPerfilView(); break;
             }
@@ -366,7 +365,6 @@ window.GG = {
             const results = await Promise.allSettled([
                 this.supabaseRequest('colaboradores?select=*', 'GET'), 
                 this.supabaseRequest('gestores?select=*', 'GET'),
-                // ATUALIZADO: Seleciona as novas colunas
                 this.supabaseRequest('avaliacoes?select=*,respostas_competencias,html_indicadores,secao', 'GET'), 
                 this.supabaseRequest('indicadores?select=*&order=indicador.asc', 'GET'),
                 this.supabaseRequest('resultados_indicadores?select=*', 'GET'),
@@ -665,7 +663,6 @@ window.GG = {
         
         const dissertativaLideranca = document.getElementById('dissertativa_lideranca')?.value || null;
         
-        // NOVO: Captura respostas e HTML dos indicadores
         const respostas_competencias = {};
         document.querySelectorAll('#competenciasContainer input[type="radio"]:checked').forEach(radio => {
             respostas_competencias[radio.name] = radio.value;
@@ -678,7 +675,7 @@ window.GG = {
             nome_avaliado: nomeAvaliado, matricula_avaliado: matriculaAvaliado, 
             nome_gestor: nomeGestor, matricula_gestor: matriculaGestor, 
             filial: filial,
-            secao: secao, // NOVO
+            secao: secao, 
             pontuacao: parseFloat(this.dados.avaliacaoAtual.pontuacao.toFixed(1)), 
             classificacao: this.dados.avaliacaoAtual.classificacao,
             comentarios: document.getElementById('comentarios').value || null, 
@@ -687,8 +684,8 @@ window.GG = {
             mes_referencia: mesReferencia,
             dissertativa_lideranca: dissertativaLideranca,
             avaliador_user_id: this.currentUser.id,
-            respostas_competencias: respostas_competencias, // NOVO
-            html_indicadores: html_indicadores // NOVO
+            respostas_competencias: respostas_competencias, 
+            html_indicadores: html_indicadores 
         };
         
         try {
@@ -696,14 +693,11 @@ window.GG = {
             const resultado = await this.supabaseRequest('avaliacoes', 'POST', avaliacao);
             
             if (resultado && resultado.length > 0) {
-                // Adiciona o resultado completo (com ID) aos dados locais
                 this.dados.avaliacoes.push(resultado[0]); 
                 this.atualizarEstatisticasHome(); 
                 this.mostrarAlerta(`Avaliação de ${mesReferenciaInput} salva!`, 'success');
                 
-                // NOVO: Pergunta se quer imprimir
                 if (confirm('Avaliação salva. Deseja imprimir o laudo agora?')) {
-                    // Passa o objeto completo retornado pelo Supabase (que inclui o ID)
                     this.exibirLaudo(resultado[0].id);
                 }
                 
@@ -841,12 +835,10 @@ window.GG = {
         this.renderizarTabelaHistorico(dadosFiltrados);
     },
     
-    // ATUALIZADO: renderizarTabelaHistorico com botão Detalhes
     renderizarTabelaHistorico(dados) {
         const container = document.getElementById('tabelaHistorico');
         if (dados.length === 0) { container.innerHTML = `<p style="text-align: center; padding: 20px; color: #6c757d;">Nenhuma avaliação encontrada para os filtros selecionados.</p>`; return; }
         
-        // NOVO: Adiciona <th>Ações</th>
         let html = '<table class="tabela"><thead><tr><th>Mês Ref.</th><th>Avaliado</th><th>Gestor</th><th>Filial</th><th>Pontuação</th><th>Classificação</th><th>Ações</th></tr></thead><tbody>';
         dados.sort((a,b) => new Date(b.mes_referencia || b.created_at) - new Date(a.mes_referencia || a.created_at));
         
@@ -859,7 +851,6 @@ window.GG = {
                         <td>${this.escapeHTML(av.filial)}</td>
                         <td><strong>${av.pontuacao}</strong></td>
                         <td>${this.escapeHTML(av.classificacao)}</td>
-                        <!-- NOVO: Botão Detalhes -->
                         <td class="actions">
                             <button class="btn btn-sm btn-info" title="Ver Detalhes" onclick="window.GG.exibirLaudo(${av.id})">
                                 <i data-feather="eye" class="h-4 w-4"></i>
@@ -869,7 +860,7 @@ window.GG = {
         });
         html += '</tbody></table>'; 
         container.innerHTML = html;
-        feather.replace(); // Importante para renderizar o ícone 'eye'
+        feather.replace(); 
     },
     
     limparFiltros() {
@@ -1711,7 +1702,7 @@ window.GG = {
     },
     
     // -----------------------------------------------------------------
-    // NOVO: Funções do Laudo/Impressão
+    // Funções do Laudo/Impressão
     // -----------------------------------------------------------------
     
     exibirLaudo(avaliacaoId) {
@@ -1720,6 +1711,11 @@ window.GG = {
             this.mostrarAlerta('Não foi possível encontrar os detalhes desta avaliação.', 'error');
             return;
         }
+        
+        // NOVO: Adiciona o logo da empresa no cabeçalho do laudo
+        const logoSrc = document.querySelector('#topBar img') ? document.querySelector('#topBar img').src : 'logo.png';
+        const logoEl = document.querySelector('#laudoModal .laudo-logo');
+        if (logoEl) logoEl.src = logoSrc;
 
         // 1. Dados da Avaliação
         const mesAno = new Date(avaliacao.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -1783,7 +1779,19 @@ window.GG = {
             </div>
         `;
         
-        // 6. Data de Geração e Abrir Modal
+        // NOVO: 6. Assinaturas
+        document.getElementById('laudoAssinaturas').innerHTML = `
+            <div class="laudo-assinatura-bloco">
+                <strong>${this.escapeHTML(avaliacao.nome_avaliado)}</strong>
+                <span>(Colaborador)</span>
+            </div>
+            <div class="laudo-assinatura-bloco">
+                <strong>${this.escapeHTML(avaliacao.nome_gestor)}</strong>
+                <span>(Gestor/Avaliador)</span>
+            </div>
+        `;
+        
+        // 7. Data de Geração e Abrir Modal
         document.getElementById('laudoDataGeracao').textContent = new Date().toLocaleString('pt-BR');
         document.getElementById('laudoModal').style.display = 'flex';
         feather.replace();
@@ -1798,25 +1806,42 @@ window.GG = {
     },
 
     // -----------------------------------------------------------------
-    // NOVO: Funções da View "Colaborador"
+    // Funções da View "Colaborador"
     // -----------------------------------------------------------------
     
+    // ATUALIZADO: para popular o datalist
     inicializarColaboradorView() {
-        this.popularSelectColaborador();
+        this.popularDatalistColaborador();
+        document.getElementById('colaboradorSearchInput').value = ''; // Limpa o campo
         this.carregarDadosColaborador(null); // Limpa a tela
     },
     
-    popularSelectColaborador() {
-        const select = document.getElementById('colaboradorSelect');
-        select.innerHTML = '<option value="">Selecione...</option>';
+    // ATUALIZADO: para popular o datalist e filtrar por quem tem avaliação
+    popularDatalistColaborador() {
+        const datalist = document.getElementById('colaboradorList');
+        datalist.innerHTML = '';
         
-        // Pega todos os colaboradores, ordena por nome
-        const todos = Object.values(this.dados.colaboradores)
-            .filter(c => c.nome) // Garante que tenha nome
-            .sort((a,b) => a.nome.localeCompare(b.nome));
+        // 1. Pega matriculas únicas de quem JÁ FOI AVALIADO
+        const matriculasAvaliadas = new Set(
+            this.dados.avaliacoes.map(av => av.matricula_avaliado)
+        );
+
+        // 2. Filtra a lista de colaboradores
+        const colaboradoresAvaliados = [];
+        matriculasAvaliadas.forEach(matricula => {
+            if (this.dados.colaboradores[matricula]) {
+                colaboradoresAvaliados.push(this.dados.colaboradores[matricula]);
+            }
+        });
             
-        todos.forEach(c => {
-            select.innerHTML += `<option value="${this.escapeHTML(c.matricula)}">${this.escapeHTML(c.nome)} (${this.escapeHTML(c.matricula)})</option>`;
+        // 3. Ordena por nome
+        colaboradoresAvaliados.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
+            
+        // 4. Popula o datalist
+        colaboradoresAvaliados.forEach(c => {
+            const label = `${this.escapeHTML(c.nome)} (${this.escapeHTML(c.matricula)})`;
+            // O "value" é a matrícula, o "label" (texto) é o nome
+            datalist.innerHTML += `<option value="${this.escapeHTML(c.matricula)}">${label}</option>`;
         });
     },
     
@@ -1826,6 +1851,15 @@ window.GG = {
             dataContainer.style.display = 'none';
             return;
         }
+        
+        // Checa se a matrícula existe
+        const colaborador = this.dados.colaboradores[matricula.trim()];
+        if (!colaborador) {
+             dataContainer.style.display = 'none';
+             this.mostrarAlerta('Matrícula não encontrada na base de colaboradores.', 'warning');
+             return;
+        }
+
         dataContainer.style.display = 'block';
         
         const avaliacoes = this.dados.avaliacoes
@@ -1836,7 +1870,6 @@ window.GG = {
         if (avaliacoes.length === 0) {
             historicoContainer.innerHTML = '<p style="padding: 20px; text-align: center;">Nenhuma avaliação encontrada para este colaborador.</p>';
         } else {
-            // Re-usa a renderização da tabela de histórico, mas sem o botão
              let html = '<table class="tabela"><thead><tr><th>Mês Ref.</th><th>Gestor</th><th>Filial</th><th>Pontuação</th><th>Classificação</th></tr></thead><tbody>';
             avaliacoes.forEach(av => {
                 const mesAno = av.mes_referencia ? new Date(av.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { year: 'numeric', month: 'short'}) : 'N/A';
@@ -1852,7 +1885,6 @@ window.GG = {
             historicoContainer.innerHTML = html;
         }
 
-        // Estatísticas
         const total = avaliacoes.length;
         document.getElementById('colabTotalAvaliacoes').textContent = total;
         
@@ -1873,7 +1905,6 @@ window.GG = {
             }
             document.getElementById('colabTendencia').innerHTML = tendencia;
             
-            // Gráfico
             const labels = avaliacoes.map(av => new Date(av.mes_referencia + 'T05:00:00').toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }));
             const data = avaliacoes.map(av => av.pontuacao);
             this.renderizarChart('evolucaoColaborador', 'chartEvolucaoColaborador', 'line', labels, data, 'Pontuação');
@@ -1882,12 +1913,15 @@ window.GG = {
              document.getElementById('colabMediaGeral').textContent = '0.0';
              document.getElementById('colabUltimaNota').textContent = '0.0';
              document.getElementById('colabTendencia').innerHTML = '-';
-             if (this.charts.evolucaoColaborador) this.charts.evolucaoColaborador.destroy();
+             if (this.charts.evolucaoColaborador) {
+                this.charts.evolucaoColaborador.destroy();
+                this.charts.evolucaoColaborador = null;
+             }
         }
     },
 
     // -----------------------------------------------------------------
-    // NOVO: Funções da View "Relatórios"
+    // Funções da View "Relatórios"
     // -----------------------------------------------------------------
 
     async inicializarRelatoriosView() {
@@ -1896,7 +1930,6 @@ window.GG = {
             document.getElementById('accessStatusRelatorios').className = 'access-status alert alert-error';
             document.getElementById('accessStatusRelatorios').style.display = 'block';
             document.getElementById('relatoriosAdminOnly').style.display = 'none';
-            // Destruir charts se existirem
             Object.values(this.charts).forEach(chart => { if (chart) chart.destroy(); });
             return;
         }
@@ -1911,15 +1944,12 @@ window.GG = {
         this.mostrarLoading(true);
         
         try {
-            // 1. Média por Filial
             const mediaFilial = this.processarMediaAgrupada('filial');
             this.renderizarChart('mediaFilial', 'chartMediaFilial', 'bar', mediaFilial.labels, mediaFilial.data, 'Média de Pontuação');
 
-            // 2. Média por Seção
             const mediaSecao = this.processarMediaAgrupada('secao');
             this.renderizarChart('mediaSecao', 'chartMediaSecao', 'bar', mediaSecao.labels, mediaSecao.data, 'Média de Pontuação');
 
-            // 3. Evolução Geral
             const evolucao = this.processarEvolucaoGeral();
             this.renderizarChart('evolucaoGeral', 'chartEvolucaoGeral', 'line', evolucao.labels, evolucao.data, 'Média Geral');
             
@@ -1955,7 +1985,6 @@ window.GG = {
         const grupos = {};
         const contagem = {};
         
-        // Pega avaliações dos últimos 12 meses
         const dozeMesesAtras = new Date();
         dozeMesesAtras.setMonth(dozeMesesAtras.getMonth() - 12);
 
@@ -1974,7 +2003,6 @@ window.GG = {
 
         const labels = Object.keys(grupos).sort();
         const data = labels.map(chave => (grupos[chave] / contagem[chave]).toFixed(1));
-        // Formata labels para "MM/YYYY"
         const labelsFormatados = labels.map(l => {
             const [ano, mes] = l.split('-');
             return `${mes}/${ano}`;
@@ -1987,7 +2015,6 @@ window.GG = {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
         
-        // Destrói chart anterior se existir
         if (this.charts[chartCacheKey]) {
             this.charts[chartCacheKey].destroy();
         }
@@ -2012,7 +2039,7 @@ window.GG = {
                 scales: {
                     y: {
                         beginAtZero: true,
-                        max: 5 // Define o máximo da pontuação
+                        max: 5 
                     }
                 },
                 plugins: {
