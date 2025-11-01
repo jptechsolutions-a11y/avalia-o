@@ -146,6 +146,10 @@ body.system-active {
 .sidebar.collapsed .nav-item .mr-3 {
     margin-right: 0; 
 }
+/* ADICIONE ESTA NOVA REGRA */
+.sidebar.collapsed .nav-item.active {
+    border-left-color: transparent; /* Remove a 'barra' espremida, mantendo o fundo ativo */
+}
 .sidebar.collapsed .nav-text {
     display: none; /* Remove o texto do fluxo, permitindo a centralização real do ícone */
 }
