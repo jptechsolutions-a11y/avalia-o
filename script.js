@@ -1101,13 +1101,40 @@ abrirModalEdicaoUsuario(id) {
 
     async salvarModalUsuario() {
         const id = document.getElementById('modal-user-id').value;
+
+        // --- INÍCIO DA CORREÇÃO ---
+        // Pega o valor do input, ou uma string vazia se for nulo
+        const filiaisInput = document.getElementById('modal-user-filial').value || '';
+        let permissoesArray = null; // Por padrão, é nulo (acesso a todas)
+
+        if (filiaisInput.trim().length > 0) {
+            // Se o campo NÃO estiver vazio, converte em array
+            permissoesArray = filiaisInput
+                .split(',')                 // Separa por vírgula (ex: ["101", " 205"])
+                .map(f => f.trim())         // Remove espaços (ex: ["101", "205"])
+                .filter(f => f.length > 0); // Remove itens vazios
+        }
+        // --- FIM DA CORREÇÃO ---
+
         const payload = {
             nome: document.getElementById('modal-user-nome').value,
             matricula: document.getElementById('modal-user-matricula').value || null,
-            filial: document.getElementById('modal-user-filial').value || null,
+            
+            // ATENÇÃO AQUI:
+            // O erro (`image_fc97a5.jpg`) mostra que o banco espera 'permissoes_filiais'.
+            // O seu script.js original enviava 'filial'.
+            // Estou assumindo que seu banco está correto e o payload deve ser 'permissoes_filiais'.
+            permissoes_filiais: permissoesArray, // Envia o array (ou null)
+
             role: document.getElementById('modal-user-role').value,
             status: document.getElementById('modal-user-status').value
         };
+
+        // Remove a chave 'filial' se ela existir no payload, para evitar conflito
+        // (Caso você tenha as duas chaves no seu payload)
+        if (payload.hasOwnProperty('filial')) {
+             delete payload.filial;
+        }
 
         if (!id || !payload.nome) {
             this.mostrarAlerta('Nome é obrigatório.', 'warning');
