@@ -162,6 +162,20 @@ body {
 .indicadores-container { padding: 16px; }
 .indicadores-container > p { color: #6c757d; font-style: italic; }
 
+/* Estilos dos indicadores copiados do style.css original */
+.indicator-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.indicator-viz-card { background-color: #f9fafb; padding: 14px; border-radius: 8px; border-left: 4px solid var(--secondary); box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+.indicator-viz-card label { font-size: 0.85em; font-weight: 600; color: var(--dark); display: block; margin-bottom: 10px; }
+.indicador-texto div { font-size: 0.9em; color: #495057; display: flex; justify-content: space-between; }
+.indicador-texto div span { font-weight: 600; }
+.indicador-numerico .indicador-valores { display: flex; justify-content: space-between; font-size: 0.8em; color: #495057; margin-bottom: 6px; }
+.indicador-numerico .indicador-valores strong { font-size: 1.1em; font-weight: 700; color: var(--dark); }
+.progress-bar-viz { width: 100%; height: 12px; background: #e9ecef; border-radius: 6px; overflow: hidden; }
+.progress-bar-inner { height: 100%; border-radius: 6px; transition: width 0.5s ease; background-color: var(--accent); }
+.progress-bar-inner.bar-good { background-color: var(--primary); }
+.progress-bar-inner.bar-bad { background-color: #dc2626; }
+.progress-bar-inner.bar-excellent { background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%); }
+
 .feedback-container { padding: 16px; font-size: 0.9rem; }
 .feedback-item { margin-bottom: 16px; }
 .feedback-item strong {
@@ -216,16 +230,26 @@ body {
 }
 
 @media print {
+    @page {
+        size: A4;
+        margin: 20mm; /* Margem de 2cm em todos os lados */
+    }
+
     body {
         background-color: white;
-    }
-    .page {
         width: 100%;
+        color: black;
+    }
+    
+    .page {
+        width: 100%; /* A página preenche a área de impressão (dentro das margens) */
         min-height: 0;
         margin: 0;
         box-shadow: none;
         border-radius: 0;
+        border: none; /* Remove qualquer borda da 'página' */
     }
+    
     .laudo-header {
         padding: 20px 0;
         border-bottom: 2px solid black;
@@ -234,19 +258,22 @@ body {
     }
     .laudo-header h1 { color: black; }
     .btn-print {
-        display: none;
+        display: none; /* Esconde o botão de imprimir */
     }
+    
     .laudo-section {
-        margin: 20px 0;
+        margin: 20px 0 0 0; /* Remove margens laterais na impressão */
         border: 1px solid #ccc;
-        page-break-inside: avoid;
+        page-break-inside: avoid; /* Tenta não quebrar seções no meio da página */
     }
+    
     .section-title {
         background: #eee !important;
         color: black !important;
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
     }
+    
     .laudo-classificacao {
         border: 1px solid #ccc;
         print-color-adjust: exact;
@@ -264,6 +291,10 @@ body {
         -webkit-print-color-adjust: exact;
     }
     
+    /* --- AJUSTE DE IMPRESSÃO DOS INDICADORES --- */
+    .indicadores-container .indicator-grid {
+        grid-template-columns: 1fr; /* Força os indicadores a uma coluna */
+    }
     .indicadores-container .indicator-viz-card {
         border-left-color: #ccc;
         background: #f9f9f9 !important;
@@ -282,8 +313,26 @@ body {
     .indicadores-container .bar-good { background-color: #00D4AA !important; }
     .indicadores-container .bar-bad { background-color: #dc2626 !important; }
     .indicadores-container .bar-excellent { background: #00D4AA !important; }
+    
+    /* --- AJUSTE DE IMPRESSÃO DAS ASSINATURAS --- */
+    .assinaturas {
+        flex-direction: column; /* Faz as assinaturas empilharem */
+        gap: 40px; /* Adiciona espaço entre elas */
+        align-items: center;
+        padding: 16px 0;
+    }
+    .assinatura-bloco {
+        text-align: center; /* Centraliza o texto */
+    }
+    .assinatura-bloco span {
+        min-width: 300px; /* Define uma largura para a linha */
+        padding-left: 10px;
+        padding-right: 10px;
+    }
 
     .laudo-footer {
         background: white !important;
+        border-top: 1px solid #eee;
+        padding-top: 16px;
     }
 }
