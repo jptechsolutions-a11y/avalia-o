@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laudo de Avaliação</title>
+    <link rel="stylesheet" href="laudo.css">
+</head>
+<body>
+    <div class="page">
+        <header class="laudo-header">
+            <img src="icon.png" alt="Logo" class="laudo-logo">
+            <h1>Avaliação de Desempenho</h1>
+            <button id="btnPrint" class="btn-print" onclick="window.print()">
+                <svg fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h1v-4a1 1 0 011-1h8a1 1 0 011 1v4h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm3 0v3h4V4H8zm-2 8a1 1 0 011-1h6a1 1 0 011 1v4H6v-4zm9 4H5v1a1 1 0 001 1h8a1 1 0 001-1v-1z" clip-rule="evenodd"></path></svg>
+                Imprimir
+            </button>
+        </header>
+
+        <section class="laudo-section">
+            <h2 class="section-title">Dados da Avaliação</h2>
+            <div class="info-grid">
+                <div><strong>Avaliado:</strong> <span id="laudo-nome-avaliado">...</span> (<span id="laudo-mat-avaliado">...</span>)</div>
+                <div><strong>Filial:</strong> <span id="laudo-filial">...</span></div>
+                <div><strong>Avaliador:</strong> <span id="laudo-nome-gestor">...</span> (<span id="laudo-mat-gestor">...</span>)</div>
+                <div><strong>Mês Referência:</strong> <span id="laudo-mes">...</span></div>
+            </div>
+        </section>
+
+        <section class="laudo-section">
+            <h2 class="section-title">Resultado Final</h2>
+            <div class="resultado-grid">
+                <div class="resultado-bloco">
+                    <span class="resultado-label">Pontuação Final</span>
+                    <span class="laudo-pontuacao" id="laudo-pontuacao">0.0</span>
+                </div>
+                <div class="resultado-bloco">
+                    <span class="resultado-label">Classificação</span>
+                    <span class="laudo-classificacao" id="laudo-classificacao">-</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="laudo-section">
+            <h2 class="section-title">Competências Avaliadas</h2>
+            <div id="laudo-competencias-container" class="competencias-container">
+                </div>
+        </section>
+
+        <section class="laudo-section">
+            <h2 class="section-title">Indicadores (Referente ao Mês)</h2>
+            <div id="laudo-indicadores-container" class="indicadores-container">
+                </div>
+        </section>
+
+        <section class="laudo-section">
+            <h2 class="section-title">Feedback e Comentários</h2>
+            <div class="feedback-container">
+                <div class="feedback-item">
+                    <strong>Pontos Fortes Observados</strong>
+                    <p id="laudo-pontos-fortes">...</p>
+                </div>
+                <div class="feedback-item">
+                    <strong>Oportunidades de Desenvolvimento</strong>
+                    <p id="laudo-oportunidades">...</p>
+                </div>
+                <div class="feedback-item">
+                    <strong>Comentários Gerais</strong>
+                    <p id="laudo-comentarios">...</p>
+                </div>
+            </div>
+        </section>
+
+        <footer class="laudo-footer">
+            <div class="assinaturas">
+                <div class="assinatura-bloco">
+                    <span id="laudo-ass-gestor">...</span>
+                    <strong>Gestor / Avaliador</strong>
+                </div>
+                <div class="assinatura-bloco">
+                    <span id="laudo-ass-avaliado">...</span>
+                    <strong>Colaborador Avaliado</strong>
+                </div>
+            </div>
+            <p>Documento gerado pelo Sistema G&G em: <span id="laudo-data-geracao">...</span></p>
+        </footer>
+    </div>
+
+    <script src="laudo.js"></script>
+</body>
+</html>
