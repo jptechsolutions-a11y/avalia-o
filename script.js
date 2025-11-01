@@ -1035,6 +1035,46 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             this.mostrarLoading(false);
         }
     },
+async aprovarSolicitacao(id, nome, email) {
+        if (!confirm(`Tem certeza que deseja aprovar a solicitação para "${nome}" (${email})?\n\nIsso enviará um e-mail de convite para o usuário definir a própria senha.`)) return;
+
+        try {
+            this.mostrarLoading(true);
+
+            // Chamar a nova API serverless que criamos
+            const response = await fetch('/api/approve-access', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}` // Autentica o admin
+                },
+                body: JSON.stringify({
+                    solicitacao_id: id,
+                    email: email,
+                    nome: nome
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Erro ${response.status}`);
+            }
+
+            this.mostrarAlerta('Usuário aprovado e convite enviado!', 'success');
+            
+            // Atualizar a lista de solicitações
+            await this.carregarDadosAdmin(); 
+            this.renderizarTabelasAdmin(); 
+
+        } catch(e) {
+            this.mostrarAlerta(`Erro ao aprovar: ${e.message}`, 'error');
+            console.error("Erro em aprovarSolicitacao:", e);
+        } finally {
+            this.mostrarLoading(false);
+        }
+    },
+
+    // ... (sua função rejeitarSolicitacao e outras)
 
 renderizarTabelaUsuarios() {
         const tbody = document.querySelector('#tabela-usuarios-admin tbody');
@@ -2249,43 +2289,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // (Dentro do objeto window.GG)
 
-    async aprovarSolicitacao(id, nome, email) {
-        if (!confirm(`Tem certeza que deseja aprovar a solicitação para "${nome}" (${email})?\n\nIsso enviará um e-mail de convite para o usuário definir a própria senha.`)) return;
-
-        try {
-            this.mostrarLoading(true);
-
-            // Chamar a nova API serverless que criamos
-            const response = await fetch('/api/approve-access', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}` // Autentica o admin
-                },
-                body: JSON.stringify({
-                    solicitacao_id: id,
-                    email: email,
-                    nome: nome
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Erro ${response.status}`);
-            }
-
-            this.mostrarAlerta('Usuário aprovado e convite enviado!', 'success');
-            
-            // Atualizar a lista de solicitações
-            await this.carregarDadosAdmin(); 
-            this.renderizarTabelasAdmin(); 
-
-        } catch(e) {
-            this.mostrarAlerta(`Erro ao aprovar: ${e.message}`, 'error');
-            console.error("Erro em aprovarSolicitacao:", e);
-        } finally {
-            this.mostrarLoading(false);
-        }
-    },
-
-    // ... (sua função rejeitarSolicitacao e outras)
+    
