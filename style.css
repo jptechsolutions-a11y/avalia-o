@@ -135,7 +135,18 @@ body.system-active {
     width: 60px; /* Mais fina */
 }
 .sidebar.collapsed .nav-item {
-    padding: 0.75rem 0; /* Zera o padding lateral */
+    /* Força o item a ocupar a largura disponível (60px) menos as margens (0.5rem * 2) */
+    width: calc(100% - 1rem); 
+    
+    /* Mantém o padding vertical */
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    
+    /* Zera os paddings laterais para o justify-content funcionar */
+    padding-left: 0;
+    padding-right: 0;
+
+    /* Agora o 'center' vai centralizar o ícone no espaço restante (width - border) */
     justify-content: center;
 }
 /* ADICIONE ISTO: Remove o margin-right dos ícones na barra colapsada */
@@ -163,6 +174,7 @@ body.system-active {
     color: var(--light);
     font-weight: 500;
     border-left: 4px solid transparent;
+    box-sizing: border-box;
 }
 .nav-item:hover {
     background-color: rgba(0, 180, 216, 0.1);
