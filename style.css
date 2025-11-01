@@ -147,13 +147,8 @@ body.system-active {
     margin-right: 0; 
 }
 .sidebar.collapsed .nav-text {
-    opacity: 0;
-    pointer-events: none;
-    width: 0;
-    margin-left: -10px; 
-    white-space: nowrap;
+    display: none; /* Remove o texto do fluxo, permitindo a centralização real do ícone */
 }
-
 .nav-item {
     display: flex;
     align-items: center;
