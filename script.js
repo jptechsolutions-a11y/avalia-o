@@ -866,10 +866,10 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                         <td>${this.escapeHTML(av.filial)}</td>
                         <td><strong>${av.pontuacao}</strong></td>
                         <td>${this.escapeHTML(av.classificacao)}</td>
-                        <td class="actions">
-                            <button class="btn btn-sm btn-info" title="Ver Detalhes" onclick="window.GG.exibirLaudo(${av.id})">
-                                <i data-feather="eye" class="h-4 w-4"></i>
-                            </button>
+                       <td class="actions">
+                    <button class="btn btn-sm btn-success" onclick='window.GG.aprovarSolicitacao(${s.id}, ${JSON.stringify(s.nome)}, ${JSON.stringify(s.email)})'>
+                        <i data-feather="check" class="h-4 w-4"></i>
+                    </button>
                         </td>
                     </tr>`;
         });
