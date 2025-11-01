@@ -132,10 +132,10 @@ body.system-active {
 }
 
 .sidebar.collapsed {
-    width: 73px; 
+    width: 60px; /* Mais fina */
 }
 .sidebar.collapsed .nav-item {
-    padding: 0.75rem 0; /* Mantém o padding vertical e ZERA o horizontal */
+    padding: 0.75rem 0; /* Zera o padding lateral */
     justify-content: center;
 }
 .sidebar.collapsed .nav-item .mr-3 {
