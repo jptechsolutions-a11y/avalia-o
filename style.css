@@ -135,8 +135,7 @@ body.system-active {
     width: 73px; 
 }
 .sidebar.collapsed .nav-item {
-    padding-left: 1.5rem; 
-    padding-right: 1.5rem; 
+    padding: 0.75rem 0; /* Mantém o padding vertical e ZERA o horizontal */
     justify-content: center;
 }
 .sidebar.collapsed .nav-item .mr-3 {
