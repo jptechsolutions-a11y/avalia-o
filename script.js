@@ -1036,7 +1036,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         }
     },
 
- renderizarTabelaUsuarios() {
+renderizarTabelaUsuarios() {
         const tbody = document.querySelector('#tabela-usuarios-admin tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
@@ -1073,9 +1073,27 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         });
         
         feather.replace();
+    }, // <-- **** ESSA VÍRGULA É FUNDAMENTAL ****
+    
+abrirModalEdicaoUsuario(id) {
+       const usuario = this.dados.usuarios.find(u => u.id == id); // Use '==' para comparar string com número/string
+        if (!usuario) {
+            this.mostrarAlerta('Usuário não encontrado.', 'error');
+            return;
+        }
+        
+        document.getElementById('modal-user-id').value = usuario.id;
+        document.getElementById('modal-user-nome').value = usuario.nome || '';
+        document.getElementById('modal-user-email').value = usuario.email || '';
+        document.getElementById('modal-user-matricula').value = usuario.matricula || '';
+        document.getElementById('modal-user-filial').value = usuario.filial || '';
+        document.getElementById('modal-user-role').value = usuario.role || 'user';
+        document.getElementById('modal-user-status').value = usuario.status || 'inativo';
+
+        document.getElementById('userEditModal').style.display = 'flex';
+        feather.replace();
     },
     
-
     fecharModalUsuario() {
         document.getElementById('userEditModal').style.display = 'none';
         document.getElementById('userEditForm').reset();
