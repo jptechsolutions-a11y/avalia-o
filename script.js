@@ -1054,11 +1054,6 @@ switch(status) {
     default: statusClass = 'status-inativo';
 }
 const roleClass = u.role === 'admin' ? 'font-bold text-blue-600' : 'text-gray-700';
-                   <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario('${u.id}')">
-                        <i data-feather="edit-2" class="h-4 w-4"></i>
-                    </button>
-                </td>
-            </tr>`;
         });
     },
 
