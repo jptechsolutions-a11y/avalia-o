@@ -1046,18 +1046,15 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         }
         
         this.dados.usuarios.forEach(u => {
-            const statusClass = u.status === 'ativo' ? 'text-green-600' : 'text-red-600';
-            const roleClass = u.role === 'admin' ? 'font-bold text-blue-600' : 'text-gray-700';
-            
-            tbody.innerHTML += `<tr>
-                <td>${this.escapeHTML(u.nome)}</td>
-                <td>${this.escapeHTML(u.email)}</td>
-                <td>${this.escapeHTML(u.matricula || '--')}</td>
-                <td class="${roleClass}">${this.escapeHTML(u.role || 'user')}</td>
-                <td>${this.escapeHTML(u.filial || '--')}</td>
-                <td class="${statusClass}">${this.escapeHTML(u.status || 'inativo')}</td>
-                <td class="actions">
-                    <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario(${u.id})">
+            const status = u.status || 'ativo'; // Default para 'ativo'
+let statusClass = '';
+switch(status) {
+    case 'ativo': statusClass = 'status-ativo'; break;
+    case 'inativo': statusClass = 'status-inativo'; break;
+    default: statusClass = 'status-inativo';
+}
+const roleClass = u.role === 'admin' ? 'font-bold text-blue-600' : 'text-gray-700';
+                   <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario('${u.id}')">
                         <i data-feather="edit-2" class="h-4 w-4"></i>
                     </button>
                 </td>
@@ -1066,7 +1063,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     },
 
     abrirModalEdicaoUsuario(id) {
-        const usuario = this.dados.usuarios.find(u => u.id === id);
+       const usuario = this.dados.usuarios.find(u => u.id == id); // Use '==' para comparar string com número/string
         if (!usuario) {
             this.mostrarAlerta('Usuário não encontrado.', 'error');
             return;
