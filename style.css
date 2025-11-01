@@ -499,6 +499,10 @@ table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
      #perfilPicturePreview { margin-right: 0; margin-bottom: 1rem; }
      .grid.grid-cols-1.md\:grid-cols-2 { grid-template-columns: 1fr; }
 }
+#laudoModal {
+    align-items: flex-start;
+    padding-top: 5vh; /* Adiciona uma margem do topo */
+}
 :root {
     --primary: #00D4AA;
     --secondary: #00B4D8;
@@ -3776,7 +3780,11 @@ body.login-body {
     font-weight: 600;
     color: var(--dark);
 }
-
+.laudo-logo {
+    height: 32px; /* Define uma altura máxima para o logo */
+    width: auto;
+    object-fit: contain;
+}
 .laudo-body {
     flex-grow: 1;
     overflow-y: auto;
