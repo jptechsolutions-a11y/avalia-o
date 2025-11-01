@@ -1065,7 +1065,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                     <td>${this.escapeHTML(u.filial || '--')}</td>
                     <td><span class="status-badge ${statusClass}">${this.escapeHTML(status)}</span></td>
                     <td class="actions">
-                        <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario(${u.id})">
+                       <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario('${u.id}')">
                             <i data-feather="edit-2" class="h-4 w-4"></i>
                         </button>
                     </td>
