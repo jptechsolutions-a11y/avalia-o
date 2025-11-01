@@ -138,6 +138,11 @@ body.system-active {
     padding: 0.75rem 0; /* Zera o padding lateral */
     justify-content: center;
 }
+/* ADICIONE ISTO: Remove o margin-right dos ícones na barra colapsada */
+.sidebar.collapsed .nav-item .mr-3 {
+    margin-right: 0;
+}
+
 .sidebar.collapsed .nav-item .mr-3 {
     margin-right: 0; 
 }
