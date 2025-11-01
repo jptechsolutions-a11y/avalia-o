@@ -993,7 +993,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         feather.replace();
     },
 
-    renderizarTabelaSolicitacoes() {
+   renderizarTabelaSolicitacoes() {
         const tbody = document.querySelector('#tabela-solicitacoes-admin tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
@@ -1010,7 +1010,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                 <td style="white-space: normal; min-width: 250px;">${this.escapeHTML(s.motivo)}</td>
                 <td>${data}</td>
                 <td class="actions">
-                    <button class="btn btn-sm btn-success" onclick="window.GG.mostrarAlerta('Função (Aprovar) ainda não implementada. Crie o usuário manually e rejeite a solicitação.', 'info', 10000)">
+                    <button class="btn btn-sm btn-success" onclick='window.GG.aprovarSolicitacao(${s.id}, ${JSON.stringify(s.nome)}, ${JSON.stringify(s.email)})'>
                         <i data-feather="check" class="h-4 w-4"></i>
                     </button>
                     <button class="btn btn-sm btn-danger" onclick="window.GG.rejeitarSolicitacao(${s.id})">
