@@ -135,19 +135,27 @@ body.system-active {
     width: 60px; /* Mais fina */
 }
 .sidebar.collapsed .nav-item {
-    /* Força o item a ocupar a largura disponível (60px) menos as margens (0.5rem * 2) */
-    width: calc(100% - 1rem); 
+    width: 100%; /* Faz o item ocupar os 60px totais */
+    margin-left: 0;
+    margin-right: 0;
+    border-radius: 0; /* Remove o radius lateral quando recolhido */
     
-    /* Mantém o padding vertical */
+    /* Padding vertical mantido */
     padding-top: 0.75rem;
     padding-bottom: 0.75rem;
     
-    /* Zera os paddings laterais para o justify-content funcionar */
-    padding-left: 0;
-    padding-right: 0;
-
-    /* Agora o 'center' vai centralizar o ícone no espaço restante (width - border) */
-    justify-content: center;
+    /* Cálculo do padding para centralizar:
+     Largura total = 60px
+     Borda esquerda = 4px
+     Ícone = 20px (w-5)
+     Espaço restante = 60 - 4 - 20 = 36px
+     Dividindo o espaço: 18px de cada lado (1.125rem)
+    */
+    padding-left: 1.125rem; /* 18px */
+    padding-right: 1.125rem; /* 18px */
+    
+    /* O ícone fica alinhado no início do padding, que agora está calculado */
+    justify-content: flex-start; 
 }
 /* ADICIONE ISTO: Remove o margin-right dos ícones na barra colapsada */
 .sidebar.collapsed .nav-item .mr-3 {
@@ -158,8 +166,7 @@ body.system-active {
     margin-right: 0; 
 }
 /* ADICIONE ESTA NOVA REGRA */
-.sidebar.collapsed .nav-item.active {
-    border-left-color: transparent; /* Remove a 'barra' espremida, mantendo o fundo ativo */
+.sidebar.collapsed .nav-item.active {/* Remove a 'barra' espremida, mantendo o fundo ativo */
 }
 .sidebar.collapsed .nav-text {
     display: none; /* Remove o texto do fluxo, permitindo a centralização real do ícone */
