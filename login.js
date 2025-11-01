@@ -20,7 +20,22 @@ try {
         throw new Error('Supabase Anon Key não configurada.');
     }
     const { createClient } = supabase;
-    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Define o adaptador para sessionStorage
+const sessionStorageAdapter = {
+  getItem: (key) => sessionStorage.getItem(key),
+  setItem: (key, value) => sessionStorage.setItem(key, value),
+  removeItem: (key) => sessionStorage.removeItem(key),
+};
+
+supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        storage: sessionStorageAdapter,
+        persistSession: true, // Manter a sessão (agora no sessionStorage)
+        autoRefreshToken: true
+    }
+});
+    
 } catch (error) {
     console.error("Erro ao inicializar Supabase:", error.message);
     // Tentamos mostrar o alerta, mas o 'loginAlert' pode não estar definido ainda
