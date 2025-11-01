@@ -1036,7 +1036,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         }
     },
 
-  renderizarTabelaUsuarios() {
+ renderizarTabelaUsuarios() {
         const tbody = document.querySelector('#tabela-usuarios-admin tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
@@ -1055,7 +1055,6 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             }
             const roleClass = u.role === 'admin' ? 'font-bold text-blue-600' : 'text-gray-700';
 
-            // *** Bloco de HTML que estava faltando ***
             tbody.innerHTML += `
                 <tr>
                     <td>${this.escapeHTML(u.nome)}</td>
@@ -1065,16 +1064,14 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                     <td>${this.escapeHTML(u.filial || '--')}</td>
                     <td><span class="status-badge ${statusClass}">${this.escapeHTML(status)}</span></td>
                     <td class="actions">
-                       <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario('${u.id}')">
+                        <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario('${u.id}')">
                             <i data-feather="edit-2" class="h-4 w-4"></i>
                         </button>
                     </td>
                 </tr>
             `;
-            // *** Fim do Bloco ***
         });
         
-        // Garante que os ícones de edição sejam renderizados
         feather.replace();
     },
     
