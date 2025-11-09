@@ -133,11 +133,19 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="filterRegional">Filtrar por Regional</label>
-                                    <input type="text" id="filterRegional" placeholder="Digite a regional...">
+                                    <!-- MUDANÇA: Adicionado 'list' e <datalist> -->
+                                    <input type="text" id="filterRegional" placeholder="Digite ou selecione..." list="regionalList">
+                                    <datalist id="regionalList">
+                                        <!-- Opções serão populadas pelo JS -->
+                                    </datalist>
                                 </div>
                                 <div class="form-group">
                                     <label for="filterCodFilial">Filtrar por Cód. Filial</label>
-                                    <input type="text" id="filterCodFilial" placeholder="Digite o cód. filial...">
+                                    <!-- MUDANÇA: Adicionado 'list' e <datalist> -->
+                                    <input type="text" id="filterCodFilial" placeholder="Digite ou selecione..." list="filialList">
+                                    <datalist id="filialList">
+                                        <!-- Opções serão populadas pelo JS -->
+                                    </datalist>
                                 </div>
                             </div>
 
