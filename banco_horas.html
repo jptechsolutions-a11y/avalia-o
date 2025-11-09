@@ -457,9 +457,12 @@
 
 
                 } catch (err) {
+                    // *** INÍCIO DA CORREÇÃO ***
                     console.error("Erro na inicialização do Supabase:", err);
-                    showLoading(false);
+                    // showLoading(false); // Removido daqui, 'main' vai tratar
                     alert("Erro crítico ao conectar. Verifique o console.");
+                    throw err; // Lança o erro para a função 'main' tratar
+                    // *** FIM DA CORREÇÃO ***
                 }
             }
 
@@ -811,52 +814,72 @@
 
             // --- INICIALIZAÇÃO E EVENTOS ---
 
+            // *** INÍCIO DA CORREÇÃO ***
             async function main() {
                 showLoading(true, 'Conectando...');
-                await initializeSupabase();
-                if (state.auth) {
-                    // ATUALIZADO: Chama o handleHashChange que carrega a view correta
-                    handleHashChange(); 
-                    window.addEventListener('hashchange', handleHashChange);
+                try {
+                    await initializeSupabase(); // Espera a inicialização (pode redirecionar ou lançar erro)
 
-                    ui.importButton.addEventListener('click', handleImport);
-                    ui.modalClose.addEventListener('click', () => ui.modal.style.display = 'none');
-                    window.addEventListener('click', (event) => {
-                        if (event.target == ui.modal) {
-                            ui.modal.style.display = 'none';
-                        }
-                    });
- 
-                    // Eventos de Navegação da View
-                    document.querySelector('a[href="#acompanhamento"]').addEventListener('click', (e) => {
-                        e.preventDefault();
-                        showView('acompanhamentoView', e.currentTarget);
-                    });
-                    document.querySelector('a[href="#configuracoes"]').addEventListener('click', (e) => {
-                        e.preventDefault();
-                        showView('configuracoesView', e.currentTarget);
-                    });
+                    if (state.auth) {
+                        // --- SESSÃO VÁLIDA ---
+                        // Ocultar o loading "Conectando..." não é necessário aqui,
+                        // pois handleHashChange -> showView -> loadAllData
+                        // irá mostrar o "Carregando dados..." e depois ocultar.
+                        
+                        handleHashChange(); 
+                        window.addEventListener('hashchange', handleHashChange);
 
-                    [ui.filterChapa, ui.filterNome, ui.filterRegional, ui.filterCodFilial].forEach(input => {
-                        input.addEventListener('input', applyFilters);
-                    });
+                        // --- Configura todos os listeners que dependem de UI autenticada ---
+                        ui.importButton.addEventListener('click', handleImport);
+                        ui.modalClose.addEventListener('click', () => ui.modal.style.display = 'none');
+                        window.addEventListener('click', (event) => {
+                            if (event.target == ui.modal) {
+                                ui.modal.style.display = 'none';
+                            }
+                        });
+     
+                        document.querySelector('a[href="#acompanhamento"]').addEventListener('click', (e) => {
+                            e.preventDefault();
+                            showView('acompanhamentoView', e.currentTarget);
+                        });
+                        document.querySelector('a[href="#configuracoes"]').addEventListener('click', (e) => {
+                            e.preventDefault();
+                            showView('configuracoesView', e.currentTarget);
+                        });
 
-                    // Eventos de Logout
-                    ui.logoutButton.addEventListener('click', logout);
-                    ui.logoutLink.addEventListener('click', logout);
-                    
-                    // Eventos do Dropdown (copiado do app.html)
-                    ui.profileDropdownButton.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        ui.profileDropdown.classList.toggle('open');
-                    });
-                    document.addEventListener('click', (e) => {
-                        if (ui.profileDropdown && !ui.profileDropdown.contains(e.target)) {
-                            ui.profileDropdown.classList.remove('open');
-                        }
-                    });
+                        [ui.filterChapa, ui.filterNome, ui.filterRegional, ui.filterCodFilial].forEach(input => {
+                            input.addEventListener('input', applyFilters);
+                        });
+
+                        ui.logoutButton.addEventListener('click', logout);
+                        ui.logoutLink.addEventListener('click', logout);
+                        
+                        ui.profileDropdownButton.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            ui.profileDropdown.classList.toggle('open');
+                        });
+                        document.addEventListener('click', (e) => {
+                            if (ui.profileDropdown && !ui.profileDropdown.contains(e.target)) {
+                                ui.profileDropdown.classList.remove('open');
+                            }
+                        });
+                        // --- Fim dos listeners ---
+
+                    } else {
+                        // --- SESSÃO INVÁLIDA (ou expirada) ---
+                        // initSupa já deve ter redirecionado, mas caso tenha
+                        // apenas retornado, nós escondemos o loading.
+                        showLoading(false);
+                        console.warn("Nenhuma sessão de autenticação encontrada. A aplicação não será totalmente carregada.");
+                    }
+                } catch (err) {
+                    // --- ERRO FATAL ---
+                    // Erro lançado pelo initializeSupabase foi pego aqui.
+                    console.error("Falha crítica ao carregar a aplicação (main):", err.message);
+                    showLoading(false); // Garante que o loading saia.
                 }
             }
+            // *** FIM DA CORREÇÃO ***
 
             main();
             
