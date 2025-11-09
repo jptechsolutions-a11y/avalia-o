@@ -374,6 +374,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAllData() {
         showLoading(true, 'Carregando dados...');
+        ui.tableMessage.innerHTML = 'Carregando dados...'; // Mensagem de carregamento
+        ui.tableMessage.classList.remove('hidden');
         try {
             // ATUALIZADO: Carrega dados atuais e histórico em paralelo
             const [dataRes, historyRes] = await Promise.allSettled([
@@ -402,8 +404,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.previousData = {};
             }
             
-            // ****** MUDANÇA PRINCIPAL (Revertida e Melhorada) ******
-            // AGORA, vamos chamar applyFilters() para mostrar o "Top 200"
+            // ****** NOVO: Popula os datalists ANTES de filtrar ******
+            populateFilterDatalists();
+            // ****** FIM DA MUDANÇA ******
+
             applyFilters(); 
             // Não precisamos mais da mensagem "use os filtros", pois a tabela terá dados.
             // ****** FIM DA MUDANÇA ******
@@ -417,6 +421,38 @@ document.addEventListener('DOMContentLoaded', () => {
             showLoading(false);
         }
     }
+
+    // ****** NOVA FUNÇÃO (Popula Datalists) ******
+    function populateFilterDatalists() {
+        const regionalList = document.getElementById('regionalList');
+        const filialList = document.getElementById('filialList');
+
+        if (!regionalList || !filialList || !state.allData || state.allData.length === 0) {
+            return;
+        }
+
+        const regionaisUnicas = new Set();
+        const filiaisUnicas = new Set();
+
+        state.allData.forEach(item => {
+            if (item.REGIONAL) regionaisUnicas.add(item.REGIONAL.trim());
+            if (item.CODFILIAL) filiaisUnicas.add(String(item.CODFILIAL).trim());
+        });
+
+        regionalList.innerHTML = '';
+        const sortedRegionais = [...regionaisUnicas].sort();
+        sortedRegionais.forEach(regional => {
+            regionalList.innerHTML += `<option value="${regional}"></option>`;
+        });
+
+        filialList.innerHTML = '';
+        const sortedFiliais = [...filiaisUnicas].sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+        sortedFiliais.forEach(filial => {
+            filialList.innerHTML += `<option value="${filial}"></option>`;
+        });
+    }
+    // ****** FIM DA NOVA FUNÇÃO ******
+
 
     // NOVA FUNÇÃO: Helper para converter horas em minutos para ordenação/comparação
     function parseHorasParaMinutos(horaString) {
@@ -487,17 +523,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // *** FIM DO FILTRO DE PERMISSÃO ***
 
         let filteredData = dataToFilter.filter(item => { // <-- MUDADO DE state.allData
-            // ****** MUDANÇA (Adicionado .trim()) ******
             const chapa = String(item.CHAPA || '').toLowerCase().trim();
             const nome = String(item.NOME || '').toLowerCase().trim();
             const regional = String(item.REGIONAL || '').toLowerCase().trim();
             const codfilial = String(item.CODFILIAL || '').toLowerCase().trim();
-            // ****** FIM DA MUDANÇA ******
 
-            return (filterChapa === '' || chapa.includes(filterChapa)) &&
-                   (filterNome === '' || nome.includes(filterNome)) &&
-                   (filterRegional === '' || regional.includes(filterRegional)) &&
-                   (filterCodFilial === '' || codfilial.includes(filterCodFilial));
+            // ****** MUDANÇA (Lógica de Filtro .startsWith) ******
+            return (filterChapa === '' || chapa.startsWith(filterChapa)) &&
+                   (filterNome === '' || nome.includes(filterNome)) && // Nome continua .includes()
+                   (filterRegional === '' || regional.includes(filterRegional)) && // Regional pode ser .includes()
+                   (filterCodFilial === '' || codfilial.startsWith(filterCodFilial));
+            // ****** FIM DA MUDANÇA ******
         });
 
         // *** CORREÇÃO DE PERFORMANCE ***
@@ -562,16 +598,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const minutosAtuais = item._minutos; // USA O VALOR JÁ CALCULADO
             const minutosAnteriores = parseHorasParaMinutos(horaAnterior);
             
-            // ****** MUDANÇA (Cores e Ícone de Tendência) ******
+            // ****** MUDANÇA (Cores, Ícone de Tendência E Centralização) ******
             let tendenciaIcon = '<span style="color: #6b7280;">-</span>'; // Cinza (neutro) - Default
             
             if (horaAnterior !== '-') { // Só calcula se tiver histórico
                 if (minutosAtuais > minutosAnteriores) {
                     // Piorou (aumentou o saldo)
-                    tendenciaIcon = '<i data-feather="arrow-up-right" style="color: #dc2626;"></i>'; // Vermelho
+                    // Adicionado wrapper div para centralizar
+                    tendenciaIcon = '<div class="flex justify-center items-center"><i data-feather="arrow-up-right" style="color: #dc2626;"></i></div>'; // Vermelho
                 } else if (minutosAtuais < minutosAnteriores) {
                     // Melhorou (diminuiu o saldo)
-                    tendenciaIcon = '<i data-feather="arrow-down-right" style="color: #16a34a;"></i>'; // Verde
+                    // Adicionado wrapper div para centralizar
+                    tendenciaIcon = '<div class="flex justify-center items-center"><i data-feather="arrow-down-right" style="color: #16a34a;"></i></div>'; // Verde
                 } else {
                     // Manteve igual
                     tendenciaIcon = '<span style="color: #f59e0b; font-weight: bold; font-family: monospace; font-size: 1.2em;">=</span>'; // Amarelo
