@@ -641,6 +641,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await initializeSupabase(); // Espera a inicialização
 
+            // *** CORREÇÃO ADICIONADA AQUI ***
+            // Desliga o loading "Conectando..." após a inicialização.
+            // As funções chamadas por handleHashChange (como loadAllData)
+            // irão gerenciar seus próprios estados de loading.
+            showLoading(false); 
+
             if (state.auth) {
                 // --- SESSÃO VÁLIDA ---
                 handleHashChange(); 
