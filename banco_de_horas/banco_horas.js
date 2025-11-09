@@ -123,7 +123,7 @@ const state = {
     userId: null,
     isAdmin: false,
     permissoes_filiais: null, // NOVO: Para permissão
-    // filial: null, // REMOVIDO: A coluna não existe
+    userMatricula: null, // <-- ADICIONADO
     allData: [], // Cache local
     previousData: {} // NOVO: Cache para dados anteriores
 };
@@ -224,7 +224,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- ATUALIZAÇÃO: Usando o Proxy e buscando permissões ---
             // CORREÇÃO: Removido 'filial' do select, pois a coluna não existe (conforme erro)
-            const endpoint = `usuarios?auth_user_id=eq.${state.userId}&select=nome,role,profile_picture_url,permissoes_filiais`;
+            // ADICIONADO: 'matricula' ao select
+            const endpoint = `usuarios?auth_user_id=eq.${state.userId}&select=nome,role,profile_picture_url,permissoes_filiais,matricula`;
             let profile = null;
             let profileError = null;
 
@@ -256,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 // *** NOVO: Armazena permissões no state ***
                 state.isAdmin = (profile.role === 'admin');
-                // state.filial = profile.filial || null; // REMOVIDO: Coluna não existe
+                state.userMatricula = profile.matricula || null; // <-- ADICIONADO
                 state.permissoes_filiais = profile.permissoes_filiais || null; // Vem como array do Supabase
             }
             
@@ -449,10 +450,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function applyFilters() {
-        const filterChapa = ui.filterChapa.value.toLowerCase();
-        const filterNome = ui.filterNome.value.toLowerCase();
-        const filterRegional = ui.filterRegional.value.toLowerCase();
-        const filterCodFilial = ui.filterCodFilial.value.toLowerCase();
+        // ****** MUDANÇA (Adicionado .trim()) ******
+        const filterChapa = ui.filterChapa.value.toLowerCase().trim();
+        const filterNome = ui.filterNome.value.toLowerCase().trim();
+        const filterRegional = ui.filterRegional.value.toLowerCase().trim();
+        const filterCodFilial = ui.filterCodFilial.value.toLowerCase().trim();
+        // ****** FIM DA MUDANÇA ******
 
         // ****** MUDANÇA PRINCIPAL ******
         // Bloco que impedia a busca sem filtros foi REMOVIDO.
@@ -469,7 +472,13 @@ document.addEventListener('DOMContentLoaded', () => {
             dataToFilter = state.allData.filter(item => 
                 state.permissoes_filiais.includes(String(item.CODFILIAL).trim())
             );
-        // CORREÇÃO: Removido o 'else if (state.filial)' pois a coluna não existe
+        // ****** NOVA LÓGICA ******
+        } else if (state.userMatricula) {
+            // Se não é admin e não tem filiais, mas tem matrícula, mostra só ele mesmo.
+            dataToFilter = state.allData.filter(item => 
+                String(item.CHAPA).trim() === String(state.userMatricula).trim()
+            );
+        // ****** FIM DA NOVA LÓGICA ******
         } else {
             // Usuário não-admin sem filiais setadas = não vê nada
             dataToFilter = []; 
@@ -478,10 +487,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // *** FIM DO FILTRO DE PERMISSÃO ***
 
         let filteredData = dataToFilter.filter(item => { // <-- MUDADO DE state.allData
-            const chapa = String(item.CHAPA || '').toLowerCase();
-            const nome = String(item.NOME || '').toLowerCase();
-            const regional = String(item.REGIONAL || '').toLowerCase();
-            const codfilial = String(item.CODFILIAL || '').toLowerCase();
+            // ****** MUDANÇA (Adicionado .trim()) ******
+            const chapa = String(item.CHAPA || '').toLowerCase().trim();
+            const nome = String(item.NOME || '').toLowerCase().trim();
+            const regional = String(item.REGIONAL || '').toLowerCase().trim();
+            const codfilial = String(item.CODFILIAL || '').toLowerCase().trim();
+            // ****** FIM DA MUDANÇA ******
 
             return (filterChapa === '' || chapa.includes(filterChapa)) &&
                    (filterNome === '' || nome.includes(filterNome)) &&
