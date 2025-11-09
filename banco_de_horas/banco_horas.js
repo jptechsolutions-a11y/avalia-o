@@ -401,10 +401,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.previousData = {};
             }
             
-            applyFilters();
+            // ****** MUDANÇA PRINCIPAL ******
+            // REMOVIDO: applyFilters();
+            // Em vez disso, limpamos a tabela e pedimos para filtrar.
+            renderTableBody([]); // Limpa a tabela (remove o "Carregando dados..." do HTML)
+            ui.tableMessage.innerHTML = 'Dados carregados. Por favor, utilize os filtros para exibir os resultados.';
+            ui.tableMessage.classList.remove('hidden');
+            // ****** FIM DA MUDANÇA ******
+
         } catch (err) {
             console.error("Erro ao carregar dados:", err);
             mostrarNotificacao(`Erro ao carregar dados: ${err.message}`, 'error');
+            ui.tableMessage.innerHTML = `Erro ao carregar dados: ${err.message}. Tente recarregar a página.`;
+            ui.tableMessage.classList.remove('hidden');
         } finally {
             showLoading(false);
         }
@@ -446,6 +455,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const filterNome = ui.filterNome.value.toLowerCase();
         const filterRegional = ui.filterRegional.value.toLowerCase();
         const filterCodFilial = ui.filterCodFilial.value.toLowerCase();
+
+        // ****** MUDANÇA PRINCIPAL ******
+        // Se nenhum filtro for usado, não faz a busca
+        if (filterChapa === '' && filterNome === '' && filterRegional === '' && filterCodFilial === '') {
+          renderTableBody([]); // Limpa a tabela
+          ui.tableMessage.innerHTML = 'Por favor, utilize os filtros para exibir os resultados.';
+          ui.tableMessage.classList.remove('hidden');
+          return;
+        }
+        // ****** FIM DA MUDANÇA ******
+
 
         // *** NOVO: Filtro de Permissão ***
         let dataToFilter;
@@ -508,13 +528,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTableBody(data) {
         ui.tableBody.innerHTML = '';
-        /* // A mensagem agora é controlada pelo 'applyFilters'
+        
+        // A mensagem de "nenhum dado" é tratada pelo applyFilters
         if (data.length === 0) {
-            ui.tableMessage.classList.remove('hidden');
+            // Não faz nada, applyFilters cuida da mensagem
             return;
         }
-        ui.tableMessage.classList.add('hidden');
-        */
+
         const fragment = document.createDocumentFragment();
 
         data.forEach(item => {
