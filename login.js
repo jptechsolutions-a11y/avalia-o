@@ -11,11 +11,11 @@ let isRequestAccess = false;
 let isForgot = false;
 
 try {
-    if (!SUPABASE_URL || SUPABASE_URL.includes('URL_DO_SEU_PROJETO')) {
+    if (!SUPABASE_URL || SUPABASE_URL.includes('https://xizamzncvtacaunhmsrv.supabase.co')) {
         console.error('ERRO: SUPABASE_URL não configurada em login.js. Use a URL do seu projeto.');
         throw new Error('Supabase URL não configurada.');
     }
-    if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('SUA_CHAVE_PUBLICA')) {
+    if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8')) {
         console.error('ERRO: SUPABASE_ANON_KEY não configurada em login.js. Use a chave "anon" do seu projeto.');
         throw new Error('Supabase Anon Key não configurada.');
     }
@@ -256,7 +256,8 @@ async function handleEmailFormSubmit(e) {
                 password: password,
             });
             if (error) throw error;
-            window.location.href = 'app.html';
+            // ATUALIZAÇÃO: Redireciona para a nova tela de seleção
+            window.location.href = 'home.html';
         }
     } catch (error) {
         console.error("Erro de autenticação:", error.message);
@@ -382,4 +383,3 @@ function traduzirErroSupabase(message) {
     }
     return message; 
 }
-
