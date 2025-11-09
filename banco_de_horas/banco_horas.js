@@ -119,7 +119,7 @@ const state = {
     userId: null,
     isAdmin: false,
     permissoes_filiais: null, // NOVO: Para permissão
-    filial: null,             // NOVO: Para permissão
+    // filial: null, // REMOVIDO: A coluna não existe
     allData: [] // Cache local
 };
 
@@ -218,7 +218,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
             // --- ATUALIZAÇÃO: Usando o Proxy e buscando permissões ---
-            const endpoint = `usuarios?auth_user_id=eq.${state.userId}&select=nome,role,profile_picture_url,filial,permissoes_filiais`;
+            // CORREÇÃO: Removido 'filial' do select, pois a coluna não existe (conforme erro)
+            const endpoint = `usuarios?auth_user_id=eq.${state.userId}&select=nome,role,profile_picture_url,permissoes_filiais`;
             let profile = null;
             let profileError = null;
 
@@ -250,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 // *** NOVO: Armazena permissões no state ***
                 state.isAdmin = (profile.role === 'admin');
-                state.filial = profile.filial || null;
+                // state.filial = profile.filial || null; // REMOVIDO: Coluna não existe
                 state.permissoes_filiais = profile.permissoes_filiais || null; // Vem como array do Supabase
             }
             
@@ -397,11 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dataToFilter = state.allData.filter(item => 
                 state.permissoes_filiais.includes(String(item.CODFILIAL).trim())
             );
-        } else if (state.filial) {
-             // Usuário com UMA filial principal
-            dataToFilter = state.allData.filter(item => 
-                String(item.CODFILIAL).trim() === String(state.filial).trim()
-            );
+        // CORREÇÃO: Removido o 'else if (state.filial)' pois a coluna não existe
         } else {
             // Usuário não-admin sem filiais setadas = não vê nada
             dataToFilter = []; 
