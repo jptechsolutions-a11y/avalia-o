@@ -561,11 +561,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // no localStorage e será usado pelo 'supabaseRequest'
             
             // O 'fetch' manual foi substituído pelo 'supabaseRequest'
+            
+            // AJUSTE: O bloco duplicado foi comentado
+            /* REMOVIDO: Esta chamada estava duplicada e causando o erro.
             const result = await supabaseRequest(
                 'rpc/import_banco_horas_batch', // Usando uma RPC (função)
                 'POST', 
                 { data_payload: newData } // Enviando os dados em um payload
             );
+            */
 
             // Se você não tiver uma RPC 'import_banco_horas_batch',
             // a chamada da API serverless '/api/import-banco-horas' ainda é válida.
