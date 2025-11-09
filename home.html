@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seleção de Sistema | G&G</title>
+    <link rel="icon" href="icon.png" type="image/png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary: #00D4AA;
+            --secondary: #00B4D8;
+            --accent: #0077B6;
+            --dark: #023047;
+            --darker: #011627;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--darker);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        .card-hover:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 10px 20px rgba(0, 212, 170, 0.1);
+            border-color: var(--primary);
+        }
+        .card-icon {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-6 text-white">
+
+    <header class="absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
+        <img src="icon.png" alt="Logo G&G" class="h-10 w-auto">
+        <button onclick="logout()" class="flex items-center gap-2 text-gray-400 hover:text-white transition-colors duration-200">
+            <i data-feather="log-out" class="h-5 w-5"></i>
+            Sair
+        </button>
+    </header>
+
+    <main class="text-center">
+        <h1 class="text-4xl font-bold mb-4">Bem-vindo, <span id="userName">Usuário</span>.</h1>
+        <p class="text-xl text-gray-300 mb-12">Selecione o sistema que deseja acessar:</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            
+            <!-- Card 1: Avaliação de Desempenho -->
+            <a href="app.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
+                <div class="card-icon">
+                    <i data-feather="clipboard" class="h-8 w-8"></i>
+                </div>
+                <h2 class="text-2xl font-semibold mb-2">Avaliação de Desempenho</h2>
+                <p class="text-gray-400 mb-6">Acesse o sistema para registrar, consultar e gerenciar as avaliações de desempenho dos colaboradores.</p>
+                <span class="font-semibold text-primary hover:text-secondary transition-colors duration-200">Acessar Sistema &rarr;</span>
+            </a>
+
+            <!-- Card 2: Banco de Horas -->
+            <a href="banco_horas.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
+                <div class="card-icon">
+                    <i data-feather="clock" class="h-8 w-8"></i>
+                </div>
+                <h2 class="text-2xl font-semibold mb-2">Banco de Horas</h2>
+                <p class="text-gray-400 mb-6">Consulte, gerencie e atualize o banco de horas, pagamentos e saldos dos colaboradores.</p>
+                <span class="font-semibold text-primary hover:text-secondary transition-colors duration-200">Acessar Sistema &rarr;</span>
+            </a>
+
+        </div>
+    </main>
+
+    <footer class="absolute bottom-0 p-6 text-gray-500 text-sm">
+        &copy; 2025 - Sistema G&G | Desenvolvido por @ Juliano Patrick
+    </footer>
+
+    <script>
+        const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+        
+        let supabaseClient = null;
+
+        // Define o adaptador para sessionStorage
+        const sessionStorageAdapter = {
+          getItem: (key) => sessionStorage.getItem(key),
+          setItem: (key, value) => sessionStorage.setItem(key, value),
+          removeItem: (key) => sessionStorage.removeItem(key),
+        };
+
+        try {
+             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                auth: {
+                    storage: sessionStorageAdapter,
+                    persistSession: true,
+                    autoRefreshToken: true
+                }
+            });
+        } catch (e) {
+            console.error("Erro ao inicializar Supabase:", e);
+        }
+
+        async function getUserProfile() {
+            if (!supabaseClient) {
+                 console.error("Supabase client não inicializado.");
+                 return;
+            }
+
+            try {
+                const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+                if (sessionError || !session) {
+                    console.error("Sem sessão, redirecionando para login.", sessionError);
+                    window.location.href = 'index.html';
+                    return;
+                }
+
+                const user = session.user;
+                
+                // Buscar perfil na tabela 'usuarios'
+                const { data: profile, error: profileError } = await supabaseClient
+                    .from('usuarios')
+                    .select('nome')
+                    .eq('auth_user_id', user.id)
+                    .single();
+
+                if (profileError) {
+                    console.warn("Erro ao buscar perfil, usando nome do email:", profileError.message);
+                }
+
+                const userName = profile?.nome || user.email.split('@')[0] || 'Usuário';
+                document.getElementById('userName').textContent = userName;
+
+            } catch (e) {
+                console.error("Erro ao buscar dados do usuário:", e);
+                window.location.href = 'index.html';
+            }
+        }
+
+        function logout() {
+            if (supabaseClient) {
+                supabaseClient.auth.signOut().then(() => {
+                    window.location.href = 'index.html';
+                }).catch((error) => {
+                    console.error("Erro ao sair:", error);
+                    window.location.href = 'index.html';
+                });
+            } else {
+                 window.location.href = 'index.html';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            feather.replace();
+            getUserProfile();
+        });
+    </script>
+</body>
+</html>
