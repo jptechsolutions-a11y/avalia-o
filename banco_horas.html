@@ -226,35 +226,17 @@
     <!-- JS do Sistema (Script inline do banco_horas.html adaptado) -->
     <script>
         // Mapeamento de Cabeçalhos
-        const COLUMN_MAP = {
-            'CHAPA': 'Chapa', 'NOME': 'Nome', 'REGIONAL': 'Regional', 'BANDEIRA': 'Bandeira',
-            'CODFILIAL': 'Cód. Filial', 'FUNCAO': 'Função', 'SECAO': 'Seção', 
-            'TOTAL_EM_HORA': 'Total (Hora)', 'TOTAL_NEGATIVO': 'Total Negativo',
-            'VAL_PGTO_BHS': 'Valor Pgto. BH', 'SITUACAO': 'Situação', 'Total Geral': 'Total Geral'
-        };
-        const COLUMN_ORDER = [
-            'CHAPA', 'NOME', 'REGIONAL', 'BANDEIRA', 'CODFILIAL', 'FUNCAO', 'SECAO', 
-            'TOTAL_EM_HORA', 'TOTAL_NEGATIVO', 'VAL_PGTO_BHS', 'SITUACAO', 'Total Geral'
-        ];
-
-        // Configuração do Supabase (igual ao login.js e home.html)
-        const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
-        
-        // ADICIONADO: URL do Proxy
+        // ... existing code ... -->
         const SUPABASE_PROXY_URL = '/api/proxy';
         
         let supabaseClient = null;
         const sessionStorageAdapter = {
-          getItem: (key) => sessionStorage.getItem(key),
-          setItem: (key, value) => sessionStorage.setItem(key, value),
-          removeItem: (key) => sessionStorage.removeItem(key),
+          // ... existing code ... -->
         };
 
         // --- ADICIONADO: Função de Requisição via Proxy ---
         async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
-            // Usa o state.auth que será preenchido pelo initializeSupabase
-            const authToken = state.auth ? state.auth.access_token : null; 
+            // ... existing code ... -->
             if (!authToken) {
                 console.error("Token JWT não encontrado no estado, deslogando.");
                 logout(); // A função logout será definida mais abaixo
@@ -264,12 +246,7 @@
             const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
             
             const config = {
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`, 
-                    ...headers 
-                }
+                // ... existing code ... -->
             };
 
             if (!config.headers['Prefer']) {
@@ -284,15 +261,7 @@
                 const response = await fetch(url, config);
 
                 if (!response.ok) {
-                    let errorData = { message: `Erro ${response.status}: ${response.statusText}` };
-                    try { 
-                        errorData = await response.json(); 
-                    } catch(e) {
-                        // Resposta não-JSON
-                    }
-                    
-                    console.error("Erro Supabase (via Proxy):", errorData);
-                    const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
+                    // ... existing code ... -->
                     
                     if (response.status === 401) {
                         throw new Error("Não autorizado. Sua sessão pode ter expirado.");
@@ -301,8 +270,7 @@
                 }
 
                 if (config.headers['Prefer'] === 'count=exact') {
-                    const countRange = response.headers.get('content-range'); 
-                    const count = countRange ? countRange.split('/')[1] : '0';
+                    // ... existing code ... -->
                     return { count: parseInt(count || '0', 10) };
                 }
 
@@ -313,10 +281,7 @@
                 return await response.json(); 
 
             } catch (error) {
-                console.error("Erro na função supabaseRequest:", error.message);
-                if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
-                    if(typeof logout === 'function') logout(); 
-                }
+                // ... existing code ... -->
                 throw error; 
             }
         }
@@ -325,52 +290,14 @@
 
         // --- CORREÇÃO: Mover o estado para o escopo global ---
         const state = {
-            auth: null,
-            userId: null,
-            isAdmin: false,
-            allData: [] // Cache local
+            // ... existing code ... -->
         };
 
 
         document.addEventListener('DOMContentLoaded', () => {
             // Elementos da UI
             const ui = {
-                appShell: document.getElementById('appShell'),
-                userName: document.getElementById('topBarUserName'),
-                dropdownUserName: document.getElementById('dropdownUserName'),
-                dropdownUserEmail: document.getElementById('dropdownUserEmail'),
-                userAvatar: document.getElementById('topBarUserAvatar'),
-                adminPanel: document.getElementById('adminPanel'),
-                importButton: document.getElementById('importButton'),
-                dataInput: document.getElementById('dataInput'),
-                importError: document.getElementById('importError'),
-                importErrorMessage: document.getElementById('importErrorMessage'),
-                lastUpdated: document.getElementById('lastUpdated'),
-                tableHead: document.getElementById('tableHead'),
-                tableBody: document.getElementById('tableBody'),
-                tableMessage: document.getElementById('tableMessage'),
-                filterChapa: document.getElementById('filterChapa'),
-                filterNome: document.getElementById('filterNome'),
-                filterRegional: document.getElementById('filterRegional'),
-                filterCodFilial: document.getElementById('filterCodFilial'),
-                modal: document.getElementById('detailsModal'),
-                modalClose: document.getElementById('modalClose'),
-                modalTitle: document.getElementById('modalTitle'),
-                modalBody: document.getElementById('modalBody'),
-                modalNome: document.getElementById('modalNome'),
-                modalChapa: document.getElementById('modalChapa'),
-                modalComparison: document.getElementById('modalComparison'),
-                modalNoHistory: document.getElementById('modalNoHistory'),
-                loading: document.getElementById('loading'),
-                loadingText: document.getElementById('loadingText'),
-                logoutButton: document.getElementById('logoutButton'),
-                logoutLink: document.getElementById('logoutLink'),
-                profileDropdown: document.getElementById('profileDropdown'),
-                profileDropdownButton: document.getElementById('profileDropdownButton'),
-                // Links e Views para navegação
-                configLink: document.getElementById('configLink'),
-                acompanhamentoView: document.getElementById('acompanhamentoView'),
-                configuracoesView: document.getElementById('configuracoesView')
+                // ... existing code ... -->
             };
 
             // Estado da Aplicação
@@ -379,30 +306,22 @@
             // --- FUNÇÕES ---
 
             function showLoading(show, text = 'Processando...') {
-                ui.loadingText.textContent = text;
-                ui.loading.style.display = show ? 'flex' : 'none';
+                // ... existing code ... -->
             }
 
             function showImportError(message) {
-                ui.importErrorMessage.textContent = message;
-                ui.importError.classList.remove('hidden');
+                // ... existing code ... -->
             }
 
             function formatTimestamp(isoString) {
-                if (!isoString) return 'N/A';
-                return new Date(isoString).toLocaleString('pt-BR', {
-                    day: '2-digit', month: '2-digit', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit'
-                });
+                // ... existing code ... -->
             }
 
             async function initializeSupabase() {
                 try {
                     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                         auth: {
-                            storage: sessionStorageAdapter,
-                            persistSession: true,
-                            autoRefreshToken: true
+                            // ... existing code ... -->
                         }
                     });
                     
@@ -434,19 +353,11 @@
                     // --- FIM DA ATUALIZAÇÃO ---
 
                     if (profileError) {
-                        console.warn("Erro ao buscar perfil (via proxy):", profileError.message);
-                        const emailName = session.user.email.split('@')[0];
-                        ui.userName.textContent = emailName;
-                        ui.dropdownUserName.textContent = emailName;
-                        ui.dropdownUserEmail.textContent = session.user.email;
+                        // ... existing code ... -->
                     } else {
                         const nome = profile.nome || session.user.email.split('@')[0];
                         ui.userName.textContent = nome;
-                        ui.dropdownUserName.textContent = nome;
-                        ui.dropdownUserEmail.textContent = session.user.email;
-                        if (profile.profile_picture_url) {
-                            ui.userAvatar.src = profile.profile_picture_url;
-                        }
+                        // ... existing code ... -->
                         state.isAdmin = (profile.role === 'admin');
                     }
                     
@@ -459,60 +370,24 @@
                 } catch (err) {
                     // *** INÍCIO DA CORREÇÃO ***
                     console.error("Erro na inicialização do Supabase:", err);
-                    // showLoading(false); // Removido daqui, 'main' vai tratar
-                    alert("Erro crítico ao conectar. Verifique o console.");
+                    // 1. MOSTRA O ALERTA AO USUÁRIO
+                    alert(`Erro na Etapa de Inicialização:\n${err.message}\n\nA página será recarregada.`);
                     throw err; // Lança o erro para a função 'main' tratar
                     // *** FIM DA CORREÇÃO ***
                 }
             }
 
             function logout() {
-                if (supabaseClient) {
-                    supabaseClient.auth.signOut().then(() => {
-                        window.location.href = 'home.html'; // AJUSTE: Manda para home.html
-                    }).catch((error) => {
-                        console.error("Erro ao sair:", error);
-                        window.location.href = 'home.html'; // AJUSTE: Manda para home.html
-                    });
-                } else {
-                    window.location.href = 'home.html'; // AJUSTE: Manda para home.html
-                }
+                // ... existing code ... -->
             }
 
             async function listenToMetadata() {
-                // ATUALIZADO: Usando supabaseRequest
-                try {
-                    const data = await supabaseRequest('banco_horas_meta?id=eq.1&select=lastUpdatedAt&limit=1', 'GET');
-                    
-                    if (data && data.length > 0) {
-                        ui.lastUpdated.textContent = formatTimestamp(data[0].lastUpdatedAt);
-                    } else {
-                        ui.lastUpdated.textContent = 'Nenhuma atualização registrada.';
-                    }
-                } catch (error) {
-                     ui.lastUpdated.textContent = 'Erro ao buscar.';
-                     console.warn("Erro ao buscar metadados:", error);
-                }
+                // ... existing code ... -->
             }
 
             // --- Nova Função: showView ---
             function showView(viewId, element) {
-                document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
-                const viewEl = document.getElementById(viewId);
-                if(viewEl) viewEl.classList.add('active');
-
-                document.querySelectorAll('.sidebar nav .nav-item').forEach(item => item.classList.remove('active'));
-                if (element) {
-                    element.classList.add('active');
-                }
-
-                const newHash = '#' + viewId.replace('View', '');
-                if (window.location.hash !== newHash) {
-                    history.pushState(null, '', newHash);
-                }
-
-                // Fecha o dropdown de perfil se estiver aberto
-                if (ui.profileDropdown) ui.profileDropdown.classList.remove('open');
+                // ... existing code ... -->
                 
                 // Carrega dados específicos da view
                 if (viewId === 'acompanhamentoView') {
@@ -520,46 +395,22 @@
                     if (state.allData.length === 0) { 
                         listenToMetadata();
                         renderTableHeader();
-                        loadAllData();
+                        loadAllData(); // <--- O ERRO PODE ESTAR AQUI
                     }
                 } else if (viewId === 'configuracoesView') {
-                    // A view de config é só HTML, não precisa carregar dados
+                    // ... existing code ... -->
                 }
                 feather.replace();
             }
 
             // --- Nova Função: handleHashChange ---
             function handleHashChange() {
-                if (!state.auth) return; // Não faz nada se não estiver logado
-                
-                const hash = window.location.hash || '#acompanhamento';
-                let viewId = 'acompanhamentoView';
-                let navElement = document.querySelector('a[href="#acompanhamento"]');
-
-                if (hash === '#configuracoes' && state.isAdmin) {
-                    viewId = 'configuracoesView';
-                    navElement = document.querySelector('a[href="#configuracoes"]');
-                }
-                
-                const currentActive = document.querySelector('.view-content.active');
-                if (!currentActive || currentActive.id !== viewId) {
-                    showView(viewId, navElement);
-                }
+                // ... existing code ... -->
             }
 
 
             function renderTableHeader() {
-                const tr = document.createElement('tr');
-                COLUMN_ORDER.forEach(key => {
-                    const th = document.createElement('th');
-                    th.textContent = COLUMN_MAP[key] || key;
-                    tr.appendChild(th);
-                });
-                const thAction = document.createElement('th');
-                thAction.textContent = 'Ações';
-                tr.appendChild(thAction);
-                ui.tableHead.innerHTML = '';
-                ui.tableHead.appendChild(tr);
+                // ... existing code ... -->
             }
 
             async function loadAllData() {
@@ -572,244 +423,42 @@
                     state.allData = data;
                     applyFilters();
                 } catch (err) {
+                    // *** INÍCIO DA CORREÇÃO ***
                     console.error("Erro ao carregar dados:", err);
+                    // 2. MOSTRA O ALERTA AO USUÁRIO
+                    alert(`Erro ao Carregar Dados (loadAllData):\n${err.message}\n\nVerifique o console para mais detalhes.`);
+                    // *** FIM DA CORREÇÃO ***
                 } finally {
                     showLoading(false);
                 }
             }
 
             function applyFilters() {
-                const filterChapa = ui.filterChapa.value.toLowerCase();
-                const filterNome = ui.filterNome.value.toLowerCase();
-                const filterRegional = ui.filterRegional.value.toLowerCase();
-                const filterCodFilial = ui.filterCodFilial.value.toLowerCase();
-
-                const filteredData = state.allData.filter(item => {
-                    const chapa = String(item.CHAPA || '').toLowerCase();
-                    const nome = String(item.NOME || '').toLowerCase();
-                    const regional = String(item.REGIONAL || '').toLowerCase();
-                    const codfilial = String(item.CODFILIAL || '').toLowerCase();
-
-                    return (filterChapa === '' || chapa.includes(filterChapa)) &&
-                           (filterNome === '' || nome.includes(filterNome)) &&
-                           (filterRegional === '' || regional.includes(filterRegional)) &&
-                           (filterCodFilial === '' || codfilial.includes(filterCodFilial));
-                });
-
-                renderTableBody(filteredData);
+                // ... existing code ... -->
             }
 
             function renderTableBody(data) {
-                ui.tableBody.innerHTML = '';
-                if (data.length === 0) {
-                    ui.tableMessage.classList.remove('hidden');
-                    return;
-                }
-
-                ui.tableMessage.classList.add('hidden');
-                const fragment = document.createDocumentFragment();
-
-                data.forEach(item => {
-                    const tr = document.createElement('tr');
-                    COLUMN_ORDER.forEach(key => {
-                        const td = document.createElement('td');
-                        td.textContent = item[key] || '-';
-                        tr.appendChild(td);
-                    });
-
-                    const tdAction = document.createElement('td');
-                    const viewButton = document.createElement('button');
-                    // Aplicando classes de botão do style.css
-                    viewButton.innerHTML = '<i data-feather="eye" class="h-4 w-4"></i>';
-                    viewButton.className = "btn btn-sm btn-info"; 
-                    viewButton.title = "Ver Detalhes e Comparar";
-                    viewButton.onclick = () => showDetails(item.CHAPA);
-                    tdAction.appendChild(viewButton);
-                    
-                    tr.appendChild(tdAction);
-                    fragment.appendChild(tr);
-                });
-
-                ui.tableBody.appendChild(fragment);
-                feather.replace();
+                // ... existing code ... -->
             }
 
             function resetModal() {
-                ui.modalNome.textContent = '...';
-                ui.modalChapa.textContent = '...';
-                ui.modalComparison.innerHTML = '';
-                ui.modalNoHistory.classList.add('hidden');
+                // ... existing code ... -->
             }
 
             function createComparisonRow(label, oldVal, newVal) {
-                oldVal = oldVal || 0;
-                newVal = newVal || 0;
-                
-                let diff = 0;
-                let diffClass = 'diff-same';
-                
-                const oldNum = parseFloat(String(oldVal).replace(',', '.'));
-                const newNum = parseFloat(String(newVal).replace(',', '.'));
-
-                if (!isNaN(oldNum) && !isNaN(newNum)) {
-                    diff = newNum - oldNum;
-                    if (diff > 0) diffClass = 'diff-up';
-                    else if (diff < 0) diffClass = 'diff-down';
-                }
-                
-                // Arredonda para 2 casas decimais apenas se for decimal
-                const diffText = diff % 1 !== 0 ? diff.toFixed(2) : diff.toString();
-                const diffDisplay = diff > 0 ? `+${diffText}` : diffText;
-
-
-                return `
-                    <div class="grid grid-cols-3 gap-2 p-2 rounded-md ${diff !== 0 ? 'bg-gray-100' : ''}">
-                        <span class="font-medium text-gray-700">${label}:</span>
-                        <span class="text-gray-600">${oldVal}</span>
-                        <span class="font-bold">${newVal} <span class="${diffClass}">(${diff === 0 ? '-' : diffDisplay})</span></span>
-                    </div>
-                `;
+                // ... existing code ... -->
             }
 
             async function showDetails(chapa) {
-                resetModal();
-                ui.modal.style.display = 'flex'; // Alterado para 'flex'
-                showLoading(true, 'Buscando detalhes...');
-
-                try {
-                    // ATUALIZADO: Usando supabaseRequest para dados atuais
-                    const currentDataArr = await supabaseRequest(`banco_horas_data?select=*&CHAPA=eq.${chapa}`, 'GET');
-                    if (!currentDataArr || currentDataArr.length === 0) {
-                        throw new Error("Colaborador não encontrado na base de dados.");
-                    }
-                    const currentData = currentDataArr[0];
-
-                    ui.modalTitle.textContent = `Detalhes: ${currentData.NOME}`;
-                    ui.modalNome.textContent = currentData.NOME;
-                    ui.modalChapa.textContent = currentData.CHAPA;
-
-                    // ATUALIZADO: Usando supabaseRequest para histórico
-                    const historyData = await supabaseRequest('banco_horas_history?select=data&order=timestamp.desc&limit=1', 'GET');
-                    
-                    if (!historyData || historyData.length === 0) {
-                        ui.modalNoHistory.classList.remove('hidden');
-                    } else {
-                        const oldData = historyData[0].data.find(item => item.CHAPA === chapa);
-
-                        if (oldData) {
-                            let comparisonHTML = `
-                                <div class="grid grid-cols-3 gap-2 p-2 font-bold text-gray-500 text-sm">
-                                    <span>Campo</span>
-                                    <span>Valor Anterior</span>
-                                    <span>Valor Atual (Diferença)</span>
-                                </div>
-                            `;
-                            comparisonHTML += createComparisonRow('Total (Hora)', oldData.TOTAL_EM_HORA, currentData.TOTAL_EM_HORA);
-                            comparisonHTML += createComparisonRow('Total Negativo', oldData.TOTAL_NEGATIVO, currentData.TOTAL_NEGATIVO);
-                            comparisonHTML += createComparisonRow('Valor Pgto. BH', oldData.VAL_PGTO_BHS, currentData.VAL_PGTO_BHS);
-                            comparisonHTML += createComparisonRow('Total Geral', oldData['Total Geral'], currentData['Total Geral']);
-
-                            ui.modalComparison.innerHTML = comparisonHTML;
-                        } else {
-                            ui.modalNoHistory.classList.remove('hidden');
-                        }
-                    }
-
-                } catch (err) {
-                    console.error("Erro ao buscar detalhes:", err);
-                    ui.modalBody.innerHTML = `<p class="alert alert-error">${err.message}</p>`;
-                } finally {
-                    showLoading(false);
-                }
+                // ... existing code ... -->
             }
 
             function parsePastedData(text) {
-                const lines = text.trim().split('\n');
-                if (lines.length < 2) throw new Error("Os dados precisam de pelo menos 2 linhas (cabeçalho e dados).");
-
-                const delimiter = lines[0].includes('\t') ? '\t' : ',';
-                const headers = lines[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
-                
-                const missingHeaders = COLUMN_ORDER.filter(col => !headers.includes(col));
-                if (missingHeaders.length > 0) {
-                    throw new Error(`Cabeçalhos faltando: ${missingHeaders.join(', ')}`);
-                }
-
-                const data = lines.slice(1).map(line => {
-                    const values = line.split(delimiter).map(v => v.trim().replace(/"/g, ''));
-                    const obj = {};
-                    headers.forEach((header, index) => {
-                        // Apenas adiciona colunas que estão no COLUMN_ORDER
-                        if (COLUMN_ORDER.includes(header)) {
-                             obj[header] = values[index] || null;
-                        }
-                    });
-                    if (!obj.CHAPA) {
-                        // Não lança erro, apenas ignora a linha
-                        console.warn("Linha sem 'CHAPA' ignorada:", line);
-                        return null;
-                    }
-                    return obj;
-                }).filter(Boolean); // Remove linhas nulas (ignoradas)
-
-                return data;
+                // ... existing code ... -->
             }
 
             async function handleImport() {
-                ui.importError.classList.add('hidden');
-                const pastedData = ui.dataInput.value;
-                if (!pastedData) {
-                    showImportError("A área de texto está vazia.");
-                    return;
-                }
-
-                let newData;
-                try {
-                    newData = parsePastedData(pastedData);
-                } catch (err) {
-                    showImportError(err.message);
-                    return;
-                }
-
-                if (newData.length === 0) {
-                    showImportError("Nenhum dado válido para importar.");
-                    return;
-                }
-
-                showLoading(true, `Enviando ${newData.length} registros para o servidor...`);
-
-                try {
-                    const { data: { session } } = await supabaseClient.auth.getSession();
-                    if (!session) throw new Error("Sessão inválida ou expirada.");
-
-                    const response = await fetch('/api/import-banco-horas', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${session.access_token}`
-                        },
-                        body: JSON.stringify(newData)
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || `Erro do servidor: ${response.statusText}`);
-                    }
-
-                    const result = await response.json();
-
-                    ui.dataInput.value = '';
-                    await loadAllData(); 
-                    await listenToMetadata(); 
-                    showLoading(false);
-                    // Substituir alert por notificação
-                    alert(result.message || "Dados importados com sucesso!");
-
-                } catch (err) {
-                    console.error("Erro durante a importação:", err);
-                    showLoading(false);
-                    showImportError(`Erro fatal: ${err.message}. (Verifique se a API '/api/import-banco-horas' está criada)`);
-                }
+                // ... existing code ... -->
             }
 
             // --- INICIALIZAÇÃO E EVENTOS ---
@@ -821,43 +470,14 @@
                     await initializeSupabase(); // Espera a inicialização (pode redirecionar ou lançar erro)
 
                     if (state.auth) {
-                        // --- SESSÃO VÁLIDA ---
-                        // Ocultar o loading "Conectando..." não é necessário aqui,
-                        // pois handleHashChange -> showView -> loadAllData
-                        // irá mostrar o "Carregando dados..." e depois ocultar.
+                        // ... existing code ... -->
                         
                         handleHashChange(); 
                         window.addEventListener('hashchange', handleHashChange);
 
                         // --- Configura todos os listeners que dependem de UI autenticada ---
                         ui.importButton.addEventListener('click', handleImport);
-                        ui.modalClose.addEventListener('click', () => ui.modal.style.display = 'none');
-                        window.addEventListener('click', (event) => {
-                            if (event.target == ui.modal) {
-                                ui.modal.style.display = 'none';
-                            }
-                        });
-     
-                        document.querySelector('a[href="#acompanhamento"]').addEventListener('click', (e) => {
-                            e.preventDefault();
-                            showView('acompanhamentoView', e.currentTarget);
-                        });
-                        document.querySelector('a[href="#configuracoes"]').addEventListener('click', (e) => {
-                            e.preventDefault();
-                            showView('configuracoesView', e.currentTarget);
-                        });
-
-                        [ui.filterChapa, ui.filterNome, ui.filterRegional, ui.filterCodFilial].forEach(input => {
-                            input.addEventListener('input', applyFilters);
-                        });
-
-                        ui.logoutButton.addEventListener('click', logout);
-                        ui.logoutLink.addEventListener('click', logout);
-                        
-                        ui.profileDropdownButton.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            ui.profileDropdown.classList.toggle('open');
-                        });
+                        // ... existing code ... -->
                         document.addEventListener('click', (e) => {
                             if (ui.profileDropdown && !ui.profileDropdown.contains(e.target)) {
                                 ui.profileDropdown.classList.remove('open');
@@ -866,9 +486,7 @@
                         // --- Fim dos listeners ---
 
                     } else {
-                        // --- SESSÃO INVÁLIDA (ou expirada) ---
-                        // initSupa já deve ter redirecionado, mas caso tenha
-                        // apenas retornado, nós escondemos o loading.
+                        // ... existing code ... -->
                         showLoading(false);
                         console.warn("Nenhuma sessão de autenticação encontrada. A aplicação não será totalmente carregada.");
                     }
@@ -876,6 +494,8 @@
                     // --- ERRO FATAL ---
                     // Erro lançado pelo initializeSupabase foi pego aqui.
                     console.error("Falha crítica ao carregar a aplicação (main):", err.message);
+                    // 3. MOSTRA O ALERTA AO USUÁRIO
+                    alert(`Falha Crítica (main):\n${err.message}\n\nVerifique o console e tente recarregar.`);
                     showLoading(false); // Garante que o loading saia.
                 }
             }
@@ -885,26 +505,7 @@
             
             // Lógica da Sidebar (copiado do app.html)
             const sidebarToggle = document.getElementById('sidebarToggle');
-            const sidebar = document.querySelector('.sidebar');
-            const sidebarOverlay = document.getElementById('sidebarOverlay');
-
-            if (sidebarToggle && sidebar && sidebarOverlay) {
-                sidebarToggle.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (window.innerWidth <= 768) {
-                        document.body.classList.toggle('sidebar-open');
-                    } else {
-                        sidebar.classList.toggle('collapsed');
-                    }
-                });
-                
-                sidebarOverlay.addEventListener('click', () => {
-                    document.body.classList.remove('sidebar-open');
-                });
-            }
-            
-            // Substituir alert por notificação (opcional, mas bom)
-            // window.alert = (message) => console.warn("alert() substituído:", message); 
+            // ... existing code ... -->
             
             feather.replace(); // Chamada final
         });
