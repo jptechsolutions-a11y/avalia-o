@@ -401,12 +401,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.previousData = {};
             }
             
-            // ****** MUDANÇA PRINCIPAL ******
-            // REMOVIDO: applyFilters();
-            // Em vez disso, limpamos a tabela e pedimos para filtrar.
-            renderTableBody([]); // Limpa a tabela (remove o "Carregando dados..." do HTML)
-            ui.tableMessage.innerHTML = 'Dados carregados. Por favor, utilize os filtros para exibir os resultados.';
-            ui.tableMessage.classList.remove('hidden');
+            // ****** MUDANÇA PRINCIPAL (Revertida e Melhorada) ******
+            // AGORA, vamos chamar applyFilters() para mostrar o "Top 200"
+            applyFilters(); 
+            // Não precisamos mais da mensagem "use os filtros", pois a tabela terá dados.
             // ****** FIM DA MUDANÇA ******
 
         } catch (err) {
@@ -457,13 +455,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const filterCodFilial = ui.filterCodFilial.value.toLowerCase();
 
         // ****** MUDANÇA PRINCIPAL ******
-        // Se nenhum filtro for usado, não faz a busca
-        if (filterChapa === '' && filterNome === '' && filterRegional === '' && filterCodFilial === '') {
-          renderTableBody([]); // Limpa a tabela
-          ui.tableMessage.innerHTML = 'Por favor, utilize os filtros para exibir os resultados.';
-          ui.tableMessage.classList.remove('hidden');
-          return;
-        }
+        // Bloco que impedia a busca sem filtros foi REMOVIDO.
+        // Agora, a função continuará e exibirá os 200 maiores se os filtros estiverem vazios.
         // ****** FIM DA MUDANÇA ******
 
 
@@ -513,9 +506,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const dadosParaRenderizar = dataComMinutos.slice(0, 200);
 
         // 4. Adiciona uma mensagem se os resultados forem truncados
+        const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial;
+
         if (dataComMinutos.length > 200) {
-            ui.tableMessage.innerHTML = `Exibindo os 200 principais resultados de ${dataComMinutos.length} totais. Use os filtros para refinar sua busca.`;
+            // Se tem filtros, a mensagem é sobre refinar.
+            // Se não tem filtros, a mensagem é sobre os 200 maiores.
+            const msg = hasFilters 
+                ? `Exibindo os 200 principais resultados para sua busca (${dataComMinutos.length} totais). Refine os filtros.`
+                : `Exibindo os 200 maiores saldos (${dataComMinutos.length} totais). Use os filtros para buscar.`;
+            ui.tableMessage.innerHTML = msg;
             ui.tableMessage.classList.remove('hidden');
+            
         } else if (dataComMinutos.length === 0) {
             ui.tableMessage.innerHTML = 'Nenhum dado encontrado para os filtros aplicados.';
             ui.tableMessage.classList.remove('hidden');
