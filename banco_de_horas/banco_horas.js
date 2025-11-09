@@ -125,7 +125,8 @@ const state = {
     permissoes_filiais: null, // NOVO: Para permissão
     userMatricula: null, // <-- ADICIONADO
     allData: [], // MUDANÇA: Isso não é mais "TUDO", é apenas a VIEW ATUAL
-    previousData: {} // NOVO: Cache para dados anteriores
+    previousData: {}, // NOVO: Cache para dados anteriores
+    setupCompleto: false // <-- NOVA FLAG
 };
 
 
@@ -306,6 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Nova Função: showView ---
+    // ****** FUNÇÃO MODIFICADA (Remove 'if state.allData.length === 0') ******
     function showView(viewId, element) {
         document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
         const viewEl = document.getElementById(viewId);
@@ -325,28 +327,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ui.profileDropdown) ui.profileDropdown.classList.remove('open');
         
         // Carrega dados específicos da view
-        if (viewId === 'acompanhamentoView') {
-            // Carrega os dados da tabela só na primeira vez que a view é aberta
-            if (state.allData.length === 0) { // MUDANÇA: allData é a view atual
-                listenToMetadata();
-                renderTableHeader();
+        try {
+            switch (viewId) {
+                case 'acompanhamentoView':
+                    // Roda a configuração inicial (filtros, histórico) APENAS UMA VEZ
+                    if (!state.setupCompleto) {
+                        console.log("Setup inicial da view Acompanhamento...");
+                        listenToMetadata();
+                        renderTableHeader();
+                        populateFilterDatalists(); 
+                        loadHistoryData();
+                        state.setupCompleto = true; // Marca como feito
+                    }
+                    
+                    // ATUALIZAÇÃO: Roda o applyFilters (que busca dados) SEMPRE
+                    // que a view é mostrada.
+                    console.log("Exibindo view Acompanhamento, recarregando dados...");
+                    applyFilters(); // Busca os dados mais recentes da tabela
+                    
+                    break;
 
-                // ****** MUDANÇA (Lógica de Carregamento Separada) ******
-                // 1. Popula os dropdowns primeiro (leve, mas muitos rows)
-                populateFilterDatalists(); 
+                case 'configuracoesView':
+                    // Nenhuma carga de dados necessária ao apenas *mostrar*
+                    break;
                 
-                // 2. Carrega o histórico para o modal (em paralelo)
-                loadHistoryData();
-                
-                // 3. Carrega a view inicial (que por padrão não tem filtros, vai pegar os 200)
-                applyFilters(); // Esta função agora faz o fetch E renderiza
-                // ****** FIM DA MUDANÇA ******
+                // Adicionar outros casos se houverem mais views
             }
-        } else if (viewId === 'configuracoesView') {
-            // A view de config é só HTML, não precisa carregar dados
+        } catch(e) {
+            console.error(`Erro ao carregar view ${viewId}:`, e);
         }
+        
         feather.replace();
     }
+    // ****** FIM DA MODIFICAÇÃO ******
+
 
     // --- Nova Função: handleHashChange ---
     function handleHashChange() {
@@ -523,10 +537,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial;
         
-        // MUDANÇA: O Limite é de 200 se NÃO TIVER FILTROS,
-        // ou 500 se TIVER FILTROS.
-        const limit = hasFilters ? 500 : 200;
+        // ****** MUDANÇA (Busca Top 200) ******
+        let limit;
+        if (hasFilters) {
+            limit = 500; // User está filtrando, mostra 500 resultados
+        } else {
+            limit = 1000; // SEM filtros, busca 1000 para ordenar em JS e achar os 200 maiores
+        }
         query += `&limit=${limit}`;
+        // ****** FIM DA MUDANÇA ******
         
         // 2. Faz a chamada da API
         try {
@@ -539,17 +558,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 _minutos: parseHorasParaMinutos(item.TOTAL_EM_HORA)
             }));
 
-            // Ordena os resultados (seja os 200 ou 500)
+            // Ordena os resultados (seja os 1000 ou 500)
             dataComMinutos.sort((a, b) => b._minutos - a._minutos); // Ordena (desc)
             
-            state.allData = dataComMinutos; // Salva os dados atuais
+            // ****** MUDANÇA (Slice Top 200) ******
+            let dadosParaRenderizar;
+            if (hasFilters) {
+                dadosParaRenderizar = dataComMinutos; // Mostra todos os 500 resultados filtrados
+            } else {
+                dadosParaRenderizar = dataComMinutos.slice(0, 200); // Mostra SÓ o TOP 200 dos 1000 buscados
+            }
+            // ****** FIM DA MUDANÇA ******
+            
+            state.allData = dadosParaRenderizar; // Salva SÓ O QUE VAI RENDERIZAR
 
             // 4. Mensagens
-            if (dataComMinutos.length === 500) {
-                ui.tableMessage.innerHTML = `Exibindo os 500 principais resultados para sua busca. Refine os filtros.`;
-                ui.tableMessage.classList.remove('hidden');
-            } else if (dataComMinutos.length === 200 && !hasFilters) {
-                 ui.tableMessage.innerHTML = `Exibindo os 200 maiores saldos. Use os filtros para buscar.`;
+            if (dataComMinutos.length === 1000 && !hasFilters) {
+                 ui.tableMessage.innerHTML = `Exibindo os 200 maiores saldos (de 1000 analisados). Use os filtros para buscar.`;
+                 ui.tableMessage.classList.remove('hidden');
+            } else if (dataComMinutos.length === 500 && hasFilters) {
+                 ui.tableMessage.innerHTML = `Exibindo os 500 principais resultados para sua busca. Refine os filtros.`;
                  ui.tableMessage.classList.remove('hidden');
             } else if (dataComMinutos.length === 0) {
                 ui.tableMessage.innerHTML = 'Nenhum dado encontrado para os filtros aplicados.';
@@ -558,7 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ui.tableMessage.classList.add('hidden');
             }
 
-            renderTableBody(dataComMinutos); // Renderiza
+            renderTableBody(dadosParaRenderizar); // Renderiza a lista final
 
         } catch (err) {
             console.error("Erro ao aplicar filtros:", err);
