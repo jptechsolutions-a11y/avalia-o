@@ -241,12 +241,87 @@
         const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
         
+        // ADICIONADO: URL do Proxy
+        const SUPABASE_PROXY_URL = '/api/proxy';
+        
         let supabaseClient = null;
         const sessionStorageAdapter = {
           getItem: (key) => sessionStorage.getItem(key),
           setItem: (key, value) => sessionStorage.setItem(key, value),
           removeItem: (key) => sessionStorage.removeItem(key),
         };
+
+        // --- ADICIONADO: Função de Requisição via Proxy ---
+        async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
+            // Usa o state.auth que será preenchido pelo initializeSupabase
+            const authToken = state.auth ? state.auth.access_token : null; 
+            if (!authToken) {
+                console.error("Token JWT não encontrado no estado, deslogando.");
+                logout(); // A função logout será definida mais abaixo
+                throw new Error("Sessão expirada. Faça login novamente.");
+            }
+            
+            const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
+            
+            const config = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`, 
+                    ...headers 
+                }
+            };
+
+            if (!config.headers['Prefer']) {
+                config.headers['Prefer'] = 'return=representation';
+            }
+
+            if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+                config.body = JSON.stringify(body);
+            }
+
+            try {
+                const response = await fetch(url, config);
+
+                if (!response.ok) {
+                    let errorData = { message: `Erro ${response.status}: ${response.statusText}` };
+                    try { 
+                        errorData = await response.json(); 
+                    } catch(e) {
+                        // Resposta não-JSON
+                    }
+                    
+                    console.error("Erro Supabase (via Proxy):", errorData);
+                    const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
+                    
+                    if (response.status === 401) {
+                        throw new Error("Não autorizado. Sua sessão pode ter expirado.");
+                    }
+                    throw new Error(detailedError);
+                }
+
+                if (config.headers['Prefer'] === 'count=exact') {
+                    const countRange = response.headers.get('content-range'); 
+                    const count = countRange ? countRange.split('/')[1] : '0';
+                    return { count: parseInt(count || '0', 10) };
+                }
+
+                if (response.status === 204 || response.headers.get('content-length') === '0' ) {
+                    return null; 
+                }
+
+                return await response.json(); 
+
+            } catch (error) {
+                console.error("Erro na função supabaseRequest:", error.message);
+                if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
+                    if(typeof logout === 'function') logout(); 
+                }
+                throw error; 
+            }
+        }
+        // --- FIM DA FUNÇÃO ADICIONADA ---
+
 
         document.addEventListener('DOMContentLoaded', () => {
             // Elementos da UI
@@ -337,14 +412,25 @@
                     state.auth = session;
                     state.userId = session.user.id;
 
-                    const { data: profile, error: profileError } = await supabaseClient
-                        .from('usuarios')
-                        .select('nome, role, profile_picture_url') // Pega o avatar
-                        .eq('auth_user_id', state.userId)
-                        .single();
+                    // --- ATUALIZAÇÃO: Usando o Proxy ---
+                    const endpoint = `usuarios?auth_user_id=eq.${state.userId}&select=nome,role,profile_picture_url`;
+                    let profile = null;
+                    let profileError = null;
+
+                    try {
+                        const profileResponse = await supabaseRequest(endpoint, 'GET');
+                        if (profileResponse && profileResponse.length > 0) {
+                            profile = profileResponse[0];
+                        } else {
+                            profileError = { message: "Perfil não encontrado ou resposta vazia do proxy." };
+                        }
+                    } catch (err) {
+                        profileError = err;
+                    }
+                    // --- FIM DA ATUALIZAÇÃO ---
 
                     if (profileError) {
-                        console.warn("Erro ao buscar perfil:", profileError.message);
+                        console.warn("Erro ao buscar perfil (via proxy):", profileError.message);
                         const emailName = session.user.email.split('@')[0];
                         ui.userName.textContent = emailName;
                         ui.dropdownUserName.textContent = emailName;
