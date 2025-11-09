@@ -124,7 +124,7 @@ const state = {
     isAdmin: false,
     permissoes_filiais: null, // NOVO: Para permissão
     userMatricula: null, // <-- ADICIONADO
-    allData: [], // Cache local
+    allData: [], // MUDANÇA: Isso não é mais "TUDO", é apenas a VIEW ATUAL
     previousData: {} // NOVO: Cache para dados anteriores
 };
 
@@ -327,10 +327,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Carrega dados específicos da view
         if (viewId === 'acompanhamentoView') {
             // Carrega os dados da tabela só na primeira vez que a view é aberta
-            if (state.allData.length === 0) { 
+            if (state.allData.length === 0) { // MUDANÇA: allData é a view atual
                 listenToMetadata();
                 renderTableHeader();
-                loadAllData();
+
+                // ****** MUDANÇA (Lógica de Carregamento Separada) ******
+                // 1. Popula os dropdowns primeiro (leve, mas muitos rows)
+                populateFilterDatalists(); 
+                
+                // 2. Carrega o histórico para o modal (em paralelo)
+                loadHistoryData();
+                
+                // 3. Carrega a view inicial (que por padrão não tem filtros, vai pegar os 200)
+                applyFilters(); // Esta função agora faz o fetch E renderiza
+                // ****** FIM DA MUDANÇA ******
             }
         } else if (viewId === 'configuracoesView') {
             // A view de config é só HTML, não precisa carregar dados
@@ -372,86 +382,70 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.tableHead.appendChild(tr);
     }
 
-    async function loadAllData() {
-        showLoading(true, 'Carregando dados...');
-        ui.tableMessage.innerHTML = 'Carregando dados...'; // Mensagem de carregamento
-        ui.tableMessage.classList.remove('hidden');
+    // ****** NOVA FUNÇÃO ******
+    // Carrega SÓ o histórico para os modais.
+    async function loadHistoryData() {
         try {
-            // ATUALIZADO: Carrega dados atuais e histórico em paralelo
-            const [dataRes, historyRes] = await Promise.allSettled([
-                supabaseRequest('banco_horas_data?select=*', 'GET'),
-                supabaseRequest('banco_horas_history?select=data&order=timestamp.desc&limit=1', 'GET')
-            ]);
-
-            if (dataRes.status === 'rejected' || !dataRes.value) {
-                 throw new Error(dataRes.reason?.message || "A resposta dos dados está vazia.");
-            }
-            
-            state.allData = dataRes.value;
-
-            // Processa o histórico se ele for carregado com sucesso
-            if (historyRes.status === 'fulfilled' && historyRes.value && historyRes.value.length > 0) {
-                const oldDataArray = historyRes.value[0].data;
+            const historyRes = await supabaseRequest('banco_horas_history?select=data&order=timestamp.desc&limit=1', 'GET');
+            if (historyRes && historyRes.length > 0) {
+                const oldDataArray = historyRes[0].data;
                 state.previousData = oldDataArray.reduce((acc, item) => {
-                    if (item.CHAPA) {
-                        acc[item.CHAPA] = item;
-                    }
+                    if (item.CHAPA) acc[item.CHAPA] = item;
                     return acc;
                 }, {});
-                console.log("Dados de histórico carregados para comparação.");
+                console.log("Dados de histórico carregados.");
             } else {
-                console.warn("Nenhum dado de histórico encontrado para comparação.");
+                console.warn("Nenhum dado de histórico encontrado.");
                 state.previousData = {};
             }
-            
-            // ****** NOVO: Popula os datalists ANTES de filtrar ******
-            populateFilterDatalists();
-            // ****** FIM DA MUDANÇA ******
-
-            applyFilters(); 
-            // Não precisamos mais da mensagem "use os filtros", pois a tabela terá dados.
-            // ****** FIM DA MUDANÇA ******
-
-        } catch (err) {
-            console.error("Erro ao carregar dados:", err);
-            mostrarNotificacao(`Erro ao carregar dados: ${err.message}`, 'error');
-            ui.tableMessage.innerHTML = `Erro ao carregar dados: ${err.message}. Tente recarregar a página.`;
-            ui.tableMessage.classList.remove('hidden');
-        } finally {
-            showLoading(false);
+        } catch (e) {
+            console.error("Falha ao carregar histórico:", e.message);
         }
     }
-
-    // ****** NOVA FUNÇÃO (Popula Datalists) ******
-    function populateFilterDatalists() {
+    
+    // ****** FUNÇÃO MODIFICADA ******
+    // Não aceita mais argumentos, faz sua própria query leve.
+    async function populateFilterDatalists() { 
         const regionalList = document.getElementById('regionalList');
         const filialList = document.getElementById('filialList');
+        if (!regionalList || !filialList) return;
 
-        if (!regionalList || !filialList || !state.allData || state.allData.length === 0) {
-            return;
+        console.log("Populando filtros (datalists)...");
+        try {
+            // Pede até 50.000 linhas, mas SÓ das colunas de filtro (leve)
+            const filterHeaders = { 'Range': '0-49999' }; 
+            const filterData = await supabaseRequest('banco_horas_data?select=CODFILIAL,REGIONAL', 'GET', null, filterHeaders);
+            
+            if (!filterData || filterData.length === 0) {
+                console.warn("Não foi possível popular os datalists, dados de filtro ausentes.");
+                return;
+            }
+
+            const regionaisUnicas = new Set();
+            const filiaisUnicas = new Set();
+
+            // Usa os 'filterData' (50k) e não o 'state.allData' (1k)
+            filterData.forEach(item => { 
+                if (item.REGIONAL) regionaisUnicas.add(item.REGIONAL.trim());
+                if (item.CODFILIAL) filiaisUnicas.add(String(item.CODFILIAL).trim());
+            });
+
+            regionalList.innerHTML = '';
+            const sortedRegionais = [...regionaisUnicas].sort();
+            sortedRegionais.forEach(regional => {
+                regionalList.innerHTML += `<option value="${regional}"></option>`;
+            });
+
+            filialList.innerHTML = '';
+            const sortedFiliais = [...filiaisUnicas].sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+            sortedFiliais.forEach(filial => {
+                filialList.innerHTML += `<option value="${filial}"></option>`;
+            });
+            console.log(`Filtros Datalist populados: ${filiaisUnicas.size} filiais, ${regionaisUnicas.size} regionais.`);
+        } catch (e) {
+            console.error("Falha ao popular datalists:", e);
         }
-
-        const regionaisUnicas = new Set();
-        const filiaisUnicas = new Set();
-
-        state.allData.forEach(item => {
-            if (item.REGIONAL) regionaisUnicas.add(item.REGIONAL.trim());
-            if (item.CODFILIAL) filiaisUnicas.add(String(item.CODFILIAL).trim());
-        });
-
-        regionalList.innerHTML = '';
-        const sortedRegionais = [...regionaisUnicas].sort();
-        sortedRegionais.forEach(regional => {
-            regionalList.innerHTML += `<option value="${regional}"></option>`;
-        });
-
-        filialList.innerHTML = '';
-        const sortedFiliais = [...filiaisUnicas].sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
-        sortedFiliais.forEach(filial => {
-            filialList.innerHTML += `<option value="${filial}"></option>`;
-        });
     }
-    // ****** FIM DA NOVA FUNÇÃO ******
 
 
     // NOVA FUNÇÃO: Helper para converter horas em minutos para ordenação/comparação
@@ -485,96 +479,91 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    function applyFilters() {
-        // ****** MUDANÇA (Adicionado .trim()) ******
+    // ****** FUNÇÃO MODIFICADA (AGORA É ASYNC E FAZ FETCH) ******
+    async function applyFilters() {
         const filterChapa = ui.filterChapa.value.toLowerCase().trim();
         const filterNome = ui.filterNome.value.toLowerCase().trim();
         const filterRegional = ui.filterRegional.value.toLowerCase().trim();
         const filterCodFilial = ui.filterCodFilial.value.toLowerCase().trim();
-        // ****** FIM DA MUDANÇA ******
 
-        // ****** MUDANÇA PRINCIPAL ******
-        // Bloco que impedia a busca sem filtros foi REMOVIDO.
-        // Agora, a função continuará e exibirá os 200 maiores se os filtros estiverem vazios.
-        // ****** FIM DA MUDANÇA ******
+        showLoading(true, 'Filtrando dados...');
+        
+        // 1. Constrói a string de query do Supabase
+        let query = 'banco_horas_data?select=*'; // Pega todas as colunas
 
-
-        // *** NOVO: Filtro de Permissão ***
-        let dataToFilter;
-        if (state.isAdmin) {
-            dataToFilter = state.allData; // Admin vê tudo
-        } else if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            // Usuário com lista de filiais permitidas
-            dataToFilter = state.allData.filter(item => 
-                state.permissoes_filiais.includes(String(item.CODFILIAL).trim())
-            );
-        // ****** NOVA LÓGICA ******
-        } else if (state.userMatricula) {
-            // Se não é admin e não tem filiais, mas tem matrícula, mostra só ele mesmo.
-            dataToFilter = state.allData.filter(item => 
-                String(item.CHAPA).trim() === String(state.userMatricula).trim()
-            );
-        // ****** FIM DA NOVA LÓGICA ******
-        } else {
-            // Usuário não-admin sem filiais setadas = não vê nada
-            dataToFilter = []; 
-            console.warn("Usuário não é admin e não possui filiais permitidas.");
+        // Aplica filtros de permissão
+        if (!state.isAdmin) {
+            if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+                const filiaisQuery = state.permissoes_filiais.map(f => `"${String(f).trim()}"`).join(',');
+                query += `&CODFILIAL=in.(${filiaisQuery})`;
+            } else if (state.userMatricula) {
+                query += `&CHAPA=eq.${state.userMatricula}`;
+            } else {
+                query += '&limit=0'; // Não-admin sem permissão não vê nada
+            }
         }
-        // *** FIM DO FILTRO DE PERMISSÃO ***
+        
+        // Aplica filtros da UI
+        if (filterChapa) {
+            query += `&CHAPA=ilike.${filterChapa}*`; // "começa com" (case-insensitive)
+        }
+        if (filterNome) {
+            query += `&NOME=ilike.%${filterNome}%`; // "contém" (case-insensitive)
+        }
+        if (filterRegional) {
+            query += `&REGIONAL=ilike.%${filterRegional}%`; // "contém"
+        }
+        if (filterCodFilial) {
+            query += `&CODFILIAL=ilike.${filterCodFilial}*`; // "começa com"
+        }
 
-        let filteredData = dataToFilter.filter(item => { // <-- MUDADO DE state.allData
-            const chapa = String(item.CHAPA || '').toLowerCase().trim();
-            const nome = String(item.NOME || '').toLowerCase().trim();
-            const regional = String(item.REGIONAL || '').toLowerCase().trim();
-            const codfilial = String(item.CODFILIAL || '').toLowerCase().trim();
-
-            // ****** MUDANÇA (Lógica de Filtro .startsWith) ******
-            return (filterChapa === '' || chapa.startsWith(filterChapa)) &&
-                   (filterNome === '' || nome.includes(filterNome)) && // Nome continua .includes()
-                   (filterRegional === '' || regional.includes(filterRegional)) && // Regional pode ser .includes()
-                   (filterCodFilial === '' || codfilial.startsWith(filterCodFilial));
-            // ****** FIM DA MUDANÇA ******
-        });
-
-        // *** CORREÇÃO DE PERFORMANCE ***
-
-        // 1. Mapeia os dados *uma vez* para calcular os minutos.
-        const dataComMinutos = filteredData.map(item => ({
-            ...item,
-            _minutos: parseHorasParaMinutos(item.TOTAL_EM_HORA)
-        }));
-
-        // 2. Ordena usando o valor numérico pré-calculado.
-        dataComMinutos.sort((a, b) => {
-            return b._minutos - a._minutos; // Descending order (do maior para o menor)
-        });
-
-        // 3. Limita a exibição para evitar congelamento do navegador
-        // ****** MUDANÇA (Limite de Filtro) ******
         const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial;
-        const limit = hasFilters ? 500 : 200; // Mostra 500 com filtro, 200 sem
-        const dadosParaRenderizar = dataComMinutos.slice(0, limit);
-
-        // 4. Adiciona uma mensagem se os resultados forem truncados
-        // const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial; // Movido para cima
-
-        if (dataComMinutos.length > limit) {
-            // Se tem filtros, a mensagem é sobre refinar.
-            // Se não tem filtros, a mensagem é sobre os 200 maiores.
-            const msg = hasFilters 
-                ? `Exibindo os ${limit} principais resultados para sua busca (${dataComMinutos.length} totais). Refine os filtros.`
-                : `Exibindo os ${limit} maiores saldos (${dataComMinutos.length} totais). Use os filtros para buscar.`;
-            ui.tableMessage.innerHTML = msg;
-            ui.tableMessage.classList.remove('hidden');
+        
+        // MUDANÇA: O Limite é de 200 se NÃO TIVER FILTROS,
+        // ou 500 se TIVER FILTROS.
+        const limit = hasFilters ? 500 : 200;
+        query += `&limit=${limit}`;
+        
+        // 2. Faz a chamada da API
+        try {
+            console.log("Executando query:", query);
+            const filteredData = await supabaseRequest(query, 'GET');
             
-        } else if (dataComMinutos.length === 0) {
-            ui.tableMessage.innerHTML = 'Nenhum dado encontrado para os filtros aplicados.';
-            ui.tableMessage.classList.remove('hidden');
-        } else {
-             ui.tableMessage.classList.add('hidden');
-        }
+            // 3. Processa os dados (ordenar em JS, pois `TOTAL_EM_HORA` é string)
+            const dataComMinutos = filteredData.map(item => ({
+                ...item,
+                _minutos: parseHorasParaMinutos(item.TOTAL_EM_HORA)
+            }));
 
-        renderTableBody(dadosParaRenderizar); // <-- Renderiza apenas o subconjunto
+            // Ordena os resultados (seja os 200 ou 500)
+            dataComMinutos.sort((a, b) => b._minutos - a._minutos); // Ordena (desc)
+            
+            state.allData = dataComMinutos; // Salva os dados atuais
+
+            // 4. Mensagens
+            if (dataComMinutos.length === 500) {
+                ui.tableMessage.innerHTML = `Exibindo os 500 principais resultados para sua busca. Refine os filtros.`;
+                ui.tableMessage.classList.remove('hidden');
+            } else if (dataComMinutos.length === 200 && !hasFilters) {
+                 ui.tableMessage.innerHTML = `Exibindo os 200 maiores saldos. Use os filtros para buscar.`;
+                 ui.tableMessage.classList.remove('hidden');
+            } else if (dataComMinutos.length === 0) {
+                ui.tableMessage.innerHTML = 'Nenhum dado encontrado para os filtros aplicados.';
+                ui.tableMessage.classList.remove('hidden');
+            } else {
+                ui.tableMessage.classList.add('hidden');
+            }
+
+            renderTableBody(dataComMinutos); // Renderiza
+
+        } catch (err) {
+            console.error("Erro ao aplicar filtros:", err);
+            mostrarNotificacao(`Erro ao buscar dados: ${err.message}`, 'error');
+            ui.tableMessage.innerHTML = `Erro ao buscar dados: ${err.message}.`;
+            ui.tableMessage.classList.remove('hidden');
+        } finally {
+            showLoading(false);
+        }
     }
 
     function renderTableBody(data) {
@@ -736,42 +725,43 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoading(true, 'Buscando detalhes...');
 
         try {
-            // ATUALIZADO: Usando supabaseRequest para dados atuais
-            const currentDataArr = await supabaseRequest(`banco_horas_data?select=*&CHAPA=eq.${chapa}`, 'GET');
-            if (!currentDataArr || currentDataArr.length === 0) {
-                throw new Error("Colaborador não encontrado na base de dados.");
+            // MUDANÇA: Busca o item no state.allData (view atual)
+            const currentData = state.allData.find(item => item.CHAPA === chapa);
+            
+            if (!currentData) {
+                // Fallback: Se não achar, busca no banco (não deveria acontecer, mas é seguro)
+                const currentDataArr = await supabaseRequest(`banco_horas_data?select=*&CHAPA=eq.${chapa}`, 'GET');
+                if (!currentDataArr || currentDataArr.length === 0) {
+                    throw new Error("Colaborador não encontrado na base de dados.");
+                }
+                currentData = currentDataArr[0];
             }
-            const currentData = currentDataArr[0];
-
+            
             ui.modalTitle.textContent = `Detalhes: ${currentData.NOME}`;
             ui.modalNome.textContent = currentData.NOME;
             ui.modalChapa.textContent = currentData.CHAPA;
 
-            // ATUALIZADO: Usando supabaseRequest para histórico
-            const historyData = await supabaseRequest('banco_horas_history?select=data&order=timestamp.desc&limit=1', 'GET');
+            // Usa o cache de histórico
+            const oldData = state.previousData[chapa];
             
-            if (!historyData || historyData.length === 0) {
-                ui.modalNoHistory.classList.remove('hidden');
+            if (oldData) {
+                ui.modalNoHistory.classList.add('hidden');
+                let comparisonHTML = `
+                    <div class="grid grid-cols-3 gap-2 p-2 font-bold text-gray-500 text-sm">
+                        <span>Campo</span>
+                        <span>Valor Anterior</span>
+                        <span>Valor Atual (Diferença)</span>
+                    </div>
+                `;
+                comparisonHTML += createComparisonRow('Total (Hora)', oldData.TOTAL_EM_HORA, currentData.TOTAL_EM_HORA);
+                comparisonHTML += createComparisonRow('Total Negativo', oldData.TOTAL_NEGATIVO, currentData.TOTAL_NEGATIVO);
+                comparisonHTML += createComparisonRow('Valor Pgto. BH', oldData.VAL_PGTO_BHS, currentData.VAL_PGTO_BHS);
+                comparisonHTML += createComparisonRow('Total Geral', oldData['Total Geral'], currentData['Total Geral']);
+
+                ui.modalComparison.innerHTML = comparisonHTML;
             } else {
-                const oldData = historyData[0].data.find(item => item.CHAPA === chapa);
-
-                if (oldData) {
-                    let comparisonHTML = `
-                        <div class="grid grid-cols-3 gap-2 p-2 font-bold text-gray-500 text-sm">
-                            <span>Campo</span>
-                            <span>Valor Anterior</span>
-                            <span>Valor Atual (Diferença)</span>
-                        </div>
-                    `;
-                    comparisonHTML += createComparisonRow('Total (Hora)', oldData.TOTAL_EM_HORA, currentData.TOTAL_EM_HORA);
-                    comparisonHTML += createComparisonRow('Total Negativo', oldData.TOTAL_NEGATIVO, currentData.TOTAL_NEGATIVO);
-                    comparisonHTML += createComparisonRow('Valor Pgto. BH', oldData.VAL_PGTO_BHS, currentData.VAL_PGTO_BHS);
-                    comparisonHTML += createComparisonRow('Total Geral', oldData['Total Geral'], currentData['Total Geral']);
-
-                    ui.modalComparison.innerHTML = comparisonHTML;
-                } else {
-                    ui.modalNoHistory.classList.remove('hidden');
-                }
+                ui.modalNoHistory.classList.remove('hidden');
+                ui.modalComparison.innerHTML = '';
             }
 
         } catch (err) {
@@ -933,10 +923,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Fim da chamada serverless
 
             ui.dataInput.value = '';
-            await loadAllData(); 
-            await listenToMetadata(); 
-            showLoading(false);
             
+            // MUDANÇA: Recarrega tudo
+            showLoading(true, 'Recarregando dados...');
+            await Promise.all([
+                populateFilterDatalists(),
+                loadHistoryData(),
+                listenToMetadata()
+            ]);
+            await applyFilters(); // Recarrega a view inicial
+            
+            showLoading(false);
             mostrarNotificacao(result.message || "Dados importados com sucesso!", 'success');
 
         } catch (err) {
@@ -1010,8 +1007,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     showView('configuracoesView', e.currentTarget);
                 });
 
+                // MUDANÇA: Debounce (atraso) para os filtros
+                let filterTimeout;
                 [ui.filterChapa, ui.filterNome, ui.filterRegional, ui.filterCodFilial].forEach(input => {
-                    input.addEventListener('input', applyFilters);
+                    input.addEventListener('input', () => {
+                        clearTimeout(filterTimeout);
+                        filterTimeout = setTimeout(() => {
+                            applyFilters();
+                        }, 300); // 300ms de atraso
+                    });
                 });
 
                 ui.logoutButton.addEventListener('click', logout);
