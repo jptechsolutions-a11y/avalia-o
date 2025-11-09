@@ -503,17 +503,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // 3. Limita a exibição para evitar congelamento do navegador
-        const dadosParaRenderizar = dataComMinutos.slice(0, 200);
+        // ****** MUDANÇA (Limite de Filtro) ******
+        const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial;
+        const limit = hasFilters ? 500 : 200; // Mostra 500 com filtro, 200 sem
+        const dadosParaRenderizar = dataComMinutos.slice(0, limit);
 
         // 4. Adiciona uma mensagem se os resultados forem truncados
-        const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial;
+        // const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial; // Movido para cima
 
-        if (dataComMinutos.length > 200) {
+        if (dataComMinutos.length > limit) {
             // Se tem filtros, a mensagem é sobre refinar.
             // Se não tem filtros, a mensagem é sobre os 200 maiores.
             const msg = hasFilters 
-                ? `Exibindo os 200 principais resultados para sua busca (${dataComMinutos.length} totais). Refine os filtros.`
-                : `Exibindo os 200 maiores saldos (${dataComMinutos.length} totais). Use os filtros para buscar.`;
+                ? `Exibindo os ${limit} principais resultados para sua busca (${dataComMinutos.length} totais). Refine os filtros.`
+                : `Exibindo os ${limit} maiores saldos (${dataComMinutos.length} totais). Use os filtros para buscar.`;
             ui.tableMessage.innerHTML = msg;
             ui.tableMessage.classList.remove('hidden');
             
@@ -548,17 +551,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const minutosAtuais = item._minutos; // USA O VALOR JÁ CALCULADO
             const minutosAnteriores = parseHorasParaMinutos(horaAnterior);
             
-            let tendenciaIcon = '<span style="color: #6b7280;">-</span>'; // Cinza (neutro)
+            // ****** MUDANÇA (Cores e Ícone de Tendência) ******
+            let tendenciaIcon = '<span style="color: #6b7280;">-</span>'; // Cinza (neutro) - Default
             
-            if (horaAnterior !== '-' && minutosAnteriores !== minutosAtuais) {
+            if (horaAnterior !== '-') { // Só calcula se tiver histórico
                 if (minutosAtuais > minutosAnteriores) {
-                    // Melhorou (aumentou o saldo)
-                    tendenciaIcon = '<i data-feather="arrow-up-right" style="color: #16a34a;"></i>'; // Verde
+                    // Piorou (aumentou o saldo)
+                    tendenciaIcon = '<i data-feather="arrow-up-right" style="color: #dc2626;"></i>'; // Vermelho
                 } else if (minutosAtuais < minutosAnteriores) {
-                    // Piorou (diminuiu o saldo)
-                    tendenciaIcon = '<i data-feather="arrow-down-right" style="color: #dc2626;"></i>'; // Vermelho
+                    // Melhorou (diminuiu o saldo)
+                    tendenciaIcon = '<i data-feather="arrow-down-right" style="color: #16a34a;"></i>'; // Verde
+                } else {
+                    // Manteve igual
+                    tendenciaIcon = '<span style="color: #f59e0b; font-weight: bold; font-family: monospace; font-size: 1.2em;">=</span>'; // Amarelo
                 }
             }
+            // ****** FIM DA MUDANÇA ******
             
             // Adiciona os valores calculados ao item para o loop
             item.HORA_ANTERIOR = horaAnterior;
