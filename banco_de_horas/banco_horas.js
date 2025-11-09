@@ -508,7 +508,11 @@ document.addEventListener('DOMContentLoaded', () => {
             query += `&CHAPA=ilike.${filterChapa}*`; // "começa com" (case-insensitive)
         }
         if (filterNome) {
-            query += `&NOME=ilike.%${filterNome}%`; // "contém" (case-insensitive)
+            // ****** MUDANÇA (Correção Erro 500) ******
+            // Trocado de 'contém' (%filter%) para 'começa com' (filter*)
+            // Isso usa o índice do banco e evita o timeout (Erro 500)
+            query += `&NOME=ilike.${filterNome}*`; // "começa com" (case-insensitive)
+            // ****** FIM DA MUDANÇA ******
         }
         if (filterRegional) {
             query += `&REGIONAL=ilike.%${filterRegional}%`; // "contém"
@@ -726,10 +730,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // MUDANÇA: Busca o item no state.allData (view atual)
-            const currentData = state.allData.find(item => item.CHAPA === chapa);
+            let currentData = state.allData.find(item => item.CHAPA === chapa);
             
             if (!currentData) {
                 // Fallback: Se não achar, busca no banco (não deveria acontecer, mas é seguro)
+                console.warn(`Fallback: Buscando ${chapa} no banco...`);
                 const currentDataArr = await supabaseRequest(`banco_horas_data?select=*&CHAPA=eq.${chapa}`, 'GET');
                 if (!currentDataArr || currentDataArr.length === 0) {
                     throw new Error("Colaborador não encontrado na base de dados.");
