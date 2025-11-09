@@ -477,17 +477,18 @@
             }
 
             async function listenToMetadata() {
-                const { data, error } = await supabaseClient
-                    .from('banco_horas_meta')
-                    .select('lastUpdatedAt')
-                    .eq('id', 1)
-                    .single();
-                
-                if (data) {
-                    ui.lastUpdated.textContent = formatTimestamp(data.lastUpdatedAt);
-                } else {
-                    ui.lastUpdated.textContent = 'Nenhuma atualização registrada.';
-                    console.warn("Erro ao buscar metadados:", error);
+                // ATUALIZADO: Usando supabaseRequest
+                try {
+                    const data = await supabaseRequest('banco_horas_meta?id=eq.1&select=lastUpdatedAt&limit=1', 'GET');
+                    
+                    if (data && data.length > 0) {
+                        ui.lastUpdated.textContent = formatTimestamp(data[0].lastUpdatedAt);
+                    } else {
+                        ui.lastUpdated.textContent = 'Nenhuma atualização registrada.';
+                    }
+                } catch (error) {
+                     ui.lastUpdated.textContent = 'Erro ao buscar.';
+                     console.warn("Erro ao buscar metadados:", error);
                 }
             }
 
@@ -561,11 +562,9 @@
             async function loadAllData() {
                 showLoading(true, 'Carregando dados...');
                 try {
-                    const { data, error } = await supabaseClient
-                        .from('banco_horas_data')
-                        .select('*');
-
-                    if (error) throw error;
+                    // ATUALIZADO: Usando supabaseRequest
+                    const data = await supabaseRequest('banco_horas_data?select=*', 'GET');
+                    if (!data) throw new Error("A resposta dos dados está vazia.");
                     
                     state.allData = data;
                     applyFilters();
@@ -675,26 +674,20 @@
                 showLoading(true, 'Buscando detalhes...');
 
                 try {
-                    const { data: currentData, error: currentError } = await supabaseClient
-                        .from('banco_horas_data')
-                        .select('*')
-                        .eq('CHAPA', chapa)
-                        .single();
-                    
-                    if (currentError) throw currentError;
+                    // ATUALIZADO: Usando supabaseRequest para dados atuais
+                    const currentDataArr = await supabaseRequest(`banco_horas_data?select=*&CHAPA=eq.${chapa}`, 'GET');
+                    if (!currentDataArr || currentDataArr.length === 0) {
+                        throw new Error("Colaborador não encontrado na base de dados.");
+                    }
+                    const currentData = currentDataArr[0];
 
                     ui.modalTitle.textContent = `Detalhes: ${currentData.NOME}`;
                     ui.modalNome.textContent = currentData.NOME;
                     ui.modalChapa.textContent = currentData.CHAPA;
 
-                    const { data: historyData, error: historyError } = await supabaseClient
-                        .from('banco_horas_history')
-                        .select('data')
-                        .order('timestamp', { ascending: false })
-                        .limit(1);
-
-                    if (historyError) throw historyError;
-
+                    // ATUALIZADO: Usando supabaseRequest para histórico
+                    const historyData = await supabaseRequest('banco_horas_history?select=data&order=timestamp.desc&limit=1', 'GET');
+                    
                     if (!historyData || historyData.length === 0) {
                         ui.modalNoHistory.classList.remove('hidden');
                     } else {
