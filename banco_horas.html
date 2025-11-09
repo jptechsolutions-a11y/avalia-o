@@ -5,89 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Banco de Horas | G&G</title>
     <link rel="icon" href="icon.png" type="image/png">
+    
+    <!-- Scripts de Estilo e Ícones -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css"> <!-- USANDO SEU STYLE.CSS -->
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
-        :root {
-            --primary: #00D4AA;
-            --secondary: #00B4D8;
-            --accent: #0077B6;
-            --dark: #023047;
-            --darker: #011627;
-        }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f7f9fc;
-        }
-        .table-responsive {
-            display: block;
-            width: 100%;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        table {
-            width: 100%;
-            min-width: 1200px; /* Garante que a tabela tenha uma largura mínima */
-        }
-        th, td {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #e5e7eb;
-            white-space: nowrap;
-        }
-        th {
-            background-color: #f9fafb;
-            font-weight: 600;
-            text-align: left;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #4b5563;
-        }
-        tbody tr:hover {
-            background-color: #f3f4f6;
-        }
-        /* Estilos do Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.5);
-            animation: fadeIn 0.3s;
-        }
-        .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto;
-            padding: 24px;
-            border: 1px solid #888;
-            width: 90%;
-            max-width: 700px;
-            border-radius: 12px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            animation: slideIn 0.3s;
-        }
-        .modal-close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .modal-close:hover,
-        .modal-close:focus {
-            color: black;
-            text-decoration: none;
-        }
+        /* Estilos específicos que o style.css pode não cobrir */
         .diff-up {
             color: #16a34a; /* Verde */
             font-weight: bold;
@@ -99,19 +27,11 @@
         .diff-same {
             color: #6b7280; /* Cinza */
         }
-
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideIn { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-
-        /* Spinner */
-        .loading { display: none; flex-direction: column; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.7); z-index: 5000; }
-        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); border-top: 4px solid var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body class="flex flex-col min-h-screen" style="background-color: #f7f9fc;">
 
-    <!-- Header -->
+    <!-- Header (simplificado, mas você pode trocar pelo seu topBar) -->
     <header class="bg-white shadow-md w-full p-4 flex justify-between items-center">
         <div class="flex items-center gap-4">
             <a href="home.html" class="text-gray-600 hover:text-gray-900">
@@ -129,51 +49,51 @@
     <!-- Main Content -->
     <main class="flex-1 container mx-auto p-6">
 
-        <!-- Admin Section -->
-        <div id="adminPanel" class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-2xl font-semibold text-gray-900 mb-4">Área Administrativa</h2>
+        <!-- Admin Section - USANDO INFO-CARD -->
+        <div id="adminPanel" class="info-card mb-6">
+            <h3><i data-feather="settings" class="h-5 w-5 mr-2"></i> Área Administrativa</h3>
             <p class="text-gray-600 mb-4">Cole os dados do banco de horas abaixo (formato esperado: CSV ou separado por tabulação). A primeira linha deve ser o cabeçalho. Certifique-se de que os nomes das colunas correspondem: `REGIONAL`, `BANDEIRA`, `CODFILIAL`, `CHAPA`, `NOME`, `FUNCAO`, `SECAO`, `TOTAL_EM_HORA`, `TOTAL_NEGATIVO`, `VAL_PGTO_BHS`, `SITUACAO`, `Total Geral`.</p>
             
-            <div id="importError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <div id="importError" class="hidden alert alert-error mb-4" role="alert">
                 <strong class="font-bold">Erro na Importação:</strong>
                 <span class="block sm:inline" id="importErrorMessage"></span>
             </div>
 
             <textarea id="dataInput" class="w-full h-48 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent" placeholder="Cole os dados aqui..."></textarea>
             
-            <button id="importButton" class="mt-4 bg-accent text-white font-bold py-2 px-6 rounded-lg hover:bg-opacity-90 transition-colors flex items-center gap-2">
+            <button id="importButton" class="mt-4 btn btn-success flex items-center gap-2">
                 <i data-feather="upload" class="h-5 w-5"></i>
                 Importar e Atualizar Dados
             </button>
             <p class="text-xs text-gray-500 mt-2"><strong>Atenção:</strong> Isso salvará os dados atuais no histórico e substituirá a base principal pelos novos dados.</p>
         </div>
 
-        <!-- Data View Section -->
-        <div class="bg-white p-6 rounded-lg shadow-md">
+        <!-- Data View Section - USANDO INFO-CARD -->
+        <div class="info-card">
             <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
-                <h2 class="text-2xl font-semibold text-gray-900">Acompanhamento do Banco de Horas</h2>
+                <h3 class="!mb-0 !pb-0 !border-b-0"><i data-feather="clock" class="h-5 w-5 mr-2"></i> Acompanhamento do Banco de Horas</h3>
                 <div class="text-sm text-gray-600">
                     <strong>Última Atualização:</strong>
-                    <span id="lastUpdated" class="font-medium text-accent">Buscando...</span>
+                    <span id="lastUpdated" class="font-medium" style="color: var(--accent);">Buscando...</span>
                 </div>
             </div>
 
             <!-- Filtros -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 my-4">
                 <input type="text" id="filterChapa" placeholder="Filtrar por Chapa..." class="p-2 border border-gray-300 rounded-md">
                 <input type="text" id="filterNome" placeholder="Filtrar por Nome..." class="p-2 border border-gray-300 rounded-md">
                 <input type="text" id="filterRegional" placeholder="Filtrar por Regional..." class="p-2 border border-gray-300 rounded-md">
                 <input type="text" id="filterCodFilial" placeholder="Filtrar por Cód. Filial..." class="p-2 border border-gray-300 rounded-md">
             </div>
 
-            <!-- Tabela -->
-            <div id="tableContainer" class="table-responsive">
-                <table class="min-w-full divide-y divide-gray-200">
+            <!-- Tabela - USANDO TABLE-CONTAINER E TABELA -->
+            <div id="tableContainer" class="table-container">
+                <table class="tabela">
                     <thead id="tableHead">
                         <!-- Cabeçalho será gerado pelo JS -->
                     </thead>
-                    <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
-                        <tr><td colspan="12" class="text-center py-10 text-gray-500">Carregando dados...</td></tr>
+                    <tbody id="tableBody">
+                        <tr><td colspan="13" class="text-center py-10 text-gray-500">Carregando dados...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -181,17 +101,17 @@
         </div>
     </main>
 
-    <!-- Modal Detalhes -->
+    <!-- Modal Detalhes - USANDO CLASSES MODAL -->
     <div id="detailsModal" class="modal">
         <div class="modal-content">
             <span id="modalClose" class="modal-close">&times;</span>
-            <h2 class="text-2xl font-semibold mb-4 text-gray-900" id="modalTitle">Detalhes do Colaborador</h2>
-            <div id="modalBody" class="space-y-4">
+            <h3 id="modalTitle">Detalhes do Colaborador</h3>
+            <div id="modalBody" class="space-y-4 mt-4">
                 <p><strong>Nome:</strong> <span id="modalNome">...</span></p>
                 <p><strong>Chapa:</strong> <span id="modalChapa">...</span></p>
                 
                 <hr>
-                <h3 class="text-xl font-semibold text-gray-800">Comparativo da Atualização</h3>
+                <h4 class="text-xl font-semibold text-gray-800">Comparativo da Atualização</h4>
                 <div id="modalComparison">
                     <!-- Conteúdo do comparativo será injetado aqui -->
                 </div>
@@ -202,50 +122,38 @@
         </div>
     </div>
 
-    <!-- Loading Overlay -->
+    <!-- Loading Overlay - USANDO CLASSE LOADING -->
     <div id="loading" class="loading">
         <div class="spinner"></div>
         <p class="text-gray-700 mt-4" id="loadingText">Processando...</p>
     </div>
 
-    <!-- Firebase Config -->
+    <!-- JS do Sistema - LÓGICA ATUALIZADA PARA SUPABASE -->
     <script>
-        // Essas variáveis serão injetadas pelo ambiente de produção
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'banco-de-horas-dev';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            // Configuração de fallback para desenvolvimento local (se necessário)
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_AUTH_DOMAIN",
-            projectId: "YOUR_PROJECT_ID"
-        };
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-    </script>
-
-    <!-- JS do Sistema -->
-    <script>
-        // Mapeamento de Cabeçalhos (o que o usuário vê vs. o nome no DB)
+        // Mapeamento de Cabeçalhos
         const COLUMN_MAP = {
-            'CHAPA': 'Chapa',
-            'NOME': 'Nome',
-            'REGIONAL': 'Regional',
-            'BANDEIRA': 'Bandeira',
-            'CODFILIAL': 'Cód. Filial',
-            'FUNCAO': 'Função',
-            'SECAO': 'Seção',
-            'TOTAL_EM_HORA': 'Total (Hora)',
-            'TOTAL_NEGATIVO': 'Total Negativo',
-            'VAL_PGTO_BHS': 'Valor Pgto. BH',
-            'SITUACAO': 'Situação',
-            'Total Geral': 'Total Geral' // Mantém o espaço se for o caso
+            'CHAPA': 'Chapa', 'NOME': 'Nome', 'REGIONAL': 'Regional', 'BANDEIRA': 'Bandeira',
+            'CODFILIAL': 'Cód. Filial', 'FUNCAO': 'Função', 'SECAO': 'Seção', 
+            'TOTAL_EM_HORA': 'Total (Hora)', 'TOTAL_NEGATIVO': 'Total Negativo',
+            'VAL_PGTO_BHS': 'Valor Pgto. BH', 'SITUACAO': 'Situação', 'Total Geral': 'Total Geral'
         };
-        // Ordem das colunas na tabela
         const COLUMN_ORDER = [
             'CHAPA', 'NOME', 'REGIONAL', 'BANDEIRA', 'CODFILIAL', 'FUNCAO', 'SECAO', 
             'TOTAL_EM_HORA', 'TOTAL_NEGATIVO', 'VAL_PGTO_BHS', 'SITUACAO', 'Total Geral'
         ];
 
+        // Configuração do Supabase (igual ao login.js e home.html)
+        const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+        
+        let supabaseClient = null;
+        const sessionStorageAdapter = {
+          getItem: (key) => sessionStorage.getItem(key),
+          setItem: (key, value) => sessionStorage.setItem(key, value),
+          removeItem: (key) => sessionStorage.removeItem(key),
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
-            // Inicialização dos ícones
             feather.replace();
 
             // Elementos da UI
@@ -278,100 +186,90 @@
 
             // Estado da Aplicação
             const state = {
-                db: null,
                 auth: null,
                 userId: null,
-                isAdmin: false, // Vamos assumir que não é admin por padrão
-                allData: [] // Cache local dos dados da tabela
-            };
-
-            // Referências do Firestore
-            const refs = {
-                data: () => state.db.collection(`artifacts/${appId}/public/banco_horas_data`),
-                doc: (chapa) => state.db.collection(`artifacts/${appId}/public/banco_horas_data`).doc(String(chapa)),
-                history: () => state.db.collection(`artifacts/${appId}/public/banco_horas_history`),
-                metadata: () => state.db.collection(`artifacts/${appId}/public/banco_horas_meta`).doc('main')
+                isAdmin: false,
+                allData: [] // Cache local
             };
 
             // --- FUNÇÕES ---
 
-            /**
-             * Mostra ou esconde o overlay de loading.
-             */
             function showLoading(show, text = 'Processando...') {
                 ui.loadingText.textContent = text;
                 ui.loading.style.display = show ? 'flex' : 'none';
             }
 
-            /**
-             * Mostra um erro na caixa de importação.
-             */
             function showImportError(message) {
                 ui.importErrorMessage.textContent = message;
                 ui.importError.classList.remove('hidden');
             }
 
-            /**
-             * Formata um Timestamp do Firestore.
-             */
-            function formatTimestamp(timestamp) {
-                if (!timestamp) return 'N/A';
-                return timestamp.toDate().toLocaleString('pt-BR', {
+            function formatTimestamp(isoString) {
+                if (!isoString) return 'N/A';
+                return new Date(isoString).toLocaleString('pt-BR', {
                     day: '2-digit', month: '2-digit', year: 'numeric',
                     hour: '2-digit', minute: '2-digit'
                 });
             }
 
-            /**
-             * Inicializa o Firebase e a Autenticação.
-             */
-            async function initializeFirebase() {
+            async function initializeSupabase() {
                 try {
-                    firebase.initializeApp(firebaseConfig);
-                    state.auth = firebase.auth();
-                    state.db = firebase.firestore();
-                    firebase.firestore().setLogLevel('debug');
-
-                    if (initialAuthToken) {
-                        await state.auth.signInWithCustomToken(initialAuthToken);
-                    } else {
-                        await state.auth.signInAnonymously();
+                    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                        auth: {
+                            storage: sessionStorageAdapter,
+                            persistSession: true,
+                            autoRefreshToken: true
+                        }
+                    });
+                    
+                    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+                    if (sessionError || !session) {
+                        console.error("Sem sessão, redirecionando para login.", sessionError);
+                        window.location.href = 'index.html';
+                        return;
                     }
 
-                    state.userId = state.auth.currentUser.uid;
-                    ui.userName.textContent = state.auth.currentUser.displayName || state.auth.currentUser.email || 'Usuário';
+                    state.auth = session;
+                    state.userId = session.user.id;
 
-                    // TODO: Implementar verificação de admin real
-                    // Por enquanto, todo mundo é admin para teste
-                    state.isAdmin = true; 
+                    const { data: profile, error: profileError } = await supabaseClient
+                        .from('usuarios')
+                        .select('nome, role')
+                        .eq('auth_user_id', state.userId)
+                        .single();
+
+                    if (profileError) {
+                        console.warn("Erro ao buscar perfil:", profileError.message);
+                        ui.userName.textContent = session.user.email;
+                    } else {
+                        ui.userName.textContent = profile.nome || session.user.email;
+                        state.isAdmin = (profile.role === 'admin');
+                    }
+                    
                     ui.adminPanel.style.display = state.isAdmin ? 'block' : 'none';
 
                 } catch (err) {
-                    console.error("Erro na inicialização do Firebase:", err);
+                    console.error("Erro na inicialização do Supabase:", err);
                     showLoading(false);
                     alert("Erro crítico ao conectar. Verifique o console.");
                 }
             }
 
-            /**
-             * Escuta as atualizações de metadados (última atualização).
-             */
-            function listenToMetadata() {
-                refs.metadata().onSnapshot((doc) => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        ui.lastUpdated.textContent = formatTimestamp(data.lastUpdatedAt);
-                    } else {
-                        ui.lastUpdated.textContent = 'Nenhuma atualização registrada.';
-                    }
-                }, (err) => {
-                    console.error("Erro ao escutar metadados:", err);
-                });
+            async function listenToMetadata() {
+                const { data, error } = await supabaseClient
+                    .from('banco_horas_meta')
+                    .select('lastUpdatedAt')
+                    .eq('id', 1)
+                    .single();
+                
+                if (data) {
+                    ui.lastUpdated.textContent = formatTimestamp(data.lastUpdatedAt);
+                } else {
+                    ui.lastUpdated.textContent = 'Nenhuma atualização registrada.';
+                    console.warn("Erro ao buscar metadados:", error);
+                }
             }
 
-            /**
-             * Renderiza o cabeçalho da tabela dinamicamente.
-             */
             function renderTableHeader() {
                 const tr = document.createElement('tr');
                 COLUMN_ORDER.forEach(key => {
@@ -379,23 +277,24 @@
                     th.textContent = COLUMN_MAP[key] || key;
                     tr.appendChild(th);
                 });
-                // Coluna de Ações
                 const thAction = document.createElement('th');
                 thAction.textContent = 'Ações';
                 tr.appendChild(thAction);
-                ui.tableHead.innerHTML = ''; // Limpa
+                ui.tableHead.innerHTML = '';
                 ui.tableHead.appendChild(tr);
             }
 
-            /**
-             * Carrega todos os dados do banco de horas e armazena localmente.
-             */
             async function loadAllData() {
                 showLoading(true, 'Carregando dados...');
                 try {
-                    const snapshot = await refs.data().get();
-                    state.allData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    applyFilters(); // Renderiza os dados filtrados
+                    const { data, error }_ = await supabaseClient
+                        .from('banco_horas_data')
+                        .select('*');
+
+                    if (error) throw error;
+                    
+                    state.allData = data;
+                    applyFilters();
                 } catch (err) {
                     console.error("Erro ao carregar dados:", err);
                 } finally {
@@ -403,9 +302,6 @@
                 }
             }
 
-            /**
-             * Aplica os filtros e renderiza a tabela.
-             */
             function applyFilters() {
                 const filterChapa = ui.filterChapa.value.toLowerCase();
                 const filterNome = ui.filterNome.value.toLowerCase();
@@ -427,11 +323,8 @@
                 renderTableBody(filteredData);
             }
 
-            /**
-             * Renderiza o corpo da tabela com os dados.
-             */
             function renderTableBody(data) {
-                ui.tableBody.innerHTML = ''; // Limpa o corpo
+                ui.tableBody.innerHTML = '';
                 if (data.length === 0) {
                     ui.tableMessage.classList.remove('hidden');
                     return;
@@ -448,7 +341,6 @@
                         tr.appendChild(td);
                     });
 
-                    // Célula de Ação
                     const tdAction = document.createElement('td');
                     const viewButton = document.createElement('button');
                     viewButton.innerHTML = '<i data-feather="eye" class="h-4 w-4"></i>';
@@ -462,12 +354,9 @@
                 });
 
                 ui.tableBody.appendChild(fragment);
-                feather.replace(); // Atualiza os ícones
+                feather.replace();
             }
 
-            /**
-             * Limpa e prepara o modal para exibição.
-             */
             function resetModal() {
                 ui.modalNome.textContent = '...';
                 ui.modalChapa.textContent = '...';
@@ -475,9 +364,6 @@
                 ui.modalNoHistory.classList.add('hidden');
             }
 
-            /**
-             * Cria uma linha de comparação para o modal.
-             */
             function createComparisonRow(label, oldVal, newVal) {
                 oldVal = oldVal || 0;
                 newVal = newVal || 0;
@@ -485,7 +371,6 @@
                 let diff = 0;
                 let diffClass = 'diff-same';
                 
-                // Tenta converter para número para calcular a diferença
                 const oldNum = parseFloat(String(oldVal).replace(',', '.'));
                 const newNum = parseFloat(String(newVal).replace(',', '.'));
 
@@ -506,36 +391,36 @@
                 `;
             }
 
-            /**
-             * Busca e exibe os detalhes de um colaborador.
-             */
             async function showDetails(chapa) {
                 resetModal();
                 ui.modal.style.display = 'block';
                 showLoading(true, 'Buscando detalhes...');
 
                 try {
-                    // 1. Buscar dados atuais
-                    const docSnap = await refs.doc(chapa).get();
-                    if (!docSnap.exists) {
-                        throw new Error("Colaborador não encontrado.");
-                    }
-                    const currentData = docSnap.data();
+                    const { data: currentData, error: currentError } = await supabaseClient
+                        .from('banco_horas_data')
+                        .select('*')
+                        .eq('CHAPA', chapa)
+                        .single();
+                    
+                    if (currentError) throw currentError;
+
                     ui.modalTitle.textContent = `Detalhes: ${currentData.NOME}`;
                     ui.modalNome.textContent = currentData.NOME;
                     ui.modalChapa.textContent = currentData.CHAPA;
 
-                    // 2. Buscar último histórico
-                    const historySnap = await refs.history()
-                        .orderBy('timestamp', 'desc')
-                        .limit(1)
-                        .get();
-                    
-                    if (historySnap.empty) {
+                    const { data: historyData, error: historyError } = await supabaseClient
+                        .from('banco_horas_history')
+                        .select('data')
+                        .order('timestamp', { ascending: false })
+                        .limit(1);
+
+                    if (historyError) throw historyError;
+
+                    if (!historyData || historyData.length === 0) {
                         ui.modalNoHistory.classList.remove('hidden');
                     } else {
-                        const lastHistoryDoc = historySnap.docs[0].data();
-                        const oldData = lastHistoryDoc.data.find(item => item.CHAPA === chapa);
+                        const oldData = historyData[0].data.find(item => item.CHAPA === chapa);
 
                         if (oldData) {
                             let comparisonHTML = `
@@ -564,9 +449,6 @@
                 }
             }
 
-            /**
-             * Converte texto (CSV/TSV) para um array de objetos.
-             */
             function parsePastedData(text) {
                 const lines = text.trim().split('\n');
                 if (lines.length < 2) throw new Error("Os dados precisam de pelo menos 2 linhas (cabeçalho e dados).");
@@ -574,7 +456,6 @@
                 const delimiter = lines[0].includes('\t') ? '\t' : ',';
                 const headers = lines[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
                 
-                // Valida cabeçalhos
                 const missingHeaders = COLUMN_ORDER.filter(col => !headers.includes(col));
                 if (missingHeaders.length > 0) {
                     throw new Error(`Cabeçalhos faltando: ${missingHeaders.join(', ')}`);
@@ -595,9 +476,6 @@
                 return data;
             }
 
-            /**
-             * Lida com a importação de novos dados.
-             */
             async function handleImport() {
                 ui.importError.classList.add('hidden');
                 const pastedData = ui.dataInput.value;
@@ -619,75 +497,53 @@
                     return;
                 }
 
-                showLoading(true, `Importando ${newData.length} registros...`);
+                showLoading(true, `Enviando ${newData.length} registros para o servidor...`);
 
                 try {
-                    // 1. Obter todos os dados atuais para o histórico
-                    showLoading(true, `Etapa 1/4: Salvando histórico atual...`);
-                    const currentDataSnap = await refs.data().get();
-                    const currentData = currentDataSnap.docs.map(doc => doc.data());
+                    // ATUALIZADO: Chama uma API de proxy/serverless
+                    // Alinhe com seu padrão de autenticação (como em script.js)
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (!session) throw new Error("Sessão inválida ou expirada.");
 
-                    // 2. Salvar o histórico (se houver dados)
-                    if (currentData.length > 0) {
-                        await refs.history().add({
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                            data: currentData,
-                            importedBy: state.userId
-                        });
-                    }
-
-                    // 3. Atualizar/Inserir novos dados em lote
-                    showLoading(true, `Etapa 2/4: Preparando novos dados...`);
-                    const batch = state.db.batch();
-                    newData.forEach(item => {
-                        const docRef = refs.doc(item.CHAPA);
-                        batch.set(docRef, item);
+                    const response = await fetch('/api/import-banco-horas', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`
+                        },
+                        body: JSON.stringify(newData) // Envia os dados parseados
                     });
 
-                    // (Opcional) Limpar dados antigos que não estão na nova lista
-                    // showLoading(true, `Etapa 3/4: Removendo dados antigos...`);
-                    // const newChapas = new Set(newData.map(item => String(item.CHAPA)));
-                    // currentDataSnap.docs.forEach(doc => {
-                    //     if (!newChapas.has(doc.id)) {
-                    //         batch.delete(doc.ref);
-                    //     }
-                    // });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `Erro do servidor: ${response.statusText}`);
+                    }
 
-                    showLoading(true, `Etapa 3/4: Enviando dados...`);
-                    await batch.commit();
+                    const result = await response.json();
 
-                    // 4. Atualizar metadados
-                    showLoading(true, `Etapa 4/4: Finalizando...`);
-                    await refs.metadata().set({
-                        lastUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        updatedBy: state.userId,
-                        recordCount: newData.length
-                    }, { merge: true });
-
-                    ui.dataInput.value = ''; // Limpa o textarea
+                    ui.dataInput.value = '';
                     await loadAllData(); // Recarrega a tabela
+                    await listenToMetadata(); // Atualiza a data
                     showLoading(false);
-                    alert("Dados importados com sucesso!");
+                    alert(result.message || "Dados importados com sucesso!");
 
                 } catch (err) {
                     console.error("Erro durante a importação:", err);
                     showLoading(false);
-                    showImportError(`Erro fatal: ${err.message}`);
+                    showImportError(`Erro fatal: ${err.message}. (Verifique se a API '/api/import-banco-horas' está criada)`);
                 }
             }
-
 
             // --- INICIALIZAÇÃO E EVENTOS ---
 
             async function main() {
                 showLoading(true, 'Conectando...');
-                await initializeFirebase();
-                if (state.auth.currentUser) {
+                await initializeSupabase();
+                if (state.auth) {
                     listenToMetadata();
                     renderTableHeader();
                     await loadAllData();
 
-                    // Event Listeners
                     ui.importButton.addEventListener('click', handleImport);
                     ui.modalClose.addEventListener('click', () => ui.modal.style.display = 'none');
                     window.addEventListener('click', (event) => {
@@ -696,7 +552,6 @@
                         }
                     });
 
-                    // Filtros
                     [ui.filterChapa, ui.filterNome, ui.filterRegional, ui.filterCodFilial].forEach(input => {
                         input.addEventListener('input', applyFilters);
                     });
