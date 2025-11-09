@@ -476,24 +476,45 @@ document.addEventListener('DOMContentLoaded', () => {
                    (filterCodFilial === '' || codfilial.includes(filterCodFilial));
         });
 
-        // *** NOVO: Ordenação (Maior pro Menor) ***
-        filteredData.sort((a, b) => {
-            const minutosA = parseHorasParaMinutos(a.TOTAL_EM_HORA);
-            const minutosB = parseHorasParaMinutos(b.TOTAL_EM_HORA);
-            return minutosB - minutosA; // Descending order
+        // *** CORREÇÃO DE PERFORMANCE ***
+
+        // 1. Mapeia os dados *uma vez* para calcular os minutos.
+        const dataComMinutos = filteredData.map(item => ({
+            ...item,
+            _minutos: parseHorasParaMinutos(item.TOTAL_EM_HORA)
+        }));
+
+        // 2. Ordena usando o valor numérico pré-calculado.
+        dataComMinutos.sort((a, b) => {
+            return b._minutos - a._minutos; // Descending order (do maior para o menor)
         });
 
-        renderTableBody(filteredData);
+        // 3. Limita a exibição para evitar congelamento do navegador
+        const dadosParaRenderizar = dataComMinutos.slice(0, 200);
+
+        // 4. Adiciona uma mensagem se os resultados forem truncados
+        if (dataComMinutos.length > 200) {
+            ui.tableMessage.innerHTML = `Exibindo os 200 principais resultados de ${dataComMinutos.length} totais. Use os filtros para refinar sua busca.`;
+            ui.tableMessage.classList.remove('hidden');
+        } else if (dataComMinutos.length === 0) {
+            ui.tableMessage.innerHTML = 'Nenhum dado encontrado para os filtros aplicados.';
+            ui.tableMessage.classList.remove('hidden');
+        } else {
+             ui.tableMessage.classList.add('hidden');
+        }
+
+        renderTableBody(dadosParaRenderizar); // <-- Renderiza apenas o subconjunto
     }
 
     function renderTableBody(data) {
         ui.tableBody.innerHTML = '';
+        /* // A mensagem agora é controlada pelo 'applyFilters'
         if (data.length === 0) {
             ui.tableMessage.classList.remove('hidden');
             return;
         }
-
         ui.tableMessage.classList.add('hidden');
+        */
         const fragment = document.createDocumentFragment();
 
         data.forEach(item => {
@@ -503,7 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const oldItem = state.previousData[item.CHAPA];
             const horaAnterior = oldItem ? (oldItem.TOTAL_EM_HORA || '-') : '-';
             
-            const minutosAtuais = parseHorasParaMinutos(item.TOTAL_EM_HORA);
+            const minutosAtuais = item._minutos; // USA O VALOR JÁ CALCULADO
             const minutosAnteriores = parseHorasParaMinutos(horaAnterior);
             
             let tendenciaIcon = '<span style="color: #6b7280;">-</span>'; // Cinza (neutro)
