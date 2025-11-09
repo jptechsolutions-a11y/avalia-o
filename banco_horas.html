@@ -287,7 +287,7 @@
             async function loadAllData() {
                 showLoading(true, 'Carregando dados...');
                 try {
-                    const { data, error }_ = await supabaseClient
+                    const { data, error } = await supabaseClient
                         .from('banco_horas_data')
                         .select('*');
 
