@@ -16,7 +16,9 @@ const COLUMN_MAP = {
     'CHAPA': 'Matrícula',
     'NOME': 'Nome',
     'FUNCAO': 'Função',
-    'TOTAL_EM_HORA': 'Horas',
+    'HORA_ANTERIOR': 'Hora Ant.', // NOVO
+    'TOTAL_EM_HORA': 'Hora Atual', // Renomeado
+    'TENDENCIA': 'Tendência', // NOVO
     'VAL_PGTO_BHS': 'Valor'
 };
 const COLUMN_ORDER = [
@@ -24,7 +26,9 @@ const COLUMN_ORDER = [
     'CHAPA',
     'NOME',
     'FUNCAO',
-    'TOTAL_EM_HORA',
+    'HORA_ANTERIOR', // NOVO
+    'TOTAL_EM_HORA', // Renomeado
+    'TENDENCIA', // NOVO
     'VAL_PGTO_BHS'
 ];
 
@@ -120,7 +124,8 @@ const state = {
     isAdmin: false,
     permissoes_filiais: null, // NOVO: Para permissão
     // filial: null, // REMOVIDO: A coluna não existe
-    allData: [] // Cache local
+    allData: [], // Cache local
+    previousData: {} // NOVO: Cache para dados anteriores
 };
 
 
@@ -369,11 +374,33 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadAllData() {
         showLoading(true, 'Carregando dados...');
         try {
-            // ATUALIZADO: Usando supabaseRequest
-            const data = await supabaseRequest('banco_horas_data?select=*', 'GET');
-            if (!data) throw new Error("A resposta dos dados está vazia.");
+            // ATUALIZADO: Carrega dados atuais e histórico em paralelo
+            const [dataRes, historyRes] = await Promise.allSettled([
+                supabaseRequest('banco_horas_data?select=*', 'GET'),
+                supabaseRequest('banco_horas_history?select=data&order=timestamp.desc&limit=1', 'GET')
+            ]);
+
+            if (dataRes.status === 'rejected' || !dataRes.value) {
+                 throw new Error(dataRes.reason?.message || "A resposta dos dados está vazia.");
+            }
             
-            state.allData = data;
+            state.allData = dataRes.value;
+
+            // Processa o histórico se ele for carregado com sucesso
+            if (historyRes.status === 'fulfilled' && historyRes.value && historyRes.value.length > 0) {
+                const oldDataArray = historyRes.value[0].data;
+                state.previousData = oldDataArray.reduce((acc, item) => {
+                    if (item.CHAPA) {
+                        acc[item.CHAPA] = item;
+                    }
+                    return acc;
+                }, {});
+                console.log("Dados de histórico carregados para comparação.");
+            } else {
+                console.warn("Nenhum dado de histórico encontrado para comparação.");
+                state.previousData = {};
+            }
+            
             applyFilters();
         } catch (err) {
             console.error("Erro ao carregar dados:", err);
@@ -382,6 +409,37 @@ document.addEventListener('DOMContentLoaded', () => {
             showLoading(false);
         }
     }
+
+    // NOVA FUNÇÃO: Helper para converter horas em minutos para ordenação/comparação
+    function parseHorasParaMinutos(horaString) {
+        if (!horaString || typeof horaString !== 'string' || horaString === '-') {
+            return 0;
+        }
+        
+        // Trata valores decimais como "85,54" (que podem estar na coluna Valor, mas não Horas)
+        // Se a coluna Horas tiver isso, precisamos tratar.
+        // Assumindo que a coluna horas é "HH:MM" ou "-HH:MM"
+        
+        let isNegative = horaString.startsWith('-');
+        if (isNegative) {
+            horaString = horaString.substring(1);
+        }
+        
+        const parts = horaString.split(':');
+        let totalMinutos = 0;
+        
+        if (parts.length === 2) {
+            const hours = parseInt(parts[0], 10) || 0;
+            const minutes = parseInt(parts[1], 10) || 0;
+            totalMinutos = (hours * 60) + minutes;
+        } else if (!isNaN(parseFloat(horaString.replace(',', '.')))) {
+             // Fallback se for um número (ex: 0)
+             totalMinutos = parseFloat(horaString.replace(',', '.')) * 60; // Assume que é hora decimal se não for HH:MM
+        }
+
+        return isNegative ? -totalMinutos : totalMinutos;
+    }
+
 
     function applyFilters() {
         const filterChapa = ui.filterChapa.value.toLowerCase();
@@ -406,7 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // *** FIM DO FILTRO DE PERMISSÃO ***
 
-        const filteredData = dataToFilter.filter(item => { // <-- MUDADO DE state.allData
+        let filteredData = dataToFilter.filter(item => { // <-- MUDADO DE state.allData
             const chapa = String(item.CHAPA || '').toLowerCase();
             const nome = String(item.NOME || '').toLowerCase();
             const regional = String(item.REGIONAL || '').toLowerCase();
@@ -416,6 +474,13 @@ document.addEventListener('DOMContentLoaded', () => {
                    (filterNome === '' || nome.includes(filterNome)) &&
                    (filterRegional === '' || regional.includes(filterRegional)) &&
                    (filterCodFilial === '' || codfilial.includes(filterCodFilial));
+        });
+
+        // *** NOVO: Ordenação (Maior pro Menor) ***
+        filteredData.sort((a, b) => {
+            const minutosA = parseHorasParaMinutos(a.TOTAL_EM_HORA);
+            const minutosB = parseHorasParaMinutos(b.TOTAL_EM_HORA);
+            return minutosB - minutosA; // Descending order
         });
 
         renderTableBody(filteredData);
@@ -434,11 +499,43 @@ document.addEventListener('DOMContentLoaded', () => {
         data.forEach(item => {
             const tr = document.createElement('tr');
             
+            // *** NOVO: CÁLCULO DA TENDÊNCIA E HORA ANTERIOR ***
+            const oldItem = state.previousData[item.CHAPA];
+            const horaAnterior = oldItem ? (oldItem.TOTAL_EM_HORA || '-') : '-';
+            
+            const minutosAtuais = parseHorasParaMinutos(item.TOTAL_EM_HORA);
+            const minutosAnteriores = parseHorasParaMinutos(horaAnterior);
+            
+            let tendenciaIcon = '<span style="color: #6b7280;">-</span>'; // Cinza (neutro)
+            
+            if (horaAnterior !== '-' && minutosAnteriores !== minutosAtuais) {
+                if (minutosAtuais > minutosAnteriores) {
+                    // Melhorou (aumentou o saldo)
+                    tendenciaIcon = '<i data-feather="arrow-up-right" style="color: #16a34a;"></i>'; // Verde
+                } else if (minutosAtuais < minutosAnteriores) {
+                    // Piorou (diminuiu o saldo)
+                    tendenciaIcon = '<i data-feather="arrow-down-right" style="color: #dc2626;"></i>'; // Vermelho
+                }
+            }
+            
+            // Adiciona os valores calculados ao item para o loop
+            item.HORA_ANTERIOR = horaAnterior;
+            item.TENDENCIA = tendenciaIcon; 
+            // *** FIM DO CÁLCULO ***
+
+
             // APLICA ESTILOS VISUAIS
             COLUMN_ORDER.forEach(key => {
                 const td = document.createElement('td');
                 const value = item[key] || '-';
-                td.textContent = value;
+                
+                // Lógica especial para TENDENCIA
+                if (key === 'TENDENCIA') {
+                    td.innerHTML = value; // value é o <i>
+                    td.style.textAlign = 'center';
+                } else {
+                    td.textContent = value;
+                }
                 
                 // Adiciona classes para melhorar a visualização
                 if (key === 'NOME' || key === 'FUNCAO') {
@@ -450,6 +547,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     td.style.textAlign = 'right'; // Alinha números à direita
                     td.style.fontFamily = 'monospace'; // Melhora leitura de números
                     td.style.paddingRight = '1.5rem';
+                }
+
+                // Novo styling para HORA_ANTERIOR
+                if (key === 'HORA_ANTERIOR') {
+                     td.style.textAlign = 'right';
+                     td.style.fontFamily = 'monospace';
+                     td.style.paddingRight = '1.5rem';
+                     td.style.color = '#6b7280'; // Cinza
                 }
                 
                 if (key === 'TOTAL_EM_HORA') {
