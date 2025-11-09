@@ -178,11 +178,26 @@
                                 <textarea id="dataInput" class="w-full h-48" placeholder="Cole os dados aqui..."></textarea>
                             </div>
                             
-                            <button id="importButton" class="mt-4 btn btn-success flex items-center gap-2">
-                                <i data-feather="upload" class="h-5 w-5"></i>
-                                Importar e Atualizar Dados
-                            </button>
-                            <p class="text-xs text-gray-500 mt-2"><strong>Atenção:</strong> Isso salvará os dados atuais no histórico e substituirá a base principal pelos novos dados.</p>
+                            <!-- BOTÕES ATUALIZADOS -->
+                            <div class="flex items-center gap-4 mt-4">
+                                <button id="previewButton" class="btn btn-info flex items-center gap-2">
+                                    <i data-feather="search" class="h-5 w-5"></i>
+                                    Pré-visualizar 15 Linhas
+                                </button>
+                                <button id="importButton" class="btn btn-success flex items-center gap-2">
+                                    <i data-feather="upload" class="h-5 w-5"></i>
+                                    Importar e Atualizar Dados
+                                </button>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2"><strong>Atenção:</strong> A importação salvará os dados atuais no histórico e substituirá a base principal.</p>
+                        
+                            <!-- NOVO CONTAINER DA PRÉ-VISUALIZAÇÃO -->
+                            <div id="previewContainer" class="mt-6" style="display: none;">
+                                <h4 class="text-lg font-semibold text-gray-800 mb-2">Pré-visualização</h4>
+                                <div id="previewTableContainer" class="table-container">
+                                    <!-- A tabela de preview será injetada aqui -->
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
