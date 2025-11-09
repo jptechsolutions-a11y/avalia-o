@@ -1,14 +1,33 @@
 // Mapeamento de Cabeçalhos
-const COLUMN_MAP = {
+const COLUMN_MAP_ORIGINAL = { // Manter o original para o parse e preview
     'CHAPA': 'Chapa', 'NOME': 'Nome', 'REGIONAL': 'Regional', 'BANDEIRA': 'Bandeira',
     'CODFILIAL': 'Cód. Filial', 'FUNCAO': 'Função', 'SECAO': 'Seção', 
     'TOTAL_EM_HORA': 'Total (Hora)', 'TOTAL_NEGATIVO': 'Total Negativo',
     'VAL_PGTO_BHS': 'Valor Pgto. BH', 'SITUACAO': 'Situação', 'Total Geral': 'Total Geral'
 };
-const COLUMN_ORDER = [
+const COLUMN_ORDER_ORIGINAL = [
     'CHAPA', 'NOME', 'REGIONAL', 'BANDEIRA', 'CODFILIAL', 'FUNCAO', 'SECAO', 
     'TOTAL_EM_HORA', 'TOTAL_NEGATIVO', 'VAL_PGTO_BHS', 'SITUACAO', 'Total Geral'
 ];
+
+// NOVAS CONSTANTES PARA EXIBIÇÃO (SOLICITAÇÃO DO JP)
+const COLUMN_MAP = {
+    'CODFILIAL': 'Filial',
+    'CHAPA': 'Matrícula',
+    'NOME': 'Nome',
+    'FUNCAO': 'Função',
+    'TOTAL_EM_HORA': 'Horas',
+    'VAL_PGTO_BHS': 'Valor'
+};
+const COLUMN_ORDER = [
+    'CODFILIAL',
+    'CHAPA',
+    'NOME',
+    'FUNCAO',
+    'TOTAL_EM_HORA',
+    'VAL_PGTO_BHS'
+];
+
 
 // ADICIONADO: URL do Proxy
 const SUPABASE_PROXY_URL = '/api/proxy';
@@ -99,6 +118,8 @@ const state = {
     auth: null,
     userId: null,
     isAdmin: false,
+    permissoes_filiais: null, // NOVO: Para permissão
+    filial: null,             // NOVO: Para permissão
     allData: [] // Cache local
 };
 
@@ -121,6 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
         dataInput: document.getElementById('dataInput'),
         importError: document.getElementById('importError'),
         importErrorMessage: document.getElementById('importErrorMessage'),
+        previewButton: document.getElementById('previewButton'), // NOVO
+        previewContainer: document.getElementById('previewContainer'), // NOVO
+        previewTableContainer: document.getElementById('previewTableContainer'), // NOVO
         lastUpdated: document.getElementById('lastUpdated'),
         tableHead: document.getElementById('tableHead'),
         tableBody: document.getElementById('tableBody'),
@@ -193,8 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('auth_token', session.access_token);
 
 
-            // --- ATUALIZAÇÃO: Usando o Proxy ---
-            const endpoint = `usuarios?auth_user_id=eq.${state.userId}&select=nome,role,profile_picture_url`;
+            // --- ATUALIZAÇÃO: Usando o Proxy e buscando permissões ---
+            const endpoint = `usuarios?auth_user_id=eq.${state.userId}&select=nome,role,profile_picture_url,filial,permissoes_filiais`;
             let profile = null;
             let profileError = null;
 
@@ -224,7 +248,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (profile.profile_picture_url) {
                     ui.userAvatar.src = profile.profile_picture_url;
                 }
+                // *** NOVO: Armazena permissões no state ***
                 state.isAdmin = (profile.role === 'admin');
+                state.filial = profile.filial || null;
+                state.permissoes_filiais = profile.permissoes_filiais || null; // Vem como array do Supabase
             }
             
             // Mostra/oculta painel admin e exibe o app
@@ -361,7 +388,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const filterRegional = ui.filterRegional.value.toLowerCase();
         const filterCodFilial = ui.filterCodFilial.value.toLowerCase();
 
-        const filteredData = state.allData.filter(item => {
+        // *** NOVO: Filtro de Permissão ***
+        let dataToFilter;
+        if (state.isAdmin) {
+            dataToFilter = state.allData; // Admin vê tudo
+        } else if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            // Usuário com lista de filiais permitidas
+            dataToFilter = state.allData.filter(item => 
+                state.permissoes_filiais.includes(String(item.CODFILIAL).trim())
+            );
+        } else if (state.filial) {
+             // Usuário com UMA filial principal
+            dataToFilter = state.allData.filter(item => 
+                String(item.CODFILIAL).trim() === String(state.filial).trim()
+            );
+        } else {
+            // Usuário não-admin sem filiais setadas = não vê nada
+            dataToFilter = []; 
+            console.warn("Usuário não é admin e não possui filiais permitidas.");
+        }
+        // *** FIM DO FILTRO DE PERMISSÃO ***
+
+        const filteredData = dataToFilter.filter(item => { // <-- MUDADO DE state.allData
             const chapa = String(item.CHAPA || '').toLowerCase();
             const nome = String(item.NOME || '').toLowerCase();
             const regional = String(item.REGIONAL || '').toLowerCase();
@@ -388,9 +436,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         data.forEach(item => {
             const tr = document.createElement('tr');
+            
+            // APLICA ESTILOS VISUAIS
             COLUMN_ORDER.forEach(key => {
                 const td = document.createElement('td');
-                td.textContent = item[key] || '-';
+                const value = item[key] || '-';
+                td.textContent = value;
+                
+                // Adiciona classes para melhorar a visualização
+                if (key === 'NOME' || key === 'FUNCAO') {
+                    td.style.whiteSpace = 'normal'; // Permite quebra de linha
+                    td.style.minWidth = '200px';
+                }
+                
+                if (key === 'TOTAL_EM_HORA' || key === 'VAL_PGTO_BHS' || key === 'CODFILIAL' || key === 'CHAPA') {
+                    td.style.textAlign = 'right'; // Alinha números à direita
+                    td.style.fontFamily = 'monospace'; // Melhora leitura de números
+                    td.style.paddingRight = '1.5rem';
+                }
+                
+                if (key === 'TOTAL_EM_HORA') {
+                    if (String(value).includes('-')) {
+                        td.style.color = '#dc2626'; // Vermelho (tailwind red-600)
+                        td.style.fontWeight = 'bold';
+                    } else if (value !== '-' && value !== '0,00' && value !== '0' && value !== '00:00') {
+                        td.style.color = '#16a34a'; // Verde (tailwind green-600)
+                        td.style.fontWeight = 'bold';
+                    }
+                }
+                
+                if (key === 'VAL_PGTO_BHS') {
+                     if (value !== '-' && value !== '0,00' && value !== '0' && !String(value).includes('-')) {
+                        td.style.color = '#0077B6'; // Azul (accent)
+                        td.style.fontWeight = 'bold';
+                    }
+                }
+
                 tr.appendChild(td);
             });
 
@@ -499,6 +580,61 @@ document.addEventListener('DOMContentLoaded', () => {
             showLoading(false);
         }
     }
+    
+    // NOVA FUNÇÃO DE PRÉ-VISUALIZAÇÃO
+    function handlePreview() {
+        ui.importError.classList.add('hidden');
+        ui.previewContainer.style.display = 'none';
+        ui.previewTableContainer.innerHTML = '';
+        const pastedData = ui.dataInput.value;
+
+        if (!pastedData) {
+            showImportError("A área de texto está vazia para pré-visualizar.");
+            return;
+        }
+
+        let parsedData;
+        try {
+            parsedData = parsePastedData(pastedData);
+        } catch (err) {
+            showImportError(err.message);
+            return;
+        }
+
+        if (parsedData.length === 0) {
+            showImportError("Nenhum dado válido encontrado.");
+            return;
+        }
+
+        const previewData = parsedData.slice(0, 15);
+        
+        // Usa as colunas originais (COLUMN_ORDER_ORIGINAL) para o preview
+        const headers = COLUMN_ORDER_ORIGINAL;
+        
+        let tableHTML = '<table class="tabela"><thead><tr>';
+        headers.forEach(key => {
+            tableHTML += `<th>${COLUMN_MAP_ORIGINAL[key] || key}</th>`;
+        });
+        tableHTML += '</tr></thead><tbody>';
+
+        previewData.forEach(item => {
+            tableHTML += '<tr>';
+            headers.forEach(key => {
+                tableHTML += `<td>${item[key] || '-'}</td>`;
+            });
+            tableHTML += '</tr>';
+        });
+
+        tableHTML += '</tbody></table>';
+
+        ui.previewTableContainer.innerHTML = tableHTML;
+        ui.previewContainer.style.display = 'block';
+        
+        // Mostra uma mensagem de sucesso no lugar do erro
+        ui.importErrorMessage.textContent = `Mostrando ${previewData.length} de ${parsedData.length} registros.`;
+        ui.importError.className = "alert alert-success mb-4"; // Muda a cor para verde
+        ui.importError.classList.remove('hidden');
+    }
 
     function parsePastedData(text) {
         const lines = text.trim().split('\n');
@@ -507,7 +643,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const delimiter = lines[0].includes('\t') ? '\t' : ',';
         const headers = lines[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
         
-        const missingHeaders = COLUMN_ORDER.filter(col => !headers.includes(col));
+        // USA O ORIGINAL MAP PARA VALIDAR
+        const missingHeaders = COLUMN_ORDER_ORIGINAL.filter(col => !headers.includes(col));
         if (missingHeaders.length > 0) {
             throw new Error(`Cabeçalhos faltando: ${missingHeaders.join(', ')}`);
         }
@@ -516,8 +653,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const values = line.split(delimiter).map(v => v.trim().replace(/"/g, ''));
             const obj = {};
             headers.forEach((header, index) => {
-                // Apenas adiciona colunas que estão no COLUMN_ORDER
-                if (COLUMN_ORDER.includes(header)) {
+                // USA O ORIGINAL MAP PARA PARSEAR
+                if (COLUMN_ORDER_ORIGINAL.includes(header)) {
                      obj[header] = values[index] || null;
                 }
             });
@@ -534,6 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleImport() {
         ui.importError.classList.add('hidden');
+        ui.previewContainer.style.display = 'none'; // NOVO: Esconde o preview ao importar
         const pastedData = ui.dataInput.value;
         if (!pastedData) {
             showImportError("A área de texto está vazia.");
@@ -654,6 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // --- Listeners ---
                 ui.importButton.addEventListener('click', handleImport);
+                ui.previewButton.addEventListener('click', handlePreview); // NOVO
                 ui.modalClose.addEventListener('click', () => ui.modal.style.display = 'none');
                 window.addEventListener('click', (event) => {
                     if (event.target == ui.modal) {
