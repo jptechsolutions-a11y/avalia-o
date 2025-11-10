@@ -16,6 +16,8 @@
     
     <!-- NOVO: Chart.js para os gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <!-- NOVO: Plugin de % nos gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
     <style>
         /* Estilos específicos do banco_horas.html (mantidos) */
@@ -141,55 +143,77 @@
                         <div class="filter-bar">
                             <div class="form-group">
                                 <label for="filterRegionalDash">Filtrar por Regional</label>
-                                <input type="text" id="filterRegionalDash" placeholder="Todas as regionais" list="regionalListDash" onchange="initializeDashboard()">
-                                <datalist id="regionalListDash">
+                                <!-- MUDANÇA: de input para select -->
+                                <select id="filterRegionalDash">
+                                    <option value="">Todas as regionais</option>
                                     <!-- Opções serão populadas pelo JS -->
-                                </datalist>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label for="filterCodFilialDash">Filtrar por Cód. Filial</label>
-                                <input type="text" id="filterCodFilialDash" placeholder="Todas as filiais" list="filialListDash" onchange="initializeDashboard()">
-                                <datalist id="filialListDash">
+                                <!-- MUDANÇA: de input para select -->
+                                <select id="filterCodFilialDash">
+                                    <option value="">Todas as filiais</option>
                                     <!-- Opções serão populadas pelo JS -->
-                                </datalist>
+                                </select>
                             </div>
                              <div class="form-group">
                                 <label for="filterSecaoDash">Filtrar por Seção</label>
-                                <input type="text" id="filterSecaoDash" placeholder="Todas as seções" list="secaoListDash" onchange="initializeDashboard()">
-                                <datalist id="secaoListDash">
+                                <!-- MUDANÇA: de input para select -->
+                                <select id="filterSecaoDash">
+                                    <option value="">Todas as seções</option>
                                     <!-- Opções serão populadas pelo JS -->
-                                </datalist>
+                                </select>
                             </div>
                              <div class="form-group">
                                 <label for="filterFuncaoDash">Filtrar por Função</label>
-                                <input type="text" id="filterFuncaoDash" placeholder="Todas as funções" list="funcaoListDash" onchange="initializeDashboard()">
-                                <datalist id="funcaoListDash">
+                                <!-- MUDANÇA: de input para select -->
+                                <select id="filterFuncaoDash">
+                                    <option value="">Todas as funções</option>
                                     <!-- Opções serão populadas pelo JS -->
-                                </datalist>
+                                </select>
                             </div>
                         </div>
 
                         <!-- Cards de Estatísticas -->
                         <div class="stats-grid">
-                            <div class="stat-card-dash">
-                                <div class="stat-number" id="statTotalColab">0</div>
-                                <div class="stat-label">Colaboradores</div>
-                                <div class="stat-change" id="statChangeColab">
-                                    <!-- Indicador de mudança -->
+                            <!-- ATUALIZADO: Card com ícone -->
+                            <div class="stat-card-dash flex items-start gap-4">
+                                <div class="p-3 rounded-lg bg-blue-100 text-blue-600">
+                                    <i data-feather="users" class="h-6 w-6"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="stat-number" id="statTotalColab">0</div>
+                                    <div class="stat-label">Colaboradores</div>
+                                    <div class="stat-change" id="statChangeColab">
+                                        <!-- Indicador de mudança -->
+                                    </div>
                                 </div>
                             </div>
-                            <div class="stat-card-dash">
-                                <div class="stat-number" id="statTotalHoras">0</div>
-                                <div class="stat-label">Total de Horas</div>
-                                <div class="stat-change" id="statChangeHoras">
-                                    <!-- Indicador de mudança -->
+                             <!-- ATUALIZADO: Card com ícone -->
+                            <div class="stat-card-dash flex items-start gap-4">
+                                <div class="p-3 rounded-lg bg-red-100 text-red-600">
+                                    <i data-feather="clock" class="h-6 w-6"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="stat-number" id="statTotalHoras">0</div>
+                                    <div class="stat-label">Total de Horas</div>
+                                    <div class="stat-change" id="statChangeHoras">
+                                        <!-- Indicador de mudança -->
+                                    </div>
                                 </div>
                             </div>
-                            <div class="stat-card-dash">
-                                <div class="stat-number" id="statTotalValor">R$ 0</div>
-                                <div class="stat-label">Valor Total (Pagamento)</div>
-                                <div class="stat-change" id="statChangeValor">
-                                    <!-- Indicador de mudança -->
+                             <!-- ATUALIZADO: Card com ícone -->
+                            <div class="stat-card-dash flex items-start gap-4">
+                                <div class="p-3 rounded-lg bg-green-100 text-green-600">
+                                    <i data-feather="dollar-sign" class="h-6 w-6"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="stat-number" id="statTotalValor">R$ 0</div>
+                                    <div class="stat-label">Valor Total (Pagamento)</div>
+                                    <div class="stat-change" id="statChangeValor">
+                                        <!-- Indicador de mudança -->
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -223,12 +247,22 @@
                                             <th>Valor (Pagamento)</th>
                                             <th>Total de Horas</th>
                                             <th>Colaboradores</th>
+                                            <th>Tendência (Valor)</th> <!-- NOVO -->
                                         </tr>
                                     </thead>
                                     <tbody id="tableRankingFilialBody">
                                         <!-- Dados serão preenchidos pelo JS -->
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+
+                        <!-- NOVO: Gráfico Comparativo -->
+                        <div class="chart-card">
+                            <h3><i data-feather="bar-chart-2"></i> Comparativo por Regional (Valor Atual vs. Anterior)</h3>
+                            <p class="text-sm text-gray-500 -mt-4 mb-4">Compara o valor total do banco de horas por regional com a última importação.</p>
+                            <div class="chart-container-wrapper" style="height: 350px;">
+                                <canvas id="chartComparativoRegional"></canvas>
                             </div>
                         </div>
                     </div>
