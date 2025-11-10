@@ -9,10 +9,12 @@ const DATA_TABLE = 'pendencias_documentos_data';
 const META_TABLE = 'pendencias_documentos_meta';
 
 export default async (req, res) => {
+    // 1. Validação do Método
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Método não permitido' });
     }
 
+    // 2. Validação das Variáveis de Ambiente
     if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
         console.error("[import-pendencias] Variáveis de ambiente Supabase não configuradas.");
         return res.status(500).json({ 
@@ -62,9 +64,7 @@ export default async (req, res) => {
         
         // --- INÍCIO DO PROCESSO DE IMPORTAÇÃO (Limpa e Insere) ---
         
-        // Etapa 1: Limpar a tabela existente (DELETE)
-        // Como a tabela não tem RLS configurado para filtrar por user.id, podemos
-        // usar o DELETE direto, pois apenas admins podem chamar esta API.
+        // Etapa 1: Limpar a tabela existente (DELETE ALL)
         const { error: deleteError } = await supabaseAdmin
             .from(DATA_TABLE)
             .delete()
