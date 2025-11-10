@@ -293,7 +293,8 @@ async function loadInitialData() {
     try {
         // Busca todos os dados da tabela, pois não tem histórico para buscar
         const dataQuery = `${DATA_TABLE}?select=*`;
-        const metaQuery = `${META_TABLE}?id=eq.1&select=lastUpdatedAt&limit=1`;
+        // CORREÇÃO: Usar 'lastupdatedat' em minúsculas (conforme o script SQL)
+        const metaQuery = `${META_TABLE}?id=eq.1&select=lastupdatedat&limit=1`;
         
         const [dataRes, metaRes] = await Promise.all([
             supabaseRequest(dataQuery, 'GET'),
@@ -304,7 +305,8 @@ async function loadInitialData() {
 
         // Atualiza a data da última importação
         if (metaRes && metaRes.length > 0) {
-            const timestamp = utils.formatTimestamp(metaRes[0].lastUpdatedAt);
+            // CORREÇÃO: Usar 'lastupdatedat' em minúsculas
+            const timestamp = utils.formatTimestamp(metaRes[0].lastupdatedat);
             document.getElementById('lastUpdatedDash').textContent = timestamp;
         } else {
              document.getElementById('lastUpdatedDash').textContent = 'Nenhuma importação registrada.';
