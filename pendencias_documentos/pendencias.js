@@ -958,6 +958,14 @@ async function handleImport() {
         showLoading(false);
         return;
     }
+    
+    // NOVO: Loga o status do token antes de enviar
+    if (authToken.length < 50) {
+        console.warn("Token de autenticação muito curto, pode ser inválido ou corrompido.");
+    } else {
+        console.log("Token de autenticação encontrado e será enviado.");
+    }
+
 
     try {
         const response = await fetch(IMPORT_API_URL, {
@@ -974,6 +982,10 @@ async function handleImport() {
             const errorData = await response.json();
             // Adicionado log para ajudar na depuração
             console.error("Erro da API /api/import-pendencias:", errorData); 
+            // Se o erro for 401 ou 403, sugere o login
+            if (response.status === 401 || response.status === 403) {
+                mostrarNotificacao("Sessão expirada ou permissão insuficiente. Faça login novamente.", 'error', 8000);
+            }
             throw new Error(errorData.error || `Erro do servidor: ${response.statusText}`);
         }
 
