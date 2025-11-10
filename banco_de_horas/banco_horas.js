@@ -126,7 +126,22 @@ const state = {
     userMatricula: null, // <-- ADICIONADO
     allData: [], // MUDANÇA: Isso não é mais "TUDO", é apenas a VIEW ATUAL
     previousData: {}, // NOVO: Cache para dados anteriores
-    setupCompleto: false // <-- NOVA FLAG
+    setupCompleto: false, // <-- NOVA FLAG
+    
+    // NOVO: Estado do Dashboard
+    charts: { 
+        resumoSecao: null, 
+        resumoFuncao: null 
+    },
+    dashboardData: [],
+    dashboardHistory: [],
+    // Listas únicas para filtros do dashboard
+    listasFiltros: {
+        regional: [],
+        codfilial: [],
+        secao: [],
+        funcao: []
+    }
 };
 
 
@@ -174,8 +189,27 @@ document.addEventListener('DOMContentLoaded', () => {
         profileDropdown: document.getElementById('profileDropdown'),
         profileDropdownButton: document.getElementById('profileDropdownButton'),
         configLink: document.getElementById('configLink'),
+        
+        // Views
         acompanhamentoView: document.getElementById('acompanhamentoView'),
-        configuracoesView: document.getElementById('configuracoesView')
+        configuracoesView: document.getElementById('configuracoesView'),
+        dashboardView: document.getElementById('dashboardView'),
+        
+        // Elementos do Dashboard
+        lastUpdatedDash: document.getElementById('lastUpdatedDash'),
+        filterRegionalDash: document.getElementById('filterRegionalDash'),
+        filterCodFilialDash: document.getElementById('filterCodFilialDash'),
+        filterSecaoDash: document.getElementById('filterSecaoDash'),
+        filterFuncaoDash: document.getElementById('filterFuncaoDash'),
+        statTotalColab: document.getElementById('statTotalColab'),
+        statTotalHoras: document.getElementById('statTotalHoras'),
+        statTotalValor: document.getElementById('statTotalValor'),
+        statChangeColab: document.getElementById('statChangeColab'),
+        statChangeHoras: document.getElementById('statChangeHoras'),
+        statChangeValor: document.getElementById('statChangeValor'),
+        canvasResumoSecao: document.getElementById('chartResumoSecao'),
+        canvasResumoFuncao: document.getElementById('chartResumoFuncao'),
+        tableRankingFilialBody: document.querySelector('#tableRankingFilial tbody'),
     };
 
     // --- FUNÇÕES ---
@@ -296,12 +330,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await supabaseRequest('banco_horas_meta?id=eq.1&select=lastUpdatedAt&limit=1', 'GET');
             
             if (data && data.length > 0) {
-                ui.lastUpdated.textContent = formatTimestamp(data[0].lastUpdatedAt);
+                const timestamp = formatTimestamp(data[0].lastUpdatedAt);
+                ui.lastUpdated.textContent = timestamp;
+                ui.lastUpdatedDash.textContent = timestamp; // NOVO: Atualiza o dashboard também
             } else {
                 ui.lastUpdated.textContent = 'Nenhuma atualização registrada.';
+                ui.lastUpdatedDash.textContent = 'Nenhuma atualização registrada.'; // NOVO
             }
         } catch (error) {
              ui.lastUpdated.textContent = 'Erro ao buscar.';
+             ui.lastUpdatedDash.textContent = 'Erro ao buscar.'; // NOVO
              console.warn("Erro ao buscar metadados:", error);
         }
     }
@@ -326,27 +364,32 @@ document.addEventListener('DOMContentLoaded', () => {
         // Fecha o dropdown de perfil se estiver aberto
         if (ui.profileDropdown) ui.profileDropdown.classList.remove('open');
         
+        
+        // **** NOVO: Bloco de setup único ****
+        // Roda a configuração inicial (filtros, histórico) APENAS UMA VEZ
+        if (!state.setupCompleto && state.auth) {
+            console.log("Executando setup de inicialização único...");
+            // Essas funções carregam dados essenciais na primeira vez
+            listenToMetadata(); // Data da última atualização
+            renderTableHeader(); // Cabeçalho da tabela de acompanhamento
+            populateFilterDatalists(); // Listas de filtros (para ambas as views)
+            loadHistoryData(); // Cache de histórico (para modais e dashboard)
+            
+            state.setupCompleto = true; // Marca como feito para não repetir
+        }
+        // **** FIM DO BLOCO ****
+        
+        
         // Carrega dados específicos da view
         try {
             switch (viewId) {
-                case 'acompanhamentoView':
-                    // Roda a configuração inicial (filtros, histórico) APENAS UMA VEZ
-                    if (!state.setupCompleto) {
-                        console.log("Setup inicial da view Acompanhamento...");
-                        listenToMetadata();
-                        renderTableHeader();
-                        populateFilterDatalists(); 
-                        loadHistoryData();
-                        state.setupCompleto = true; // Marca como feito
-                    }
-                    
-                    // ATUALIZAÇÃO: Roda o applyFilters (que busca dados) SEMPRE
-                    // que a view é mostrada.
-                    console.log("Exibindo view Acompanhamento, recarregando dados...");
-                    applyFilters(); // Busca os dados mais recentes da tabela
-                    
+                case 'dashboardView':
+                    initializeDashboard(); // Chama a função do dashboard
                     break;
-
+                case 'acompanhamentoView':
+                    // O setup já foi feito, agora só aplica os filtros da tabela
+                    applyFilters(); 
+                    break;
                 case 'configuracoesView':
                     // Nenhuma carga de dados necessária ao apenas *mostrar*
                     break;
@@ -366,11 +409,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleHashChange() {
         if (!state.auth) return; // Não faz nada se não estiver logado
         
-        const hash = window.location.hash || '#acompanhamento';
-        let viewId = 'acompanhamentoView';
-        let navElement = document.querySelector('a[href="#acompanhamento"]');
+        const hash = window.location.hash || '#dashboard'; // NOVO: Dashboard é o padrão
+        let viewId = 'dashboardView'; // NOVO: Dashboard é o padrão
+        let navElement = document.querySelector('a[href="#dashboard"]');
 
-        if (hash === '#configuracoes' && state.isAdmin) {
+        if (hash === '#acompanhamento') {
+            viewId = 'acompanhamentoView';
+            navElement = document.querySelector('a[href="#acompanhamento"]');
+        } else if (hash === '#configuracoes' && state.isAdmin) {
             viewId = 'configuracoesView';
             navElement = document.querySelector('a[href="#configuracoes"]');
         }
@@ -400,74 +446,87 @@ document.addEventListener('DOMContentLoaded', () => {
     // Carrega SÓ o histórico para os modais.
     async function loadHistoryData() {
         try {
+            // Pega o último registro de histórico
             const historyRes = await supabaseRequest('banco_horas_history?select=data&order=timestamp.desc&limit=1', 'GET');
             if (historyRes && historyRes.length > 0) {
                 const oldDataArray = historyRes[0].data;
+                // Salva o array bruto
+                state.dashboardHistory = oldDataArray; 
+                // Salva o mapa por CHAPA (para a tabela e modal)
                 state.previousData = oldDataArray.reduce((acc, item) => {
                     if (item.CHAPA) acc[item.CHAPA] = item;
                     return acc;
                 }, {});
-                console.log("Dados de histórico carregados.");
+                console.log("Dados de histórico (previousData e dashboardHistory) carregados.");
             } else {
                 console.warn("Nenhum dado de histórico encontrado.");
                 state.previousData = {};
+                state.dashboardHistory = [];
             }
         } catch (e) {
             console.error("Falha ao carregar histórico:", e.message);
         }
     }
     
-    // ****** FUNÇÃO MODIFICADA (PARA USAR RPC) ******
-    // Busca os filtros únicos direto do banco de dados
+    // ****** FUNÇÃO MODIFICADA (PARA USAR RPC E POPULAR FILTROS DO DASHBOARD) ******
     async function populateFilterDatalists() { 
+        // Filtros da Tabela
         const regionalList = document.getElementById('regionalList');
         const filialList = document.getElementById('filialList');
-        if (!regionalList || !filialList) return;
+        
+        // Filtros do Dashboard
+        const regionalListDash = document.getElementById('regionalListDash');
+        const filialListDash = document.getElementById('filialListDash');
+        const secaoListDash = document.getElementById('secaoListDash');
+        const funcaoListDash = document.getElementById('funcaoListDash');
 
         console.log("Populando filtros (datalists) via RPC...");
         try {
-            // ****** MUDANÇA (CHAMADA RPC) ******
-            // Em vez de ler a tabela, chamamos as funções do banco
-            
-            // 1. Buscar Filiais Únicas
-            const filiaisResponse = await supabaseRequest('rpc/get_distinct_codfilial', 'POST');
-            
-            // 2. Buscar Regionais Únicas
-            const regionaisResponse = await supabaseRequest('rpc/get_distinct_regional', 'POST');
-            // ****** FIM DA MUDANÇA ******
+            // Chama todas as RPCs em paralelo
+            const [filiaisRes, regionaisRes, secoesRes, funcoesRes] = await Promise.all([
+                supabaseRequest('rpc/get_distinct_codfilial', 'POST'),
+                supabaseRequest('rpc/get_distinct_regional', 'POST'),
+                supabaseRequest('rpc/get_distinct_secao', 'POST'),
+                supabaseRequest('rpc/get_distinct_funcao', 'POST')
+            ]);
 
-            if (!filiaisResponse || filiaisResponse.length === 0) {
-                console.warn("Não foi possível popular as filiais via RPC.");
-            } else {
-                const sortedFiliais = filiaisResponse
-                    .map(item => item.codfilial) // Extrai o valor
+            // Processa Filiais
+            if (filiaisRes && filiaisRes.length > 0) {
+                state.listasFiltros.codfilial = filiaisRes
+                    .map(item => item.codfilial)
                     .sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
                 
-                filialList.innerHTML = '';
-                sortedFiliais.forEach(filial => {
-                    filialList.innerHTML += `<option value="${filial}"></option>`;
-                });
-                console.log(`Filtro de Filiais populado com ${sortedFiliais.length} filiais únicas.`);
+                const filialOptions = state.listasFiltros.codfilial.map(f => `<option value="${f}"></option>`).join('');
+                if(filialList) filialList.innerHTML = filialOptions;
+                if(filialListDash) filialListDash.innerHTML = filialOptions;
             }
 
-            if (!regionaisResponse || regionaisResponse.length === 0) {
-                    console.warn("Não foi possível popular as regionais via RPC.");
-            } else {
-                const sortedRegionais = regionaisResponse
-                    .map(item => item.regional) // Extrai o valor
-                    .sort();
-
-                regionalList.innerHTML = '';
-                sortedRegionais.forEach(regional => {
-                    regionalList.innerHTML += `<option value="${regional}"></option>`;
-                });
-                console.log(`Filtro de Regionais populado com ${sortedRegionais.length} regionais únicas.`);
+            // Processa Regionais
+            if (regionaisRes && regionaisRes.length > 0) {
+                state.listasFiltros.regional = regionaisRes.map(item => item.regional).sort();
+                
+                const regionalOptions = state.listasFiltros.regional.map(r => `<option value="${r}"></option>`).join('');
+                if(regionalList) regionalList.innerHTML = regionalOptions;
+                if(regionalListDash) regionalListDash.innerHTML = regionalOptions;
             }
+            
+            // Processa Seções (só dashboard)
+            if (secoesRes && secoesRes.length > 0) {
+                state.listasFiltros.secao = secoesRes.map(item => item.secao).sort();
+                if(secaoListDash) secaoListDash.innerHTML = state.listasFiltros.secao.map(s => `<option value="${s}"></option>`).join('');
+            }
+            
+            // Processa Funções (só dashboard)
+            if (funcoesRes && funcoesRes.length > 0) {
+                state.listasFiltros.funcao = funcoesRes.map(item => item.funcao).sort();
+                if(funcaoListDash) funcaoListDash.innerHTML = state.listasFiltros.funcao.map(f => `<option value="${f}"></option>`).join('');
+            }
+            
+            console.log("Filtros populados:", state.listasFiltros);
     
         } catch (e) {
             console.error("Falha ao popular datalists via RPC:", e);
-            // Mostra um erro amigável
-            mostrarNotificacao("Erro ao carregar filtros. Verifique se as funções 'get_distinct_codfilial' e 'get_distinct_regional' existem no banco de dados.", "error", 10000);
+            mostrarNotificacao("Erro ao carregar filtros. Verifique as funções RPC no banco de dados.", "error", 10000);
         }
     }
     // ****** FIM DA FUNÇÃO MODIFICADA ******
@@ -478,10 +537,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!horaString || typeof horaString !== 'string' || horaString === '-') {
             return 0;
         }
-        
-        // Trata valores decimais como "85,54" (que podem estar na coluna Valor, mas não Horas)
-        // Se a coluna Horas tiver isso, precisamos tratar.
-        // Assumindo que a coluna horas é "HH:MM" ou "-HH:MM"
         
         let isNegative = horaString.startsWith('-');
         if (isNegative) {
@@ -496,11 +551,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const minutes = parseInt(parts[1], 10) || 0;
             totalMinutos = (hours * 60) + minutes;
         } else if (!isNaN(parseFloat(horaString.replace(',', '.')))) {
-             // Fallback se for um número (ex: 0)
-             totalMinutos = parseFloat(horaString.replace(',', '.')) * 60; // Assume que é hora decimal se não for HH:MM
+             totalMinutos = parseFloat(horaString.replace(',', '.')) * 60; // Assume hora decimal
         }
 
         return isNegative ? -totalMinutos : totalMinutos;
+    }
+    
+    // NOVA FUNÇÃO: Helper para converter valor string (Ex: "1.461,60")
+    function parseValor(valorString) {
+        if (!valorString || typeof valorString !== 'string') {
+            return 0;
+        }
+        // Remove 'R$ ', pontos de milhar, e substitui vírgula por ponto
+        const cleanString = String(valorString)
+            .replace('R$', '')
+            .replace(/\./g, '')
+            .replace(',', '.')
+            .trim();
+        
+        const valor = parseFloat(cleanString);
+        return isNaN(valor) ? 0 : valor;
     }
 
 
@@ -540,10 +610,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // ****** FIM DA MUDANÇA ******
         }
         if (filterRegional) {
-            query += `&REGIONAL=ilike.%${filterRegional}%`; // "contém"
+            query += `&REGIONAL=eq.${filterRegional}`; // "Exato" (melhor para datalist)
         }
         if (filterCodFilial) {
-            query += `&CODFILIAL=ilike.${filterCodFilial}*`; // "começa com"
+            query += `&CODFILIAL=eq.${filterCodFilial}`; // "Exato"
         }
 
         const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial;
@@ -739,17 +809,27 @@ document.addEventListener('DOMContentLoaded', () => {
         let diff = 0;
         let diffClass = 'diff-same';
         
-        const oldNum = parseFloat(String(oldVal).replace(',', '.'));
-        const newNum = parseFloat(String(newVal).replace(',', '.'));
-
-        if (!isNaN(oldNum) && !isNaN(newNum)) {
+        // Usa as funções de parse corretas
+        let oldNum, newNum;
+        if (label.includes('Hora')) {
+            oldNum = parseHorasParaMinutos(oldVal);
+            newNum = parseHorasParaMinutos(newVal);
+            // Converte para horas para exibição
+            oldVal = (oldNum / 60).toFixed(2);
+            newVal = (newNum / 60).toFixed(2);
             diff = newNum - oldNum;
-            if (diff > 0) diffClass = 'diff-up';
-            else if (diff < 0) diffClass = 'diff-down';
+        } else {
+            oldNum = parseValor(oldVal);
+            newNum = parseValor(newVal);
+            oldVal = oldNum.toFixed(2);
+            newVal = newNum.toFixed(2);
+            diff = newNum - oldNum;
         }
+
+        if (diff > 0.01) diffClass = 'diff-up';
+        else if (diff < -0.01) diffClass = 'diff-down';
         
-        // Arredonda para 2 casas decimais apenas se for decimal
-        const diffText = diff % 1 !== 0 ? diff.toFixed(2) : diff.toString();
+        const diffText = diff.toFixed(2);
         const diffDisplay = diff > 0 ? `+${diffText}` : diffText;
 
 
@@ -797,10 +877,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>Valor Atual (Diferença)</span>
                     </div>
                 `;
-                comparisonHTML += createComparisonRow('Total (Hora)', oldData.TOTAL_EM_HORA, currentData.TOTAL_EM_HORA);
-                comparisonHTML += createComparisonRow('Total Negativo', oldData.TOTAL_NEGATIVO, currentData.TOTAL_NEGATIVO);
-                comparisonHTML += createComparisonRow('Valor Pgto. BH', oldData.VAL_PGTO_BHS, currentData.VAL_PGTO_BHS);
-                comparisonHTML += createComparisonRow('Total Geral', oldData['Total Geral'], currentData['Total Geral']);
+                // Ajusta os labels e usa as funções de parse corretas
+                comparisonHTML += createComparisonRow('Total (Horas)', oldData.TOTAL_EM_HORA, currentData.TOTAL_EM_HORA);
+                comparisonHTML += createComparisonRow('Total Neg. (Horas)', oldData.TOTAL_NEGATIVO, currentData.TOTAL_NEGATIVO);
+                comparisonHTML += createComparisonRow('Valor Pgto. (R$)', oldData.VAL_PGTO_BHS, currentData.VAL_PGTO_BHS);
+                comparisonHTML += createComparisonRow('Total Geral (R$)', oldData['Total Geral'], currentData['Total Geral']);
 
                 ui.modalComparison.innerHTML = comparisonHTML;
             } else {
@@ -930,23 +1011,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // *** CORREÇÃO APLICADA AQUI ***
-            // Não precisamos mais do 'getSession' aqui, pois o token já está
-            // no localStorage e será usado pelo 'supabaseRequest'
-            
-            // O 'fetch' manual foi substituído pelo 'supabaseRequest'
-            
-            // AJUSTE: O bloco duplicado foi comentado
-            /* REMOVIDO: Esta chamada estava duplicada e causando o erro.
-            const result = await supabaseRequest(
-                'rpc/import_banco_horas_batch', // Usando uma RPC (função)
-                'POST', 
-                { data_payload: newData } // Enviando os dados em um payload
-            );
-            */
-
-            // Se você não tiver uma RPC 'import_banco_horas_batch',
-            // a chamada da API serverless '/api/import-banco-horas' ainda é válida.
-            // Vamos manter a chamada à API serverless que já existia.
             
             // Revertendo para a chamada da API Serverless, pois é mais provável
             const response = await fetch('/api/import-banco-horas', {
@@ -975,7 +1039,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadHistoryData(),
                 listenToMetadata()
             ]);
-            await applyFilters(); // Recarrega a view inicial
+            // NOVO: Navega para o dashboard e o recarrega
+            window.location.hash = '#dashboard';
+            handleHashChange(); // Força o recarregamento da view do dashboard
             
             showLoading(false);
             mostrarNotificacao(result.message || "Dados importados com sucesso!", 'success');
@@ -1013,6 +1079,309 @@ document.addEventListener('DOMContentLoaded', () => {
             notification.addEventListener('animationend', () => notification.remove());
         }, timeout);
     }
+    
+    
+    // -----------------------------------------------------------------
+    // --- NOVAS FUNÇÕES DO DASHBOARD ---
+    // -----------------------------------------------------------------
+
+    /**
+     * Função principal para carregar e renderizar o dashboard.
+     */
+    async function initializeDashboard() {
+        showLoading(true, 'Carregando dashboard...');
+        
+        try {
+            // 1. Monta a query com base nos filtros do dashboard
+            let query = 'banco_horas_data?select=CODFILIAL,FUNCAO,SECAO,TOTAL_EM_HORA,VAL_PGTO_BHS'; // Apenas colunas necessárias
+            
+            const regional = ui.filterRegionalDash.value;
+            const filial = ui.filterCodFilialDash.value;
+            const secao = ui.filterSecaoDash.value;
+            const funcao = ui.filterFuncaoDash.value;
+
+            // Aplica filtros de permissão
+            if (!state.isAdmin) {
+                if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+                    const filiaisQuery = state.permissoes_filiais.map(f => `"${String(f).trim()}"`).join(',');
+                    query += `&CODFILIAL=in.(${filiaisQuery})`;
+                } else if (state.userMatricula) {
+                    query += `&CHAPA=eq.${state.userMatricula}`;
+                } else {
+                    query += '&limit=0'; // Não vê nada
+                }
+            }
+            
+            // Aplica filtros da UI do Dashboard
+            if (regional) query += `&REGIONAL=eq.${regional}`;
+            if (filial) query += `&CODFILIAL=eq.${filial}`;
+            if (secao) query += `&SECAO=eq.${secao}`;
+            if (funcao) query += `&FUNCAO=eq.${funcao}`;
+
+            // 2. Busca os dados
+            // Omitir 'limit' para tentar buscar tudo (o proxy/supabase pode limitar a 1000)
+            const data = await supabaseRequest(query, 'GET');
+            state.dashboardData = data;
+            
+            // 3. O histórico já foi carregado em 'loadHistoryData' (state.dashboardHistory)
+            // Apenas filtramos o histórico para bater com os filtros da UI
+            let historyData = state.dashboardHistory;
+            if (regional) historyData = historyData.filter(item => item.REGIONAL === regional);
+            if (filial) historyData = historyData.filter(item => item.CODFILIAL === filial);
+            if (secao) historyData = historyData.filter(item => item.SECAO === secao);
+            if (funcao) historyData = historyData.filter(item => item.FUNCAO === funcao);
+
+            // 4. Processa e renderiza os componentes
+            processDashboardTotals(data, historyData);
+            processDashboardCharts(data);
+            processDashboardTable(data);
+            
+            feather.replace(); // Para os ícones de tendência de alta/baixa
+
+        } catch (err) {
+            console.error("Erro ao inicializar dashboard:", err);
+            mostrarNotificacao(`Erro ao carregar dashboard: ${err.message}`, 'error');
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    /**
+     * Calcula e exibe os totais nos cards de estatística.
+     * Inclui o indicador de mudança (aumento/diminuição).
+     */
+    function processDashboardTotals(data, historyData) {
+        let totalColab = data.length;
+        let totalMinutos = 0;
+        let totalValor = 0;
+        
+        data.forEach(item => {
+            totalMinutos += parseHorasParaMinutos(item.TOTAL_EM_HORA);
+            totalValor += parseValor(item.VAL_PGTO_BHS);
+        });
+
+        let histTotalColab = historyData.length;
+        let histTotalMinutos = 0;
+        let histTotalValor = 0;
+        
+        historyData.forEach(item => {
+            histTotalMinutos += parseHorasParaMinutos(item.TOTAL_EM_HORA);
+            histTotalValor += parseValor(item.VAL_PGTO_BHS);
+        });
+
+        // Formata para exibição
+        const totalHoras = (totalMinutos / 60).toFixed(0);
+        
+        ui.statTotalColab.textContent = totalColab;
+        ui.statTotalHoras.textContent = totalHoras;
+        ui.statTotalValor.textContent = `R$ ${(totalValor / 1000).toFixed(1)} mil`;
+
+        // Renderiza indicadores de mudança
+        renderChangeIndicator(ui.statChangeColab, totalColab, histTotalColab, false); // Colab: 'down' é bom?
+        renderChangeIndicator(ui.statChangeHoras, totalMinutos, histTotalMinutos, true); // Horas: 'down' é bom (verde)
+        renderChangeIndicator(ui.statChangeValor, totalValor, histTotalValor, true); // Valor: 'down' é bom (verde)
+    }
+    
+    /**
+     * Helper para renderizar o indicador de mudança (aumento/diminuição).
+     * @param {boolean} isBadNews - Se true, um aumento é ruim (vermelho).
+     */
+    function renderChangeIndicator(element, current, previous, isBadNews = true) {
+        if (previous === 0) {
+            element.innerHTML = `<span class="text-gray-500">Sem histórico</span>`;
+            return;
+        }
+        
+        const diff = current - previous;
+        const percentChange = (diff / previous) * 100;
+        
+        if (Math.abs(diff) < 0.01) {
+            element.innerHTML = `
+                <i data-feather="minus" class="h-4 w-4 text-gray-500"></i>
+                <span class="text-gray-500">Manteve</span>
+            `;
+            return;
+        }
+        
+        const isUp = diff > 0;
+        const formattedPercent = `${Math.abs(percentChange).toFixed(1)}%`;
+        
+        let colorClass = isUp ? 'diff-up' : 'diff-down'; // Vermelho / Verde
+        let icon = isUp ? 'arrow-up-right' : 'arrow-down-right';
+        
+        // Inverte as cores se a notícia for boa (isBadNews = false)
+        // ou se a notícia for ruim e o valor caiu (isBadNews = true e isUp = false)
+        if ((isUp && !isBadNews) || (!isUp && isBadNews)) {
+            colorClass = 'diff-down'; // Verde
+        } else {
+            colorClass = 'diff-up'; // Vermelho
+        }
+
+        element.innerHTML = `
+            <i data-feather="${icon}" class="h-4 w-4 ${colorClass}"></i>
+            <span class="${colorClass}">${formattedPercent}</span>
+            <span class="text-gray-500 hidden md:inline">vs. última carga</span>
+        `;
+    }
+
+    /**
+     * Agrega dados (por Seção ou Função) e renderiza os gráficos de pizza.
+     */
+    function processDashboardCharts(data) {
+        const dataSecao = aggregateData(data, 'SECAO', 'VAL_PGTO_BHS');
+        const dataFuncao = aggregateData(data, 'FUNCAO', 'VAL_PGTO_BHS');
+        
+        // Renderiza Gráfico 1 (Seção)
+        renderChart(
+            ui.canvasResumoSecao, 
+            'resumoSecao', // chave do state.charts
+            'pie', 
+            dataSecao.labels, 
+            dataSecao.values,
+            'Valor por Seção'
+        );
+        
+        // Renderiza Gráfico 2 (Função)
+        renderChart(
+            ui.canvasResumoFuncao, 
+            'resumoFuncao', // chave do state.charts
+            'pie', 
+            dataFuncao.labels, 
+            dataFuncao.values,
+            'Valor por Função'
+        );
+    }
+    
+    /**
+     * Agrega dados para os gráficos de pizza (Top 10 + Outros).
+     * @param {Array} data - Os dados filtrados.
+     * @param {string} field - O campo para agrupar (ex: 'SECAO').
+     * @param {string} sumField - O campo para somar (ex: 'VAL_PGTO_BHS').
+     */
+    function aggregateData(data, field, sumField) {
+        const groups = data.reduce((acc, item) => {
+            const key = item[field] || 'Não Definido';
+            const value = parseValor(item[sumField]);
+            
+            if (!acc[key]) {
+                acc[key] = 0;
+            }
+            acc[key] += value;
+            return acc;
+        }, {});
+
+        // Converte para array, ordena e pega o Top 10
+        const sorted = Object.entries(groups)
+            .sort(([, a], [, b]) => b - a);
+            
+        const top10 = sorted.slice(0, 10);
+        const others = sorted.slice(10);
+        
+        const labels = top10.map(([key]) => key);
+        const values = top10.map(([, value]) => value);
+        
+        // Agrupa o 'resto' em 'Outros'
+        if (others.length > 0) {
+            labels.push('Outros');
+            values.push(others.reduce((sum, [, value]) => sum + value, 0));
+        }
+        
+        return { labels, values };
+    }
+    
+    /**
+     * Renderiza ou atualiza um gráfico do Chart.js.
+     */
+    function renderChart(canvas, chartStateKey, type, labels, data, label) {
+        if (!canvas) return;
+
+        // Destrói gráfico antigo, se existir
+        if (state.charts[chartStateKey]) {
+            state.charts[chartStateKey].destroy();
+        }
+        
+        const ctx = canvas.getContext('2d');
+        state.charts[chartStateKey] = new Chart(ctx, {
+            type: type,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: label,
+                    data: data,
+                    // Cores bonitas para os gráficos de pizza
+                    backgroundColor: [
+                        '#0077B6', '#00B4D8', '#90E0EF', '#023047', '#00D4AA',
+                        '#FFB703', '#FB8500', '#219EBC', '#8ECAE6', '#ADB5BD'
+                    ],
+                    borderColor: '#ffffff',
+                    borderWidth: (type === 'pie' || type === 'doughnut') ? 2 : 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 15,
+                            boxWidth: 12
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+
+    /**
+     * Agrega dados por Filial e renderiza a tabela de ranking.
+     */
+    function processDashboardTable(data) {
+        const groups = data.reduce((acc, item) => {
+            const key = item.CODFILIAL || 'N/A';
+            const valor = parseValor(item.VAL_PGTO_BHS);
+            const minutos = parseHorasParaMinutos(item.TOTAL_EM_HORA);
+            
+            if (!acc[key]) {
+                acc[key] = {
+                    filial: key,
+                    totalValor: 0,
+                    totalMinutos: 0,
+                    colaboradores: 0
+                };
+            }
+            
+            acc[key].totalValor += valor;
+            acc[key].totalMinutos += minutos;
+            acc[key].colaboradores += 1;
+            return acc;
+        }, {});
+
+        // Converte para array e ordena por Valor (descendente)
+        const rankedData = Object.values(groups)
+            .sort((a, b) => b.totalValor - a.totalValor);
+            
+        // Renderiza a tabela
+        ui.tableRankingFilialBody.innerHTML = '';
+        if (rankedData.length === 0) {
+            ui.tableRankingFilialBody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-gray-500">Nenhum dado para exibir.</td></tr>';
+            return;
+        }
+        
+        const fragment = document.createDocumentFragment();
+        rankedData.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="font-bold" style="text-align: right; padding-right: 1.5rem; font-family: monospace;">${item.filial}</td>
+                <td style="text-align: right; padding-right: 1.5rem; font-family: monospace; color: #0077B6; font-weight: bold;">R$ ${item.totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td style="text-align: right; padding-right: 1.5rem; font-family: monospace;">${(item.totalMinutos / 60).toFixed(0)}</td>
+                <td style="text-align: right; padding-right: 1.5rem; font-family: monospace;">${item.colaboradores}</td>
+            `;
+            fragment.appendChild(tr);
+        });
+        ui.tableRankingFilialBody.appendChild(fragment);
+    }
 
 
     // --- INICIALIZAÇÃO E EVENTOS ---
@@ -1041,17 +1410,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         ui.modal.style.display = 'none';
                     }
                 });
-
+                
+                // Links da Sidebar (agora gerenciados pelo handleHashChange)
+                document.querySelector('a[href="#dashboard"]').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (window.location.hash !== '#dashboard') {
+                        window.location.hash = '#dashboard';
+                    }
+                });
                 document.querySelector('a[href="#acompanhamento"]').addEventListener('click', (e) => {
                     e.preventDefault();
-                    showView('acompanhamentoView', e.currentTarget);
+                     if (window.location.hash !== '#acompanhamento') {
+                        window.location.hash = '#acompanhamento';
+                    }
                 });
                 document.querySelector('a[href="#configuracoes"]').addEventListener('click', (e) => {
                     e.preventDefault();
-                    showView('configuracoesView', e.currentTarget);
+                     if (window.location.hash !== '#configuracoes') {
+                        window.location.hash = '#configuracoes';
+                    }
                 });
 
-                // MUDANÇA: Debounce (atraso) para os filtros
+                // MUDANÇA: Debounce (atraso) para os filtros da tabela
                 let filterTimeout;
                 [ui.filterChapa, ui.filterNome, ui.filterRegional, ui.filterCodFilial].forEach(input => {
                     input.addEventListener('input', () => {
@@ -1060,6 +1440,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             applyFilters();
                         }, 300); // 300ms de atraso
                     });
+                });
+                
+                // NOVO: Listeners para os filtros do Dashboard (sem debounce, usam 'change')
+                [ui.filterRegionalDash, ui.filterCodFilialDash, ui.filterSecaoDash, ui.filterFuncaoDash].forEach(input => {
+                    // Usamos 'change' pois são datalists, o usuário seleciona ou digita e sai
+                    input.addEventListener('change', initializeDashboard);
                 });
 
                 ui.logoutButton.addEventListener('click', logout);
