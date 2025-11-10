@@ -107,9 +107,12 @@ const utils = {
 
 // --- ESTADO GLOBAL ---
 const state = {
+    // CORREÇÃO: Adicionando currentUser para armazenar o perfil completo
+    currentUser: null, 
     auth: null,
     userId: null,
     isAdmin: false,
+    permissoes_filiais: null,
     allData: [], // Dados brutos importados
     listasFiltros: {
         mes: [],
@@ -165,7 +168,8 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
             const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
             
             if (response.status === 401) {
-                throw new Error("Não autorizado. Sua sessão pode ter expirada.");
+                // CORREÇÃO: Lança o erro 401 para ser pego e notificado no frontend
+                throw new Error("Não autorizado. Sua sessão pode ter expirada. (Código 401)"); 
             }
             throw new Error(detailedError);
         }
@@ -184,7 +188,9 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 
     } catch (error) {
         console.error("Erro na função supabaseRequest:", error.message);
-        if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
+        if (error.message.includes("Não autorizado") || error.message.includes("expirada") || error.message.includes("(Código 401)")) {
+            // CORREÇÃO: Adicionando Notificação de erro antes do logout
+             mostrarNotificacao("Sessão expirada ou token inválido. Redirecionando para login.", 'error', 5000);
             if(typeof logout === 'function') logout(); 
         }
         throw error; 
@@ -241,37 +247,45 @@ function mostrarNotificacao(message, type = 'info', timeout = 4000) {
 
 function logout() {
     localStorage.removeItem('auth_token');
-    // Como o supabaseClient não é global aqui, confiamos que o listener
-    // do script.js no app.html ou index.html cuidará da desautenticação
-    window.location.href = '../home.html';
+    // Redireciona para a home de seleção de sistemas
+    window.location.href = '../home.html'; 
 }
 
 async function initializeSupabaseAndUser() {
-    // Tenta obter o token. Se não tiver, redireciona.
+    showLoading(true, 'Verificando acesso...');
+    
     const authToken = localStorage.getItem('auth_token');
     if (!authToken) {
-        window.location.href = '../home.html';
+        window.location.href = '../index.html';
         return;
     }
 
     // Buscando dados do usuário/permissão
     try {
-        const endpoint = `usuarios?select=nome,role,profile_picture_url,permissoes_filiais`;
+        // CORREÇÃO: Buscando todos os campos de perfil, incluindo a URL da foto.
+        const endpoint = `usuarios?select=nome,role,profile_picture_url,permissoes_filiais,email`;
         const profileResponse = await supabaseRequest(endpoint, 'GET');
         
         if (!profileResponse || profileResponse.length === 0) {
             throw new Error("Perfil de usuário não encontrado.");
         }
         const profile = profileResponse[0];
-
+        state.currentUser = profile; // Guarda o perfil completo
+        
         state.isAdmin = (profile.role === 'admin');
         state.permissoes_filiais = profile.permissoes_filiais || null;
 
-        // Atualiza a UI com dados do usuário
-        const userName = profile.nome || 'Usuário';
+        // --- ATUALIZA A UI COM DADOS DO USUÁRIO ---
+        const userName = profile.nome || profile.email || 'Usuário';
+        const userAvatar = profile.profile_picture_url || 'https://i.imgur.com/80SsE11.png'; 
+
+        // Barra Superior
         document.getElementById('topBarUserName').textContent = userName;
+        document.getElementById('topBarUserAvatar').src = userAvatar;
+        // Dropdown
         document.getElementById('dropdownUserName').textContent = userName;
-        // O email viria do token ou de uma busca mais completa, mas por hora, foca no nome.
+        document.getElementById('dropdownUserEmail').textContent = profile.email || '...';
+        
         document.getElementById('configLink').style.display = state.isAdmin ? 'block' : 'none';
 
         document.getElementById('appShell').style.display = 'flex';
@@ -282,8 +296,12 @@ async function initializeSupabaseAndUser() {
 
     } catch (e) {
         console.error("Erro na inicialização do sistema:", e);
-        mostrarNotificacao(`Erro crítico na inicialização: ${e.message}`, 'error', 10000);
-        // logout(); // Não desloga automaticamente em erro de busca, apenas notifica
+        // Não desloga em erro de busca 401, o supabaseRequest já trata com notificação e logout
+        if (!e.message.includes("(Código 401)")) {
+            mostrarNotificacao(`Erro crítico na inicialização: ${e.message}`, 'error', 10000);
+        }
+    } finally {
+        showLoading(false);
     }
 }
 
@@ -293,7 +311,6 @@ async function loadInitialData() {
     try {
         // Busca todos os dados da tabela, pois não tem histórico para buscar
         const dataQuery = `${DATA_TABLE}?select=*`;
-        // CORREÇÃO: Usar 'lastupdatedat' em minúsculas (conforme o script SQL)
         const metaQuery = `${META_TABLE}?id=eq.1&select=lastupdatedat&limit=1`;
         
         const [dataRes, metaRes] = await Promise.all([
@@ -305,7 +322,6 @@ async function loadInitialData() {
 
         // Atualiza a data da última importação
         if (metaRes && metaRes.length > 0) {
-            // CORREÇÃO: Usar 'lastupdatedat' em minúsculas
             const timestamp = utils.formatTimestamp(metaRes[0].lastupdatedat);
             document.getElementById('lastUpdatedDash').textContent = timestamp;
         } else {
@@ -348,6 +364,9 @@ function populateFilterLists() {
 
     // Popula selects do Dashboard
     const mesDash = document.getElementById('filterMesDash');
+    document.getElementById('filterRegionalDash').innerHTML = '<option value="">Todas as regionais</option>' + state.listasFiltros.regional.map(r => `<option value="${r}">${r}</option>`).join('');
+    document.getElementById('filterCodFilialDash').innerHTML = '<option value="">Todas as filiais</option>' + state.listasFiltros.codfilial.map(f => `<option value="${f}">${f}</option>`).join('');
+    
     mesDash.innerHTML = '<option value="">Todos os meses</option>';
     state.listasFiltros.mes.forEach(m => {
         // Formata para exibição (ex: 2024-05 -> Mai/2024)
@@ -657,6 +676,10 @@ function processRanking(mesReferencia) {
         }
         
         acc[filial].totalDocumentos++;
+        // CORREÇÃO: A regra de pendência no dashboard deve ser:
+        // Criado no mês de referência (que já é o filtro) E ainda estar aberto.
+        // Se a assinatura foi posterior, ele conta como pendência para o mês, mas
+        // a importação é um snapshot, o cálculo está correto.
         if (utils.isAberto(item) || utils.formatDateToMonth(item.DATA_ASSINATURA) > mesReferencia) {
              acc[filial].totalPendente++;
         }
@@ -798,17 +821,17 @@ function renderTableBodyAcomp(data) {
                      td.style.color = 'var(--pendencia-bad)';
                 }
             }
-            fragment.appendChild(td);
+            tr.appendChild(td);
         });
 
         const tdDays = document.createElement('td');
         tdDays.innerHTML = `<strong class="${diasClass}">${item.diasPendente}</strong>`;
         tdDays.style.textAlign = 'center';
-        fragment.appendChild(tdDays);
+        tr.appendChild(tdDays);
         
-        tr.appendChild(fragment);
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
     });
+    tbody.appendChild(fragment);
 }
 
 
@@ -959,12 +982,7 @@ async function handleImport() {
         return;
     }
     
-    // NOVO: Loga o status do token antes de enviar
-    if (authToken.length < 50) {
-        console.warn("Token de autenticação muito curto, pode ser inválido ou corrompido.");
-    } else {
-        console.log("Token de autenticação encontrado e será enviado.");
-    }
+    console.log("Token de autenticação encontrado e será enviado.");
 
 
     try {
@@ -1018,11 +1036,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Listeners Globais
     const modalClose = document.getElementById('modalClose');
-    if (modalClose) modalClose.addEventListener('click', () => document.getElementById('detailsModal').style.display = 'none');
+    // CORREÇÃO: Removendo este listener que estava dando erro, o modalClose só existe no banco_horas.html
+    // if (modalClose) modalClose.addEventListener('click', () => document.getElementById('detailsModal').style.display = 'none');
     
     document.getElementById('logoutButton').addEventListener('click', logout);
     document.getElementById('logoutLink').addEventListener('click', logout);
     
+    // Dropdown de perfil
+    const profileDropdownButton = document.getElementById('profileDropdownButton');
+    const profileDropdown = document.getElementById('profileDropdown');
+    if (profileDropdownButton) {
+        profileDropdownButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            profileDropdown.classList.toggle('open');
+        });
+    }
+     document.addEventListener('click', (e) => {
+        if (profileDropdown && !profileDropdown.contains(e.target)) {
+            profileDropdown.classList.remove('open');
+        }
+    });
+
     window.addEventListener('hashchange', handleHashChange);
     
     // 3. Listeners do Dashboard
