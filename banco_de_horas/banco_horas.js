@@ -131,7 +131,8 @@ const state = {
     // NOVO: Estado do Dashboard
     charts: { 
         resumoSecao: null, 
-        resumoFuncao: null 
+        resumoFuncao: null,
+        chartComparativoRegional: null // NOVO
     },
     dashboardData: [],
     dashboardHistory: [],
@@ -150,6 +151,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // As variáveis de configuração ficam aqui dentro
     const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+
+    // NOVO: Registrar plugin de datalabels
+    Chart.register(ChartDataLabels);
 
     // Elementos da UI
     const ui = {
@@ -209,6 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statChangeValor: document.getElementById('statChangeValor'),
         canvasResumoSecao: document.getElementById('chartResumoSecao'),
         canvasResumoFuncao: document.getElementById('chartResumoFuncao'),
+        canvasComparativoRegional: document.getElementById('chartComparativoRegional'), // NOVO
         tableRankingFilialBody: document.querySelector('#tableRankingFilial tbody'),
     };
 
@@ -474,59 +479,62 @@ document.addEventListener('DOMContentLoaded', () => {
         const regionalList = document.getElementById('regionalList');
         const filialList = document.getElementById('filialList');
         
-        // Filtros do Dashboard
-        const regionalListDash = document.getElementById('regionalListDash');
-        const filialListDash = document.getElementById('filialListDash');
-        const secaoListDash = document.getElementById('secaoListDash');
-        const funcaoListDash = document.getElementById('funcaoListDash');
+        // Filtros do Dashboard (agora são <select>)
+        // (ui.filterRegionalDash, ui.filterCodFilialDash, etc.)
 
-        console.log("Populando filtros (datalists) via RPC...");
+        console.log("Populando filtros...");
         try {
-            // Chama todas as RPCs em paralelo
-            const [filiaisRes, regionaisRes, secoesRes, funcoesRes] = await Promise.all([
-                supabaseRequest('rpc/get_distinct_codfilial', 'POST'),
-                supabaseRequest('rpc/get_distinct_regional', 'POST'),
-                supabaseRequest('rpc/get_distinct_secao', 'POST'),
-                supabaseRequest('rpc/get_distinct_funcao', 'POST')
-            ]);
+            // CORREÇÃO: Chamar uma única função RPC que retorna todos os filtros
+            // (Assumindo que você criará esta função 'get_all_distinct_filters' no Supabase)
+            // Se não for possível, a alternativa é buscar todos os dados (lento)
+            
+            // ALTERNATIVA (Workaround sem RPC): Buscar todos os dados e filtrar no JS
+            // É menos performático que RPC, mas resolve o erro sem alterar o backend.
+            showLoading(true, 'Carregando filtros...');
+            // ATENÇÃO: Se a tabela for MUITO grande, isso pode dar timeout.
+            // A solução RPC ('get_distinct_..._banco_horas') é a ideal.
+            // Mas este workaround vai corrigir o erro 404 que você viu.
+            const allData = await supabaseRequest('banco_horas_data?select=CODFILIAL,REGIONAL,SECAO,FUNCAO', 'GET');
+            
+            const filiaisSet = new Set();
+            const regionaisSet = new Set();
+            const secoesSet = new Set();
+            const funcoesSet = new Set();
+
+            allData.forEach(item => {
+                if (item.CODFILIAL) filiaisSet.add(item.CODFILIAL);
+                if (item.REGIONAL) regionaisSet.add(item.REGIONAL);
+                if (item.SECAO) secoesSet.add(item.SECAO);
+                if (item.FUNCAO) funcoesSet.add(item.FUNCAO);
+            });
 
             // Processa Filiais
-            if (filiaisRes && filiaisRes.length > 0) {
-                state.listasFiltros.codfilial = filiaisRes
-                    .map(item => item.codfilial)
-                    .sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
-                
-                const filialOptions = state.listasFiltros.codfilial.map(f => `<option value="${f}"></option>`).join('');
-                if(filialList) filialList.innerHTML = filialOptions;
-                if(filialListDash) filialListDash.innerHTML = filialOptions;
-            }
+            state.listasFiltros.codfilial = [...filiaisSet].sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+            const filialOptions = state.listasFiltros.codfilial.map(f => `<option value="${f}">${f}</option>`).join('');
+            if(filialList) filialList.innerHTML = state.listasFiltros.codfilial.map(f => `<option value="${f}"></option>`).join(''); // Mantém datalist na tabela
+            if(ui.filterCodFilialDash) ui.filterCodFilialDash.innerHTML = '<option value="">Todas as filiais</option>' + filialOptions; // Popula select
 
             // Processa Regionais
-            if (regionaisRes && regionaisRes.length > 0) {
-                state.listasFiltros.regional = regionaisRes.map(item => item.regional).sort();
-                
-                const regionalOptions = state.listasFiltros.regional.map(r => `<option value="${r}"></option>`).join('');
-                if(regionalList) regionalList.innerHTML = regionalOptions;
-                if(regionalListDash) regionalListDash.innerHTML = regionalOptions;
-            }
+            state.listasFiltros.regional = [...regionaisSet].sort();
+            const regionalOptions = state.listasFiltros.regional.map(r => `<option value="${r}">${r}</option>`).join('');
+            if(regionalList) regionalList.innerHTML = state.listasFiltros.regional.map(r => `<option value="${r}"></option>`).join(''); // Mantém datalist
+            if(ui.filterRegionalDash) ui.filterRegionalDash.innerHTML = '<option value="">Todas as regionais</option>' + regionalOptions; // Popula select
             
             // Processa Seções (só dashboard)
-            if (secoesRes && secoesRes.length > 0) {
-                state.listasFiltros.secao = secoesRes.map(item => item.secao).sort();
-                if(secaoListDash) secaoListDash.innerHTML = state.listasFiltros.secao.map(s => `<option value="${s}"></option>`).join('');
-            }
+            state.listasFiltros.secao = [...secoesSet].sort();
+            if(ui.filterSecaoDash) ui.filterSecaoDash.innerHTML = '<option value="">Todas as seções</option>' + state.listasFiltros.secao.map(s => `<option value="${s}">${s}</option>`).join('');
             
             // Processa Funções (só dashboard)
-            if (funcoesRes && funcoesRes.length > 0) {
-                state.listasFiltros.funcao = funcoesRes.map(item => item.funcao).sort();
-                if(funcaoListDash) funcaoListDash.innerHTML = state.listasFiltros.funcao.map(f => `<option value="${f}"></option>`).join('');
-            }
+            state.listasFiltros.funcao = [...funcoesSet].sort();
+            if(ui.filterFuncaoDash) ui.filterFuncaoDash.innerHTML = '<option value="">Todas as funções</option>' + state.listasFiltros.funcao.map(f => `<option value="${f}">${f}</option>`).join('');
             
             console.log("Filtros populados:", state.listasFiltros);
     
         } catch (e) {
-            console.error("Falha ao popular datalists via RPC:", e);
-            mostrarNotificacao("Erro ao carregar filtros. Verifique as funções RPC no banco de dados.", "error", 10000);
+            console.error("Falha ao popular datalists:", e);
+            mostrarNotificacao("Erro ao carregar filtros. Verifique a conexão e a tabela 'banco_horas_data'.", "error", 10000);
+        } finally {
+            showLoading(false);
         }
     }
     // ****** FIM DA FUNÇÃO MODIFICADA ******
@@ -1093,7 +1101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             // 1. Monta a query com base nos filtros do dashboard
-            let query = 'banco_horas_data?select=CODFILIAL,FUNCAO,SECAO,TOTAL_EM_HORA,VAL_PGTO_BHS'; // Apenas colunas necessárias
+            let query = 'banco_horas_data?select=CODFILIAL,REGIONAL,FUNCAO,SECAO,TOTAL_EM_HORA,VAL_PGTO_BHS'; // Apenas colunas necessárias
             
             const regional = ui.filterRegionalDash.value;
             const filial = ui.filterCodFilialDash.value;
@@ -1134,7 +1142,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // 4. Processa e renderiza os componentes
             processDashboardTotals(data, historyData);
             processDashboardCharts(data);
-            processDashboardTable(data);
+            processDashboardTable(data, historyData); // NOVO: Passa o histórico
+            processDashboardComparisonChart(data, historyData); // NOVO
             
             feather.replace(); // Para os ícones de tendência de alta/baixa
 
@@ -1322,11 +1331,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        position: 'bottom',
+                        position: 'right', // MUDANÇA: de bottom para right
                         labels: {
                             padding: 15,
                             boxWidth: 12
                         }
+                    },
+                    // NOVO: Configuração de %
+                    datalabels: {
+                        formatter: (value, ctx) => {
+                            if (type !== 'pie' && type !== 'doughnut') {
+                                return null;
+                            }
+                            let sum = 0;
+                            let dataArr = ctx.chart.data.datasets[0].data;
+                            dataArr.map(data => {
+                                sum += data;
+                            });
+                            let percentage = (value * 100 / sum);
+                            // Não mostra se for muito pequeno
+                            return percentage < 3 ? '' : percentage.toFixed(1) + '%';
+                        },
+                        color: '#fff',
+                        font: {
+                            weight: 'bold',
+                            size: 12
+                        },
+                        textShadowBlur: 2,
+                        textShadowColor: 'rgba(0, 0, 0, 0.5)'
                     }
                 }
             }
@@ -1337,7 +1369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Agrega dados por Filial e renderiza a tabela de ranking.
      */
-    function processDashboardTable(data) {
+    function processDashboardTable(data, historyData) {
         const groups = data.reduce((acc, item) => {
             const key = item.CODFILIAL || 'N/A';
             const valor = parseValor(item.VAL_PGTO_BHS);
@@ -1358,6 +1390,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc;
         }, {});
 
+        // NOVO: Agrega dados do histórico
+        const historyGroups = historyData.reduce((acc, item) => {
+            const key = item.CODFILIAL || 'N/A';
+            const valor = parseValor(item.VAL_PGTO_BHS);
+            
+            if (!acc[key]) {
+                acc[key] = {
+                    totalValor: 0,
+                };
+            }
+            acc[key].totalValor += valor;
+            return acc;
+        }, {});
+
+
         // Converte para array e ordena por Valor (descendente)
         const rankedData = Object.values(groups)
             .sort((a, b) => b.totalValor - a.totalValor);
@@ -1365,22 +1412,150 @@ document.addEventListener('DOMContentLoaded', () => {
         // Renderiza a tabela
         ui.tableRankingFilialBody.innerHTML = '';
         if (rankedData.length === 0) {
-            ui.tableRankingFilialBody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-gray-500">Nenhum dado para exibir.</td></tr>';
+            ui.tableRankingFilialBody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-gray-500">Nenhum dado para exibir.</td></tr>';
             return;
         }
         
         const fragment = document.createDocumentFragment();
         rankedData.forEach(item => {
             const tr = document.createElement('tr');
+            
+            // NOVO: Lógica da Tendência
+            const previousItem = historyGroups[item.filial];
+            const prevValue = previousItem ? previousItem.totalValor : 0;
+            const currValue = item.totalValor;
+            let tendenciaIcon = '<span style="color: #6b7280;">-</span>'; // Neutro
+            
+            if (prevValue > 0) { // Só mostra tendência se havia valor antes
+                if (currValue > prevValue) {
+                    tendenciaIcon = '<i data-feather="arrow-up-right" style="color: #dc2626;"></i>'; // Piorou
+                } else if (currValue < prevValue) {
+                    tendenciaIcon = '<i data-feather="arrow-down-right" style="color: #16a34a;"></i>'; // Melhorou
+                }
+            }
+
+            // MUDANÇA: text-align: center e adição da coluna de tendência
             tr.innerHTML = `
-                <td class="font-bold" style="text-align: right; padding-right: 1.5rem; font-family: monospace;">${item.filial}</td>
-                <td style="text-align: right; padding-right: 1.5rem; font-family: monospace; color: #0077B6; font-weight: bold;">R$ ${item.totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td style="text-align: right; padding-right: 1.5rem; font-family: monospace;">${(item.totalMinutos / 60).toFixed(0)}</td>
-                <td style="text-align: right; padding-right: 1.5rem; font-family: monospace;">${item.colaboradores}</td>
+                <td class="font-bold" style="text-align: center; padding-right: 1.5rem; font-family: monospace;">${item.filial}</td>
+                <td style="text-align: center; padding-right: 1.5rem; font-family: monospace; color: #0077B6; font-weight: bold;">R$ ${item.totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td style="text-align: center; padding-right: 1.5rem; font-family: monospace;">${(item.totalMinutos / 60).toFixed(0)}</td>
+                <td style="text-align: center; padding-right: 1.5rem; font-family: monospace;">${item.colaboradores}</td>
+                <td style="text-align: center;">${tendenciaIcon}</td>
             `;
             fragment.appendChild(tr);
         });
         ui.tableRankingFilialBody.appendChild(fragment);
+        feather.replace(); // Adicionado para renderizar o ícone de tendência
+    }
+
+
+    // NOVO: Função para o gráfico de barras comparativo
+    /**
+     * Agrega dados por Regional (Atual vs Anterior) e renderiza o gráfico de barras.
+     */
+    function processDashboardComparisonChart(data, historyData) {
+        // 1. Agrega dados atuais
+        const currentGroups = data.reduce((acc, item) => {
+            const key = item.REGIONAL || 'N/A';
+            const valor = parseValor(item.VAL_PGTO_BHS);
+            if (!acc[key]) acc[key] = 0;
+            acc[key] += valor;
+            return acc;
+        }, {});
+        
+        // 2. Agrega dados do histórico
+        const historyGroups = historyData.reduce((acc, item) => {
+            const key = item.REGIONAL || 'N/A';
+            const valor = parseValor(item.VAL_PGTO_BHS);
+            if (!acc[key]) acc[key] = 0;
+            acc[key] += valor;
+            return acc;
+        }, {});
+
+        // 3. Obtém todas as chaves (regionais)
+        const allRegionais = new Set([...Object.keys(currentGroups), ...Object.keys(historyGroups)]);
+        const labels = [...allRegionais].sort();
+        
+        // 4. Monta os datasets
+        const datasetAtual = {
+            label: 'Valor Atual',
+            data: labels.map(r => currentGroups[r] || 0),
+            backgroundColor: 'rgba(2, 48, 71, 0.7)', // var(--dark)
+            borderColor: 'rgba(2, 48, 71, 1)',
+            borderWidth: 1
+        };
+        
+        const datasetAnterior = {
+            label: 'Valor Anterior',
+            data: labels.map(r => historyGroups[r] || 0),
+            backgroundColor: 'rgba(144, 224, 239, 0.7)', // var(--light)
+            borderColor: 'rgba(144, 224, 239, 1)',
+            borderWidth: 1
+        };
+
+        // 5. Renderiza o gráfico de barras
+        renderBarChart(
+            ui.canvasComparativoRegional,
+            'chartComparativoRegional',
+            labels,
+            [datasetAtual, datasetAnterior]
+        );
+    }
+    
+    // NOVO: Função específica para renderizar o gráfico de barras
+    function renderBarChart(canvas, chartStateKey, labels, datasets) {
+        if (!canvas) return;
+
+        if (state.charts[chartStateKey]) {
+            state.charts[chartStateKey].destroy();
+        }
+        
+        const ctx = canvas.getContext('2d');
+        state.charts[chartStateKey] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: datasets // Passa o array de datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            // Formata o eixo Y como R$
+                            callback: function(value, index, values) {
+                                return 'R$ ' + (value / 1000).toLocaleString('pt-BR') + 'k';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true, // Mostra a legenda (Atual vs Anterior)
+                        position: 'bottom'
+                    },
+                    datalabels: {
+                        display: false // Desligado para não poluir o gráfico de barras
+                    },
+                    tooltip: {
+                         callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
 
@@ -1442,10 +1617,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
                 
-                // NOVO: Listeners para os filtros do Dashboard (sem debounce, usam 'change')
-                [ui.filterRegionalDash, ui.filterCodFilialDash, ui.filterSecaoDash, ui.filterFuncaoDash].forEach(input => {
-                    // Usamos 'change' pois são datalists, o usuário seleciona ou digita e sai
-                    input.addEventListener('change', initializeDashboard);
+                // NOVO: Listeners para os filtros do Dashboard (agora são SELECTS)
+                [ui.filterRegionalDash, ui.filterCodFilialDash, ui.filterSecaoDash, ui.filterFuncaoDash].forEach(selectElement => {
+                    if (selectElement) { // Garante que o elemento existe
+                        selectElement.addEventListener('change', initializeDashboard);
+                    }
                 });
 
                 ui.logoutButton.addEventListener('click', logout);
