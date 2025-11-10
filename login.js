@@ -97,7 +97,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event === 'PASSWORD_RECOVERY') {
             window.location.hash = '#reset';
             checkHash();
+        } 
+        // ***** CORREÇÃO APLICADA AQUI *****
+        // Redireciona APENAS quando o Supabase confirma que a sessão está ativa
+        else if (event === 'SIGNED_IN') {
+             console.log("SIGNED_IN confirmado. Redirecionando para home.html.");
+             // Usamos window.location.replace para evitar que o usuário volte ao login pelo botão 'voltar'
+             window.location.replace('home.html');
         }
+        // ***** FIM DA CORREÇÃO *****
     });
 
 
@@ -256,8 +264,12 @@ async function handleEmailFormSubmit(e) {
                 password: password,
             });
             if (error) throw error;
-            // ATUALIZAÇÃO: Redireciona para a nova tela de seleção
-            window.location.href = 'home.html';
+            
+            // **** LINHA REMOVIDA ****
+            // O redirecionamento será feito no listener 'onAuthStateChange' para garantir a persistência da sessão.
+            // window.location.href = 'home.html';
+            
+            showAlert('Login bem-sucedido. Redirecionando...', 'success');
         }
     } catch (error) {
         console.error("Erro de autenticação:", error.message);
