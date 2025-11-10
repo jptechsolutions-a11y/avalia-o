@@ -39,6 +39,20 @@
             justify-content: center;
             margin-bottom: 1rem;
         }
+        /* Estilo específico para o novo card de Pendências (usando o accent) */
+        .card-icon-pendencias {
+            background: linear-gradient(135deg, #FF6F61 0%, #D83B5E 100%); /* Um gradiente de vermelho/rosa para alerta */
+            color: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+        .card-hover:hover .card-icon-pendencias {
+            box-shadow: 0 10px 20px rgba(255, 111, 97, 0.2);
+        }
     </style>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen p-6 text-white">
@@ -55,7 +69,8 @@
         <h1 class="text-4xl font-bold mb-4">Bem-vindo, <span id="userName">Usuário</span>.</h1>
         <p class="text-xl text-gray-300 mb-12">Selecione o sistema que deseja acessar:</p>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <!-- ATUALIZADO: Grid com 3 colunas para acomodar o novo sistema -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             
             <!-- Card 1: Avaliação de Desempenho -->
             <a href="app.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
@@ -75,6 +90,16 @@
                 <h2 class="text-2xl font-semibold mb-2">Banco de Horas</h2>
                 <p class="text-gray-400 mb-6">Consulte, gerencie e atualize o banco de horas, pagamentos e saldos dos colaboradores.</p>
                 <span class="font-semibold text-primary hover:text-secondary transition-colors duration-200">Acessar Sistema &rarr;</span>
+            </a>
+            
+            <!-- NOVO CARD: Pendência de Documentos -->
+            <a href="pendencias_documentos/pendencias.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
+                <div class="card-icon-pendencias">
+                    <i data-feather="alert-triangle" class="h-8 w-8"></i>
+                </div>
+                <h2 class="text-2xl font-semibold mb-2">Pendência de Documentos</h2>
+                <p class="text-gray-400 mb-6">Acompanhe e gerencie a assinatura de documentos e o status das pendências por filial e mês.</p>
+                <span class="font-semibold" style="color: #FF6F61;">Acessar Sistema &rarr;</span>
             </a>
 
         </div>
