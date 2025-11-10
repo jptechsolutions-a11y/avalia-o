@@ -13,19 +13,32 @@
     
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- NOVO: Chart.js para os gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
     <style>
         /* Estilos específicos do banco_horas.html (mantidos) */
         .diff-up {
-            color: #16a34a; /* Verde */
+            color: #dc2626; /* Vermelho (aumentou/piorou) */
             font-weight: bold;
         }
         .diff-down {
-            color: #dc2626; /* Vermelho */
+            color: #16a34a; /* Verde (diminuiu/melhorou) */
             font-weight: bold;
         }
         .diff-same {
             color: #6b7280; /* Cinza */
+        }
+        
+        /* Estilo para os cards de estatística do dashboard */
+        .stat-card-dash .stat-change {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
     </style>
 </head>
@@ -84,9 +97,15 @@
             <!-- Sidebar (Copiado do app.html e adaptado) -->
             <aside class="sidebar collapsed">
                 <nav class="p-2 pt-4">
-                    <a href="#acompanhamento" class="nav-item active" title="Acompanhamento"> <!-- Marcado como ativo -->
+                    <!-- NOVO: Link do Dashboard (agora é o padrão) -->
+                    <a href="#dashboard" class="nav-item active" title="Dashboard">
+                        <i data-feather="grid" class="h-5 w-5 mr-3"></i> <span class="nav-text">Dashboard</span>
+                    </a>
+                    <!-- ATUALIZADO: Link do Acompanhamento (agora é o segundo) -->
+                    <a href="#acompanhamento" class="nav-item" title="Acompanhamento">
                         <i data-feather="clock" class="h-5 w-5 mr-3"></i> <span class="nav-text">Acompanhamento</span>
                     </a>
+                    
                     <a href="#configuracoes" id="configLink" class="nav-item" title="Configurações" style="display: none;"> <!-- Oculto por padrão -->
                         <i data-feather="settings" class="h-5 w-5 mr-3"></i> <span class="nav-text">Configurações</span>
                     </a>
@@ -108,8 +127,114 @@
                 
                     <!-- CONTEÚDO ORIGINAL DO banco_horas.html INSERIDO AQUI -->
                     
-                    <!-- View: Acompanhamento (Default) -->
-                    <div id="acompanhamentoView" class="view-content active">
+                    <!-- NOVA VIEW: Dashboard -->
+                    <div id="dashboardView" class="view-content active">
+                        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                            <h1><i data-feather="grid" class="h-7 w-7"></i> Dashboard Banco de Horas</h1>
+                            <div class="text-sm text-gray-600">
+                                <strong>Última Atualização:</strong>
+                                <span id="lastUpdatedDash" class="font-medium" style="color: var(--accent);">Buscando...</span>
+                            </div>
+                        </div>
+
+                        <!-- Filtros do Dashboard -->
+                        <div class="filter-bar">
+                            <div class="form-group">
+                                <label for="filterRegionalDash">Filtrar por Regional</label>
+                                <input type="text" id="filterRegionalDash" placeholder="Todas as regionais" list="regionalListDash" onchange="initializeDashboard()">
+                                <datalist id="regionalListDash">
+                                    <!-- Opções serão populadas pelo JS -->
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="filterCodFilialDash">Filtrar por Cód. Filial</label>
+                                <input type="text" id="filterCodFilialDash" placeholder="Todas as filiais" list="filialListDash" onchange="initializeDashboard()">
+                                <datalist id="filialListDash">
+                                    <!-- Opções serão populadas pelo JS -->
+                                </datalist>
+                            </div>
+                             <div class="form-group">
+                                <label for="filterSecaoDash">Filtrar por Seção</label>
+                                <input type="text" id="filterSecaoDash" placeholder="Todas as seções" list="secaoListDash" onchange="initializeDashboard()">
+                                <datalist id="secaoListDash">
+                                    <!-- Opções serão populadas pelo JS -->
+                                </datalist>
+                            </div>
+                             <div class="form-group">
+                                <label for="filterFuncaoDash">Filtrar por Função</label>
+                                <input type="text" id="filterFuncaoDash" placeholder="Todas as funções" list="funcaoListDash" onchange="initializeDashboard()">
+                                <datalist id="funcaoListDash">
+                                    <!-- Opções serão populadas pelo JS -->
+                                </datalist>
+                            </div>
+                        </div>
+
+                        <!-- Cards de Estatísticas -->
+                        <div class="stats-grid">
+                            <div class="stat-card-dash">
+                                <div class="stat-number" id="statTotalColab">0</div>
+                                <div class="stat-label">Colaboradores</div>
+                                <div class="stat-change" id="statChangeColab">
+                                    <!-- Indicador de mudança -->
+                                </div>
+                            </div>
+                            <div class="stat-card-dash">
+                                <div class="stat-number" id="statTotalHoras">0</div>
+                                <div class="stat-label">Total de Horas</div>
+                                <div class="stat-change" id="statChangeHoras">
+                                    <!-- Indicador de mudança -->
+                                </div>
+                            </div>
+                            <div class="stat-card-dash">
+                                <div class="stat-number" id="statTotalValor">R$ 0</div>
+                                <div class="stat-label">Valor Total (Pagamento)</div>
+                                <div class="stat-change" id="statChangeValor">
+                                    <!-- Indicador de mudança -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Gráficos -->
+                        <div class="report-grid">
+                            <div class="chart-card">
+                                <h3><i data-feather="pie-chart"></i> Resumo por Seção (Valor)</h3>
+                                <p class="text-sm text-gray-500 -mt-4 mb-4">Top 10 seções com maior valor.</p>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartResumoSecao"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3><i data-feather="pie-chart"></i> Resumo por Função (Valor)</h3>
+                                <p class="text-sm text-gray-500 -mt-4 mb-4">Top 10 funções com maior valor.</p>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartResumoFuncao"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ranking por Filial -->
+                        <div class="info-card">
+                            <h3><i data-feather="bar-chart-2"></i> Ranking por Filial</h3>
+                            <div id="tableRankingContainer" class="table-container mt-4">
+                                <table class="tabela" id="tableRankingFilial">
+                                    <thead>
+                                        <tr>
+                                            <th>Filial</th>
+                                            <th>Valor (Pagamento)</th>
+                                            <th>Total de Horas</th>
+                                            <th>Colaboradores</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tableRankingFilialBody">
+                                        <!-- Dados serão preenchidos pelo JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- View: Acompanhamento (Agora não é mais a 'active' por padrão) -->
+                    <div id="acompanhamentoView" class="view-content">
                         <!-- Data View Section - USANDO INFO-CARD -->
                         <div class="info-card">
                             <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
