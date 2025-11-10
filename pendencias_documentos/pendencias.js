@@ -949,19 +949,29 @@ async function handleImport() {
     }
 
     showLoading(true, `Enviando ${newData.length} registros para o servidor...`);
+    
+    const authToken = localStorage.getItem('auth_token');
+    if (!authToken) {
+        showImportError("Erro: Token de autenticação não encontrado. Faça login novamente.");
+        showLoading(false);
+        return;
+    }
 
     try {
         const response = await fetch(IMPORT_API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                // *** GARANTINDO O TOKEN AQUI ***
+                'Authorization': `Bearer ${authToken}`
             },
             body: JSON.stringify(newData)
         });
 
         if (!response.ok) {
             const errorData = await response.json();
+            // Adicionado log para ajudar na depuração
+            console.error("Erro da API /api/import-pendencias:", errorData); 
             throw new Error(errorData.error || `Erro do servidor: ${response.statusText}`);
         }
 
