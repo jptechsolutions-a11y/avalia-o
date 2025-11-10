@@ -9,28 +9,38 @@ const DATA_TABLE = 'pendencias_documentos_data';
 const META_TABLE = 'pendencias_documentos_meta';
 
 export default async (req, res) => {
-    // ... (Validação do Método e Variáveis de Ambiente) ...
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Método não permitido' });
+    }
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+        console.error("[import-pendencias] Variáveis de ambiente Supabase não configuradas.");
+        return res.status(500).json({ 
+            error: 'Falha de Configuração do Servidor', 
+            details: 'Variáveis de ambiente do Supabase não configuradas' 
+        });
+    }
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
     try {
         // 3. Validação do Usuário (Admin)
         const authHeader = req.headers.authorization;
-        // JÁ ESTÁ VERIFICANDO SE O CABEÇALHO EXISTE E COMEÇA COM 'Bearer '
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            // RETORNA 401 SE O TOKEN NÃO ESTIVER PRESENTE
+            console.error("[import-pendencias] Token JWT do usuário não encontrado");
             return res.status(401).json({ error: 'Não autorizado. Token JWT necessário.' });
         }
         const token = authHeader.split(' ')[1];
         
-        // JÁ ESTÁ VALIDANDO O TOKEN CONTRA O SUPABASE
+        // Verifica a validade do token
         const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
         if (userError || !user) {
-            // RETORNA 401 SE O TOKEN FOR INVÁLIDO/EXPIRADO
+            // Se o token for inválido, registra o erro no console do servidor
+            console.error("[import-pendencias] Token JWT inválido/expirado:", userError?.message || 'Token inválido');
             return res.status(401).json({ error: 'Token inválido ou expirado.' });
         }
 
-        // JÁ ESTÁ CHECANDO SE O USUÁRIO TEM A ROLE DE 'admin'
+        // VERIFICA SE O USUÁRIO É ADMIN (ESSENCIAL PARA SEGURANÇA)
         const { data: profile, error: profileError } = await supabaseAdmin
             .from('usuarios')
             .select('role')
@@ -38,13 +48,62 @@ export default async (req, res) => {
             .single();
 
         if (profileError || profile?.role !== 'admin') {
-            // RETORNA 403 SE NÃO FOR ADMIN
+            console.error(`[import-pendencias] Usuário ${user.email || user.id} não é admin. Role: ${profile?.role}`);
             return res.status(403).json({ error: 'Acesso negado. Requer permissão de administrador.' });
         }
         
-        // ... (Resto da Lógica de Importação) ...
+        // 4. Recebimento e Validação dos Dados
+        const newData = req.body;
+        if (!Array.isArray(newData) || newData.length === 0) {
+            return res.status(400).json({ error: 'Corpo da requisição deve ser um array não-vazio de dados.' });
+        }
         
+        console.log(`[import-pendencias] Recebidos ${newData.length} registros do admin ${user.email}`);
+        
+        // --- INÍCIO DO PROCESSO DE IMPORTAÇÃO (Limpa e Insere) ---
+        
+        // Etapa 1: Limpar a tabela existente (DELETE)
+        // Como a tabela não tem RLS configurado para filtrar por user.id, podemos
+        // usar o DELETE direto, pois apenas admins podem chamar esta API.
+        const { error: deleteError } = await supabaseAdmin
+            .from(DATA_TABLE)
+            .delete()
+            .neq('chapa', 'NULL_SENTINEL'); // Condição para forçar o DELETE ALL
+
+        if (deleteError) {
+             throw new Error(`Falha ao limpar a base de dados: ${deleteError.message}`);
+        }
+
+        // Etapa 2: Inserir os novos dados (INSERT)
+        const { error: insertError } = await supabaseAdmin
+            .from(DATA_TABLE)
+            .insert(newData);
+
+        if (insertError) {
+            throw new Error(`Falha ao importar novos dados: ${insertError.message}`);
+        }
+
+        // Etapa 3: Atualizar os metadados (data da última atualização)
+        const { error: metaError } = await supabaseAdmin
+            .from(META_TABLE)
+            // CORREÇÃO: Usar 'lastupdatedat' em minúsculas (conforme o script SQL)
+            .upsert({ id: 1, lastupdatedat: new Date().toISOString() }, { onConflict: 'id' }); 
+
+        if (metaError) {
+            console.warn(`[import-pendencias] Falha ao atualizar metadados: ${metaError.message}`);
+        }
+
+        // 5. Sucesso
+        res.status(200).json({ 
+            message: `Importação concluída! ${newData.length} registros inseridos.` 
+        });
+
     } catch (error) {
-        // ...
+        console.error('[import-pendencias] Erro fatal na API:', error.message);
+        // Garante que o frontend receba um JSON com o erro
+        res.status(500).json({ 
+            error: 'Falha interna do servidor', 
+            details: error.message 
+        });
     }
 };
