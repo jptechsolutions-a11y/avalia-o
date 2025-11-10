@@ -417,49 +417,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // ****** FUNÇÃO MODIFICADA ******
-    // Não aceita mais argumentos, faz sua própria query leve.
+    // ****** FUNÇÃO MODIFICADA (PARA USAR RPC) ******
+    // Busca os filtros únicos direto do banco de dados
     async function populateFilterDatalists() { 
         const regionalList = document.getElementById('regionalList');
         const filialList = document.getElementById('filialList');
         if (!regionalList || !filialList) return;
 
-        console.log("Populando filtros (datalists)...");
+        console.log("Populando filtros (datalists) via RPC...");
         try {
-            // Pede até 50.000 linhas, mas SÓ das colunas de filtro (leve)
-            const filterHeaders = { 'Range': '0-49999' }; 
-            const filterData = await supabaseRequest('banco_horas_data?select=CODFILIAL,REGIONAL', 'GET', null, filterHeaders);
+            // ****** MUDANÇA (CHAMADA RPC) ******
+            // Em vez de ler a tabela, chamamos as funções do banco
             
-            if (!filterData || filterData.length === 0) {
-                console.warn("Não foi possível popular os datalists, dados de filtro ausentes.");
-                return;
+            // 1. Buscar Filiais Únicas
+            const filiaisResponse = await supabaseRequest('rpc/get_distinct_codfilial', 'POST');
+            
+            // 2. Buscar Regionais Únicas
+            const regionaisResponse = await supabaseRequest('rpc/get_distinct_regional', 'POST');
+            // ****** FIM DA MUDANÇA ******
+
+            if (!filiaisResponse || filiaisResponse.length === 0) {
+                console.warn("Não foi possível popular as filiais via RPC.");
+            } else {
+                const sortedFiliais = filiaisResponse
+                    .map(item => item.codfilial) // Extrai o valor
+                    .sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+                
+                filialList.innerHTML = '';
+                sortedFiliais.forEach(filial => {
+                    filialList.innerHTML += `<option value="${filial}"></option>`;
+                });
+                console.log(`Filtro de Filiais populado com ${sortedFiliais.length} filiais únicas.`);
             }
 
-            const regionaisUnicas = new Set();
-            const filiaisUnicas = new Set();
+            if (!regionaisResponse || regionaisResponse.length === 0) {
+                    console.warn("Não foi possível popular as regionais via RPC.");
+            } else {
+                const sortedRegionais = regionaisResponse
+                    .map(item => item.regional) // Extrai o valor
+                    .sort();
 
-            // Usa os 'filterData' (50k) e não o 'state.allData' (1k)
-            filterData.forEach(item => { 
-                if (item.REGIONAL) regionaisUnicas.add(item.REGIONAL.trim());
-                if (item.CODFILIAL) filiaisUnicas.add(String(item.CODFILIAL).trim());
-            });
-
-            regionalList.innerHTML = '';
-            const sortedRegionais = [...regionaisUnicas].sort();
-            sortedRegionais.forEach(regional => {
-                regionalList.innerHTML += `<option value="${regional}"></option>`;
-            });
-
-            filialList.innerHTML = '';
-            const sortedFiliais = [...filiaisUnicas].sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
-            sortedFiliais.forEach(filial => {
-                filialList.innerHTML += `<option value="${filial}"></option>`;
-            });
-            console.log(`Filtros Datalist populados: ${filiaisUnicas.size} filiais, ${regionaisUnicas.size} regionais.`);
+                regionalList.innerHTML = '';
+                sortedRegionais.forEach(regional => {
+                    regionalList.innerHTML += `<option value="${regional}"></option>`;
+                });
+                console.log(`Filtro de Regionais populado com ${sortedRegionais.length} regionais únicas.`);
+            }
+    
         } catch (e) {
-            console.error("Falha ao popular datalists:", e);
+            console.error("Falha ao popular datalists via RPC:", e);
+            // Mostra um erro amigável
+            mostrarNotificacao("Erro ao carregar filtros. Verifique se as funções 'get_distinct_codfilial' e 'get_distinct_regional' existem no banco de dados.", "error", 10000);
         }
     }
+    // ****** FIM DA FUNÇÃO MODIFICADA ******
 
 
     // NOVA FUNÇÃO: Helper para converter horas em minutos para ordenação/comparação
