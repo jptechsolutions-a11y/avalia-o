@@ -7,7 +7,7 @@
     <link rel="icon" href="../icon.png" type="image/png">
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="../style.css?v=4">
+    <link rel="stylesheet" href="../style.css?v=5"> <!-- Versão do CSS atualizada -->
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -41,6 +41,7 @@
         }
         /* Ajuste do grid para 3 colunas quando o report-grid tem 3 itens */
         @media (min-width: 1024px) {
+            /* NOVO: Força o grid de 3 colunas para os gráficos */
             .report-grid-3 {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
@@ -175,26 +176,28 @@
                             </div>
                         </div>
                         
+                        <!-- CORREÇÃO: IDs dos canvas dos gráficos de pizza -->
                         <div class="report-grid report-grid-3">
                             <div class="chart-card">
                                 <h3><i data-feather="pie-chart"></i> % Pendência por Filial</h3>
                                 <div class="chart-container-wrapper" style="height: 350px;">
-                                    <canvas id="chartRankingFilial"></canvas>
+                                    <canvas id="chartRankingFilial"></canvas> <!-- ID Correto -->
                                 </div>
                             </div>
                             <div class="chart-card">
                                 <h3><i data-feather="pie-chart"></i> % Pendência por Seção</h3>
                                 <div class="chart-container-wrapper" style="height: 350px;">
-                                    <canvas id="chartRankingSecao"></canvas>
+                                    <canvas id="chartRankingSecao"></canvas> <!-- ID Correto -->
                                 </div>
                             </div>
                             <div class="chart-card">
                                 <h3><i data-feather="pie-chart"></i> % Pendência por Função</h3>
                                 <div class="chart-container-wrapper" style="height: 350px;">
-                                    <canvas id="chartRankingFuncao"></canvas>
+                                    <canvas id="chartRankingFuncao"></canvas> <!-- NOVO ID -->
                                 </div>
                             </div>
                         </div>
+                        
                         <div class="chart-card">
                             <h3><i data-feather="bar-chart-2"></i> Evolução das Pendências por Mês (Baseado na Data de Criação)</h3>
                             <div class="chart-container-wrapper" style="height: 350px;">
@@ -206,7 +209,8 @@
                             <h3><i data-feather="zap" class="h-5 w-5 mr-2"></i> Ranking de Filiais por Pendência</h3>
                             <p class="text-sm text-gray-600 -mt-4 mb-4">Acompanhamento das filiais com o maior número de pendências e o índice.</p>
                             <div id="tableRankingContainer" class="table-container mt-4">
-                                <table class="tabela" id="tableRankingFilialPendencias">
+                                <!-- CORREÇÃO: Adicionada classe 'text-center' na tabela para forçar centralização -->
+                                <table class="tabela text-center" id="tableRankingFilialPendencias">
                                     <thead>
                                         <tr>
                                             <th>Filial</th>
@@ -268,6 +272,8 @@
                         </div>
                     </div>
 
+                    <!-- Conteúdo: Configurações -->
+                    <!-- O problema de layout das configurações será corrigido no style.css, mas o HTML fica o mesmo -->
                     <div id="configuracoesView" class="view-content">
                         <div id="accessStatusConfig" class="access-status" style="display: none;"></div>
                         <div id="adminPanel" class="info-card mb-6 header-pendencias">
