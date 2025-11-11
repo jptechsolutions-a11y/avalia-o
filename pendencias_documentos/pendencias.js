@@ -997,6 +997,7 @@ async function handleImport() {
         });
 
         if (!response.ok) {
+            // CORREÇÃO: Tentamos ler a mensagem detalhada da API para exibir
             const errorData = await response.json();
             // Adicionado log para ajudar na depuração
             console.error("Erro da API /api/import-pendencias:", errorData); 
@@ -1004,7 +1005,8 @@ async function handleImport() {
             if (response.status === 401 || response.status === 403) {
                 mostrarNotificacao("Sessão expirada ou permissão insuficiente. Faça login novamente.", 'error', 8000);
             }
-            throw new Error(errorData.error || `Erro do servidor: ${response.statusText}`);
+            // Exibe a mensagem de erro detalhada, incluindo 'details' do servidor (que a API retorna)
+            throw new Error(errorData.details || errorData.error || `Erro do servidor: ${response.statusText}`); 
         }
 
         const result = await response.json();
@@ -1023,7 +1025,8 @@ async function handleImport() {
     } catch (err) {
         console.error("Erro durante a importação:", err);
         showLoading(false);
-        showImportError(`Erro fatal: ${err.message}.`);
+        // CORREÇÃO: Mostra a mensagem de erro da API (que agora inclui o 'details' do backend)
+        showImportError(`Erro fatal: ${err.message}.`); 
     }
 }
 
