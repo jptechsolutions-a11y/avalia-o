@@ -1,8 +1,8 @@
 // --- CONFIGURAÇÕES E CONSTANTES ---
 
-// ATENÇÃO: Os scripts do seu projeto não usam as URLs de Supabase diretamente,
-// elas são injetadas no HTML pelo Canvas ou estão no login.js.
-// Aqui, definimos o endpoint do proxy e os nomes das tabelas.
+const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co'; // ADICIONADO
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8'; // ADICIONADO
+
 const SUPABASE_PROXY_URL = '/api/proxy';
 const IMPORT_API_URL = '/api/import-pendencias';
 
@@ -29,6 +29,15 @@ const COLUMN_ORDER = [
     'CHAPA', 'NOME', 'FUNCAO', 
     'DATA_CRIACAO', 'DATA_ASSINATURA', 'DESC_STATUS'
 ];
+
+// Define o adaptador para sessionStorage (usado na criação do cliente Supabase)
+const sessionStorageAdapter = {
+  getItem: (key) => sessionStorage.getItem(key),
+  setItem: (key, value) => sessionStorage.setItem(key, value),
+  removeItem: (key) => sessionStorage.removeItem(key),
+};
+
+let supabaseClient = null; // ADICIONADO: Variável global para o cliente Supabase
 
 // Funções utilitárias (Data, Parse, etc.)
 const utils = {
@@ -288,15 +297,37 @@ function logout() {
 async function initializeSupabaseAndUser() {
     showLoading(true, 'Verificando acesso...');
     
-    const authToken = localStorage.getItem('auth_token');
-    if (!authToken) {
-        window.location.href = '../index.html';
-        return;
-    }
-
-    // Buscando dados do usuário/permissão
+    // 1. Inicializa o cliente Supabase (ADICIONADO)
     try {
-        // CORREÇÃO: Buscando todos os campos de perfil, incluindo a URL da foto.
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                storage: sessionStorageAdapter,
+                persistSession: true,
+                autoRefreshToken: true
+            }
+        });
+    } catch (e) {
+        console.error("Erro ao inicializar Supabase Client:", e);
+        // Exibe o alerta e lança o erro para o finally/catch do main
+        mostrarNotificacao("Erro crítico na inicialização do Supabase.", 'error', 10000);
+        throw new Error("Falha ao inicializar o cliente Supabase.");
+    }
+    
+    // 2. Tenta obter a sessão mais fresca
+    try {
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        
+        if (sessionError || !session) {
+            console.error("Sessão inválida, redirecionando para login.", sessionError);
+            window.location.href = '../index.html';
+            return;
+        }
+
+        state.auth = session;
+        // CRÍTICO: Garantir que o token mais fresco está no localStorage
+        localStorage.setItem('auth_token', session.access_token); 
+        
+        // Buscando dados do usuário/permissão (o token no localStorage está fresco)
         const endpoint = `usuarios?select=nome,role,profile_picture_url,permissoes_filiais,email`;
         const profileResponse = await supabaseRequest(endpoint, 'GET');
         
@@ -330,10 +361,11 @@ async function initializeSupabaseAndUser() {
 
     } catch (e) {
         console.error("Erro na inicialização do sistema:", e);
-        // Não desloga em erro de busca 401, o supabaseRequest já trata com notificação e logout
-        if (!e.message.includes("(Código 401)")) {
+        if (!e.message.includes("(Código 401)") && !e.message.includes("Falha ao inicializar")) {
             mostrarNotificacao(`Erro crítico na inicialização: ${e.message}`, 'error', 10000);
         }
+        // Se o erro não for do SupabaseRequest (que já trata o 401), lança
+        if (!e.message.includes("Não autorizado")) throw e; 
     } finally {
         showLoading(false);
     }
@@ -1021,7 +1053,21 @@ async function handleImport() {
 
     showLoading(true, `Enviando ${newData.length} registros para o servidor...`);
     
-    const authToken = localStorage.getItem('auth_token');
+    // CORREÇÃO CRÍTICA: Busca o token fresco antes de enviar.
+    let authToken = localStorage.getItem('auth_token');
+    
+    if (!authToken && supabaseClient) {
+        // Tenta buscar um token fresco se o localStorage estiver vazio (e se o cliente existir)
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (session) {
+             authToken = session.access_token;
+             localStorage.setItem('auth_token', authToken); // Armazena o fresco
+        } else if (error) {
+             console.error("Erro ao obter sessão Supabase antes da importação:", error);
+        }
+    }
+    // FIM DA CORREÇÃO CRÍTICA
+    
     if (!authToken) {
         showImportError("Erro: Token de autenticação não encontrado. Faça login novamente.");
         showLoading(false);
@@ -1037,7 +1083,7 @@ async function handleImport() {
             headers: {
                 'Content-Type': 'application/json',
                 // *** GARANTINDO O TOKEN AQUI ***
-                'Authorization': `Bearer ${authToken}`
+                'Authorization': `Bearer ${authToken}` // Usa o token fresco
             },
             // A API serverless (import-pendencias.js) tem a responsabilidade de converter 
             // as chaves de volta para minúsculas antes de enviar ao Supabase.
@@ -1083,6 +1129,7 @@ async function handleImport() {
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Inicialização e Autenticação
+    // A chamada initializeSupabaseAndUser() agora cria o cliente Supabase
     initializeSupabaseAndUser();
 
     // 2. Listeners Globais
@@ -1151,11 +1198,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
     feather.replace();
 });
-
-// Define o adaptador para sessionStorage (para o supabaseClient ser inicializado no initializeSupabaseAndUser)
-const sessionStorageAdapter = {
-  getItem: (key) => sessionStorage.getItem(key),
-  setItem: (key, value) => sessionStorage.setItem(key, value),
-  removeItem: (key) => sessionStorage.removeItem(key),
-};
-// O supabaseClient será criado dentro do initializeSupabaseAndUser
