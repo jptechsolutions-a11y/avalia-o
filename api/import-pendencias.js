@@ -4,6 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
+// CORREÇÃO CRÍTICA: Definição das constantes de tabela, pois a API não tem acesso ao escopo do frontend.
+const DATA_TABLE = 'pendencias_documentos_data';
+const META_TABLE = 'pendencias_documentos_meta';
+
 export default async (req, res) => {
     // 1. Validação do Método
     if (req.method !== 'POST') {
@@ -63,6 +67,7 @@ export default async (req, res) => {
                 const newItem = {};
                 for (const key in item) {
                     if (Object.prototype.hasOwnProperty.call(item, key)) {
+                        // Atenção: A API espera que as colunas sejam minusculas para o Supabase
                         newItem[key.toLowerCase()] = item[key];
                     }
                 }
@@ -76,10 +81,6 @@ export default async (req, res) => {
         // --- INÍCIO DO PROCESSO DE IMPORTAÇÃO (USANDO UPSERT) ---
         
         // Etapa 1: Limpeza da Base Antiga
-        // Seu código original não tinha limpeza, apenas upsert.
-        // Se a importação é "Limpar Base", ela deve vir antes do upsert.
-        // Vamos supor que a intenção seja **SUBSTITUIR** a base.
-
         // Excluindo todos os dados existentes
         const { error: deleteError } = await supabaseAdmin
             .from(DATA_TABLE)
