@@ -1050,6 +1050,28 @@ async function handleImport() {
         showImportError("Nenhum dado válido para importar.");
         return;
     }
+    
+    // --- NOVO: VERIFICAÇÃO DE DUPLICATAS NA ENTRADA DO USUÁRIO ---
+    const seenKeys = new Set();
+    let hasDuplicates = false;
+    
+    // Assumindo a chave primária: CHAPA + DOCUMENTO + DATA_CRIACAO (formatado para ISO)
+    // Se a PKEY for diferente, esta validação deve ser ajustada.
+    for (const item of newData) {
+        const key = `${item.CHAPA}|${item.DOCUMENTO}|${item.DATA_CRIACAO}`;
+        if (seenKeys.has(key)) {
+            hasDuplicates = true;
+            break;
+        }
+        seenKeys.add(key);
+    }
+
+    if (hasDuplicates) {
+        showImportError("Erro de validação: Os dados colados contêm documentos duplicados (mesma CHAPA, DOCUMENTO e DATA DE CRIAÇÃO). Remova as duplicatas e tente novamente.");
+        showLoading(false);
+        return;
+    }
+    // --- FIM DA VERIFICAÇÃO DE DUPLICATAS ---
 
     showLoading(true, `Enviando ${newData.length} registros para o servidor...`);
     
