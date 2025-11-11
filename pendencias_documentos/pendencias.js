@@ -43,7 +43,8 @@ let supabaseClient = null;
 const utils = {
     // Converte as chaves de um objeto para MAIÚSCULAS 
     mapKeysToUpperCase(dataArray) {
-        if (!ArrayArray.isArray(dataArray)) return [];
+        // CORREÇÃO: ArrayArray foi trocado por Array
+        if (!Array.isArray(dataArray)) return [];
         return dataArray.map(item => {
             const newItem = {};
             for (const key in item) {
