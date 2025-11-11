@@ -43,7 +43,7 @@ let supabaseClient = null;
 const utils = {
     // Converte as chaves de um objeto para MAIÚSCULAS 
     mapKeysToUpperCase(dataArray) {
-        if (!Array.isArray(dataArray)) return [];
+        if (!ArrayArray.isArray(dataArray)) return [];
         return dataArray.map(item => {
             const newItem = {};
             for (const key in item) {
@@ -605,18 +605,22 @@ function initializeDashboard() {
         
         // 2. Processa Meta (SÓ se o filtro for por Mês e SEM outros filtros)
         const metaProgressContainer = document.getElementById('metaProgressContainer');
-        if (mesFiltro && !regionalFiltro && !filialFiltro) {
-            metaProgressContainer.style.display = 'block';
-            // Passa os dados filtrados (só do mês)
-            processMeta(mesFiltro, filteredData); 
-        } else {
-            metaProgressContainer.style.display = 'block'; // MANTÉM VISÍVEL mas limpa os dados
-            document.getElementById('pendenciasMesAtual').textContent = '-';
-            document.getElementById('totalCriadoMesAtual').textContent = '-';
-            document.getElementById('percentualPendente').textContent = 'N/A';
-            document.getElementById('statusMeta').innerHTML = `<span class="text-gray-500">A meta é calculada apenas com o filtro 'Mês de Criação'.</span>`;
-            document.getElementById('progressFillMeta').style.width = `0%`;
-        }
+        
+        // CORREÇÃO PARA ERRO: verifica se o container foi encontrado
+        if (metaProgressContainer) {
+            if (mesFiltro && !regionalFiltro && !filialFiltro) {
+                metaProgressContainer.style.display = 'block'; 
+                // Passa os dados filtrados (só do mês)
+                processMeta(mesFiltro, filteredData); 
+            } else {
+                metaProgressContainer.style.display = 'block'; // MANTÉM VISÍVEL mas limpa os dados
+                document.getElementById('pendenciasMesAtual').textContent = '-';
+                document.getElementById('totalCriadoMesAtual').textContent = '-';
+                document.getElementById('percentualPendente').textContent = 'N/A';
+                document.getElementById('statusMeta').innerHTML = `<span class="text-gray-500">A meta é calculada apenas com o filtro 'Mês de Criação'.</span>`;
+                document.getElementById('progressFillMeta').style.width = `0%`;
+            }
+        } // Fim da verificação de metaProgressContainer
 
         // 3. Processa Ranking (usa os dados filtrados)
         processRanking(mesFiltro, filteredData); 
