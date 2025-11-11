@@ -607,7 +607,10 @@ function initializeDashboard() {
         // 2. Processa Meta (SÓ se o filtro for por Mês e SEM outros filtros)
         const metaProgressContainer = document.getElementById('metaProgressContainer');
         
-        // CORREÇÃO PARA ERRO: verifica se o container foi encontrado
+        // *** INÍCIO DA CORREÇÃO ***
+        // Adicionada verificação de segurança (safety check) para o 'metaProgressContainer'.
+        // Isso previne o erro `Cannot set properties of undefined (setting 'display')`
+        // caso o elemento não seja encontrado no DOM.
         if (metaProgressContainer) {
             if (mesFiltro && !regionalFiltro && !filialFiltro) {
                 metaProgressContainer.style.display = 'block'; 
@@ -623,6 +626,7 @@ function initializeDashboard() {
                 if (document.getElementById('progressFillMeta')) document.getElementById('progressFillMeta').style.width = `0%`;
             }
         } // Fim da verificação de metaProgressContainer
+        // *** FIM DA CORREÇÃO ***
 
         // 3. Processa Ranking (usa os dados filtrados)
         processRanking(mesFiltro, filteredData); 
@@ -1428,6 +1432,9 @@ async function handleImport() {
 // --- INICIALIZAÇÃO E EVENTOS (Não alterados) ---
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Registra o plugin do Chart.js
+    Chart.register(ChartDataLabels);
+    
     initializeSupabaseAndUser();
 
     document.getElementById('logoutButton').addEventListener('click', logout);
