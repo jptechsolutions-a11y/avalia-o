@@ -120,7 +120,7 @@ const utils = {
         // Documento está pendente se DATA_ASSINATURA está vazia OU
         // se DATA_ASSINATURA é no mês posterior ao DATA_CRIACAO
         const mesCriacao = utils.formatDateToMonth(item.DATA_CRIACAO);
-        const mesAssinatura = utils.formatDateToMonth(item.DATA_ASSINATURA);
+        const mesAssinatura = utils.formatToMonth(item.DATA_ASSINATURA);
 
         if (!mesCriacao) return false; // Sem data de criação, ignora
 
@@ -664,7 +664,9 @@ function processMeta(mesReferencia) {
 
 function processChartPendenciasMensais() {
     const dadosAgregados = state.allData.reduce((acc, item) => {
+        // CORREÇÃO: Garante que o mês é obtido da DATA_CRIACAO
         const mesCriacao = utils.formatDateToMonth(item.DATA_CRIACAO);
+        
         if (!mesCriacao) return acc;
         
         if (!acc[mesCriacao]) {
@@ -672,25 +674,22 @@ function processChartPendenciasMensais() {
         }
         
         acc[mesCriacao].total++;
-        // NOTE: mesReferencia não está definido no escopo global. Assumo que está usando a regra de abertura.
-        if (utils.isAberto(item)) { // Usa a regra mais simples (ainda não assinado)
+        
+        // CORREÇÃO: Pendência é se AINDA está em aberto (snapshot do banco)
+        if (utils.isAberto(item)) { 
              acc[mesCriacao].pendentes++;
         }
-        
-        // Se a regra for mais complexa, deve ser:
-        // if (utils.isAberto(item) || (item.DATA_ASSINATURA && utils.formatDateToMonth(item.DATA_ASSINATURA) > mesCriacao)) {
-        //     acc[mesCriacao].pendentes++;
-        // }
         
         return acc;
     }, {});
     
-    const meses = Object.keys(dadosAgregados).sort();
+    // CORREÇÃO: Garante que os meses estão em ordem cronológica (sort)
+    const meses = Object.keys(dadosAgregados).sort(); 
     
     const labels = meses.map(m => {
         const [year, month] = m.split('-');
         const date = new Date(year, month - 1);
-        return date.toLocaleDateString('pt-BR', { year: '2-digit', month: 'short' });
+        return date.toLocaleDateString('pt-BR', { year: 'numeric', month: 'short' }); // MUDANÇA: 'numeric' para ter o ano completo
     });
     
     const dataPendentes = meses.map(m => dadosAgregados[m].pendentes);
