@@ -8,6 +8,20 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const DATA_TABLE = 'pendencias_documentos_data';
 const META_TABLE = 'pendencias_documentos_meta';
 
+// Mapeamento para garantir que as chaves enviadas ao DB estejam em minúsculo
+const mapKeysToLowerCase = (data) => {
+    return data.map(item => {
+        const newItem = {};
+        for (const key in item) {
+            if (Object.prototype.hasOwnProperty.call(item, key)) {
+                // Converte a chave para minúsculo
+                newItem[key.toLowerCase()] = item[key];
+            }
+        }
+        return newItem;
+    });
+};
+
 export default async (req, res) => {
     // 1. Validação do Método
     if (req.method !== 'POST') {
@@ -38,7 +52,6 @@ export default async (req, res) => {
         const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
         if (userError || !user) {
             console.error("[import-pendencias] Token JWT inválido/expirado:", userError?.message || 'Token inválido');
-            // Retorna 401 para que o frontend entenda que a sessão expirou
             return res.status(401).json({ error: 'Token inválido ou expirado.' });
         }
 
@@ -55,24 +68,26 @@ export default async (req, res) => {
         }
         
         // 4. Recebimento e Validação dos Dados
-        const newData = req.body;
+        let newData = req.body;
         if (!Array.isArray(newData) || newData.length === 0) {
             return res.status(400).json({ error: 'Corpo da requisição deve ser um array não-vazio de dados.' });
         }
         
+        // ** Mapeamento Crítico **: Garante que as chaves enviadas ao DB são minúsculas.
+        newData = mapKeysToLowerCase(newData);
+
         console.log(`[import-pendencias] Recebidos ${newData.length} registros do admin ${user.email}`);
         
         // --- INÍCIO DO PROCESSO DE IMPORTAÇÃO (USANDO UPSERT) ---
         
         // Etapa 1: Fazer o Upsert dos novos dados.
-        // Chave de conflito composta: CHAPA, DOCUMENTO
+        // A chave de conflito *DEVE* ser minúscula para funcionar com a tabela padrão.
         const { error: upsertError } = await supabaseAdmin
             .from(DATA_TABLE)
-            .upsert(newData, { onConflict: 'CHAPA,DOCUMENTO' }); 
+            .upsert(newData, { onConflict: 'chapa,documento' }); 
 
         if (upsertError) {
             console.error('[import-pendencias] Erro no UPSERT:', upsertError);
-            // CORREÇÃO: Passa a mensagem de erro do Supabase para o frontend
             throw new Error(`Falha ao importar novos dados no DB: ${upsertError.message}`); 
         }
         
@@ -92,7 +107,6 @@ export default async (req, res) => {
 
     } catch (error) {
         console.error('[import-pendencias] Erro fatal na API:', error.message);
-        // CORREÇÃO: Inclui a mensagem detalhada da exceção no retorno 500
         res.status(500).json({ 
             error: 'Falha interna do servidor', 
             details: error.message 
