@@ -772,8 +772,8 @@ function processChartPendenciasMensais(data, regionalFiltro, filialFiltro) {
                     label: 'Documentos Pendentes',
                     data: dataPendentes,
                     // COR: Vermelho/Pink (Bad)
-                    backgroundColor: 'rgba(216, 59, 94, 0.8)', 
-                    borderColor: 'rgba(216, 59, 94, 1)',
+                    backgroundColor: 'rgba(220, 38, 38, 0.8)', // MUDADO para vermelho #dc2626
+                    borderColor: 'rgba(220, 38, 38, 1)', // MUDADO para vermelho #dc2626
                     borderWidth: 1,
                     yAxisID: 'y'
                 },
@@ -813,7 +813,11 @@ function processChartPendenciasMensais(data, regionalFiltro, filialFiltro) {
                     suggestedMax: 20 
                 }
             },
+            // ADICIONADO PARA REMOVER OS VALORES (LABELS) DO GRÁFICO
             plugins: {
+                datalabels: {
+                    display: false
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -994,7 +998,7 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
     
     // Cores unificadas para os gráficos. Usamos as cores do tema:
     const primaryColor = '#16A34A'; // Verde (Good/Abaixo da Meta)
-    const badColor = '#D83B5E';   // Vermelho/Pink (Bad/Acima da Meta)
+    const badColor = '#dc2626';   // MUDADO: Vermelho/Pink (Bad/Acima da Meta) para Vermelho (Banco de Horas)
     const accentColor = '#0077B6'; // Azul (Neutro/Destaque)
 
     const ctx = canvas.getContext('2d');
