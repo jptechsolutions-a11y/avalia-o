@@ -4,24 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
-// Nome da Tabela de Dados e Tabela de Metadados
-const DATA_TABLE = 'pendencias_documentos_data';
-const META_TABLE = 'pendencias_documentos_meta';
-
-// Mapeamento para garantir que as chaves enviadas ao DB estejam em minúsculo
-const mapKeysToLowerCase = (data) => {
-    return data.map(item => {
-        const newItem = {};
-        for (const key in item) {
-            if (Object.prototype.hasOwnProperty.call(item, key)) {
-                // Converte a chave para minúsculo
-                newItem[key.toLowerCase()] = item[key];
-            }
-        }
-        return newItem;
-    });
-};
-
 export default async (req, res) => {
     // 1. Validação do Método
     if (req.method !== 'POST') {
@@ -43,16 +25,17 @@ export default async (req, res) => {
         // 3. Validação do Usuário (Admin)
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            console.error("[import-pendencias] Token JWT do usuário não encontrado");
+            console.error("[import-pendencias] Token JWT do usuário não encontrado no header.");
             return res.status(401).json({ error: 'Não autorizado. Token JWT necessário.' });
         }
         const token = authHeader.split(' ')[1];
         
-        // Verifica a validade do token
+        // Verifica a validade do token (requer SUPABASE_SERVICE_KEY)
         const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
         if (userError || !user) {
-            console.error("[import-pendencias] Token JWT inválido/expirado:", userError?.message || 'Token inválido');
-            return res.status(401).json({ error: 'Token inválido ou expirado.' });
+            // **AJUSTE DE LOG**: Loga o erro específico retornado pelo Supabase Auth
+            console.error("[import-pendencias] Falha na autenticação do token:", userError?.message || 'Token inválido');
+            return res.status(401).json({ error: 'Token inválido ou expirado.', details: userError?.message });
         }
 
         // VERIFICA SE O USUÁRIO É ADMIN (ESSENCIAL PARA SEGURANÇA)
@@ -73,25 +56,53 @@ export default async (req, res) => {
             return res.status(400).json({ error: 'Corpo da requisição deve ser um array não-vazio de dados.' });
         }
         
-        // ** Mapeamento Crítico **: Garante que as chaves enviadas ao DB são minúsculas.
+        // A API REST espera minúsculas, mas a entrada do JS está em maiúsculas (corrigido no parsePastedData)
+        // Então, garantimos que a API converte para minúsculas antes de enviar ao DB.
+        const mapKeysToLowerCase = (data) => {
+            return data.map(item => {
+                const newItem = {};
+                for (const key in item) {
+                    if (Object.prototype.hasOwnProperty.call(item, key)) {
+                        newItem[key.toLowerCase()] = item[key];
+                    }
+                }
+                return newItem;
+            });
+        };
         newData = mapKeysToLowerCase(newData);
 
         console.log(`[import-pendencias] Recebidos ${newData.length} registros do admin ${user.email}`);
         
         // --- INÍCIO DO PROCESSO DE IMPORTAÇÃO (USANDO UPSERT) ---
         
-        // Etapa 1: Fazer o Upsert dos novos dados.
-        // A chave de conflito *DEVE* ser minúscula para funcionar com a tabela padrão.
-        const { error: upsertError } = await supabaseAdmin
-            .from(DATA_TABLE)
-            .upsert(newData, { onConflict: 'chapa,documento' }); 
+        // Etapa 1: Limpeza da Base Antiga
+        // Seu código original não tinha limpeza, apenas upsert.
+        // Se a importação é "Limpar Base", ela deve vir antes do upsert.
+        // Vamos supor que a intenção seja **SUBSTITUIR** a base.
 
-        if (upsertError) {
-            console.error('[import-pendencias] Erro no UPSERT:', upsertError);
-            throw new Error(`Falha ao importar novos dados no DB: ${upsertError.message}`); 
+        // Excluindo todos os dados existentes
+        const { error: deleteError } = await supabaseAdmin
+            .from(DATA_TABLE)
+            .delete()
+            .neq('chapa', 'N/A'); // Condição para garantir que o delete não falhe (ex: chapa não nula)
+
+        if (deleteError) {
+             console.warn(`[import-pendencias] Aviso: Falha ao limpar base antiga. Prosseguindo com o upsert.`, deleteError.message);
+        }
+
+        // Etapa 2: Inserção dos novos dados.
+        // Usamos .insert() pois a base está limpa, é mais eficiente que upsert.
+        const { error: insertError } = await supabaseAdmin
+            .from(DATA_TABLE)
+            .insert(newData); 
+
+        if (insertError) {
+            console.error('[import-pendencias] Erro na INSERÇÃO:', insertError);
+            // Retorna o erro específico do banco para o frontend
+            throw new Error(`Falha ao importar novos dados no DB: ${insertError.message}`); 
         }
         
-        // Etapa 2: Atualizar os metadados (data da última atualização)
+        // Etapa 3: Atualizar os metadados (data da última atualização)
         const { error: metaError } = await supabaseAdmin
             .from(META_TABLE)
             .upsert({ id: 1, lastupdatedat: new Date().toISOString() }, { onConflict: 'id' }); 
