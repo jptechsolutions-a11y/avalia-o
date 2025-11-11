@@ -607,26 +607,28 @@ function initializeDashboard() {
         // 2. Processa Meta (SÓ se o filtro for por Mês e SEM outros filtros)
         const metaProgressContainer = document.getElementById('metaProgressContainer');
         
-        // *** INÍCIO DA CORREÇÃO ***
-        // Adicionada verificação de segurança (safety check) para o 'metaProgressContainer'.
-        // Isso previne o erro `Cannot set properties of undefined (setting 'display')`
-        // caso o elemento não seja encontrado no DOM.
         if (metaProgressContainer) {
             if (mesFiltro && !regionalFiltro && !filialFiltro) {
                 metaProgressContainer.style.display = 'block'; 
-                // Passa os dados filtrados (só do mês)
                 processMeta(mesFiltro, filteredData); 
             } else {
-                metaProgressContainer.style.display = 'block'; // MANTÉM VISÍVEL mas limpa os dados
-                // Verifica a existência dos elementos antes de tentar manipular
-                if (document.getElementById('pendenciasMesAtual')) document.getElementById('pendenciasMesAtual').textContent = '-';
-                if (document.getElementById('totalCriadoMesAtual')) document.getElementById('totalCriadoMesAtual').textContent = '-';
-                if (document.getElementById('percentualPendente')) document.getElementById('percentualPendente').textContent = 'N/A';
-                if (document.getElementById('statusMeta')) document.getElementById('statusMeta').innerHTML = `<span class="text-gray-500">A meta é calculada apenas com o filtro 'Mês de Criação'.</span>`;
-                if (document.getElementById('progressFillMeta')) document.getElementById('progressFillMeta').style.width = `0%`;
+                metaProgressContainer.style.display = 'block';
+                
+                const pendenciasMesEl = document.getElementById('pendenciasMesAtual');
+                const totalCriadoEl = document.getElementById('totalCriadoMesAtual');
+                const percentualEl = document.getElementById('percentualPendente');
+                const statusMetaEl = document.getElementById('statusMeta');
+                const progressFillEl = document.getElementById('progressFillMeta');
+                
+                if (pendenciasMesEl) pendenciasMesEl.textContent = '-';
+                if (totalCriadoEl) totalCriadoEl.textContent = '-';
+                if (percentualEl) percentualEl.textContent = 'N/A';
+                if (statusMetaEl) statusMetaEl.innerHTML = `<span class="text-gray-500">A meta é calculada apenas com o filtro 'Mês de Criação'.</span>`;
+                if (progressFillEl) progressFillEl.style.width = `0%`;
             }
-        } // Fim da verificação de metaProgressContainer
-        // *** FIM DA CORREÇÃO ***
+        } else {
+            console.warn('[Dashboard] Elemento metaProgressContainer não encontrado no DOM.');
+        }
 
         // 3. Processa Ranking (usa os dados filtrados)
         processRanking(mesFiltro, filteredData); 
@@ -635,9 +637,6 @@ function initializeDashboard() {
         processDashboardCharts(filteredData, mesFiltro);
 
         // 5. O gráfico de evolução (bottom) usa a nova regra de pendência.
-        // Ele deve ser CALCULADO sobre TODOS OS DADOS (state.allData) para ver a evolução completa,
-        // mas deve respeitar os filtros de Regional/Filial/etc. para o escopo.
-        // MANTIDO: O gráfico de evolução é geral (usa allData)
         processChartPendenciasMensais(state.allData, regionalFiltro, filialFiltro);
         
         feather.replace();
@@ -649,16 +648,23 @@ function initializeDashboard() {
         showLoading(false);
     }
 }
-
 // CORREÇÃO: A regra da meta agora usa a regra de pendência histórica
 function processMeta(mesReferencia, dataFiltrada) {
+    const elementos = {
+        pendenciasMesAtual: document.getElementById('pendenciasMesAtual'),
+        totalCriadoMesAtual: document.getElementById('totalCriadoMesAtual'),
+        percentualPendente: document.getElementById('percentualPendente'),
+        statusMeta: document.getElementById('statusMeta'),
+        progressFillMeta: document.getElementById('progressFillMeta')
+    };
+    
+    if (!elementos.pendenciasMesAtual || !elementos.totalCriadoMesAtual || !elementos.percentualPendente || !elementos.statusMeta) {
+        console.warn('[processMeta] Elementos da meta não encontrados no DOM. Abortando cálculo.');
+        return;
+    }
     
     const totalCriado = dataFiltrada.length;
-    
-    // Pendência: Documento criado no mês de referência (já filtrado) E AINDA não assinado
-    // OU assinado em mês posterior.
     const pendenciasNoMes = dataFiltrada.filter(item => utils.isPendenciaHistorica(item, mesReferencia));
-    
     const totalPendencias = pendenciasNoMes.length;
     const percentualPendente = totalCriado > 0 ? (totalPendencias / totalCriado) * 100 : 0;
     
@@ -666,29 +672,22 @@ function processMeta(mesReferencia, dataFiltrada) {
     const cor = metaAtingida ? 'text-pendencia-good' : 'text-pendencia-bad';
     const statusText = metaAtingida ? 'META ATINGIDA! 🎉' : 'NÃO ATINGIDA. 😞';
     
-    // Preenche os valores
-    document.getElementById('pendenciasMesAtual').textContent = totalPendencias.toLocaleString('pt-BR');
-    document.getElementById('totalCriadoMesAtual').textContent = totalCriado.toLocaleString('pt-BR');
-    document.getElementById('percentualPendente').textContent = `${percentualPendente.toFixed(2)}%`;
-    document.getElementById('percentualPendente').className = cor;
-    document.getElementById('statusMeta').innerHTML = `<span class="${cor}">${statusText}</span>`;
+    elementos.pendenciasMesAtual.textContent = totalPendencias.toLocaleString('pt-BR');
+    elementos.totalCriadoMesAtual.textContent = totalCriado.toLocaleString('pt-BR');
+    elementos.percentualPendente.textContent = `${percentualPendente.toFixed(2)}%`;
+    elementos.percentualPendente.className = cor;
+    elementos.statusMeta.innerHTML = `<span class="${cor}">${statusText}</span>`;
     
-    // Preenche a barra de progresso (Inverso: quanto menor, melhor)
     let progressWidth;
-    
     if (metaAtingida) {
-         // Se atingiu, a barra é baseada no quão próximo de 0% estamos
          progressWidth = Math.min(100, 100 - (percentualPendente / (META_PORCENTAGEM * 1.5)) * 100);
     } else {
-        // Se não atingiu, mostra o valor real, mas limita a 100% da barra
         progressWidth = Math.min(100, percentualPendente * 100 / META_PORCENTAGEM);
     }
 
-    const progressFill = document.getElementById('progressFillMeta');
-    if(progressFill) {
-        progressFill.style.width = `${progressWidth}%`;
-        // GARANTIA DE CORES: Usa o mesmo esquema de cores do Banco de Horas (verde para bom, vermelho para ruim)
-        progressFill.className = `progress-fill-pendencias ${metaAtingida ? 'good' : 'bad'}`;
+    if(elementos.progressFillMeta) {
+        elementos.progressFillMeta.style.width = `${progressWidth}%`;
+        elementos.progressFillMeta.className = `progress-fill-pendencias ${metaAtingida ? 'good' : 'bad'}`;
     }
 }
 
