@@ -23,9 +23,9 @@ const COLUMN_MAP = {
     'DATA_ASSINATURA': 'Assinatura',
     'DESC_STATUS': 'Status'
 };
-// Ordem para exibição e parse
+// Ordem para exibição e parse (AJUSTADO: REMOVIDO BANDEIRA E REGIONAL)
 const COLUMN_ORDER = [
-    'BANDEIRA', 'REGIONAL', 'CODFILIAL', 'DOCUMENTO', 
+    'CODFILIAL', 'DOCUMENTO', 
     'CHAPA', 'NOME', 'FUNCAO', 
     'DATA_CRIACAO', 'DATA_ASSINATURA', 'DESC_STATUS'
 ];
@@ -120,7 +120,7 @@ const utils = {
         // Documento está pendente se DATA_ASSINATURA está vazia OU
         // se DATA_ASSINATURA é no mês posterior ao DATA_CRIACAO
         const mesCriacao = utils.formatDateToMonth(item.DATA_CRIACAO);
-        const mesAssinatura = utils.formatToMonth(item.DATA_ASSINATURA);
+        const mesAssinatura = utils.formatDateToMonth(item.DATA_ASSINATURA);
 
         if (!mesCriacao) return false; // Sem data de criação, ignora
 
@@ -698,12 +698,25 @@ function processChartPendenciasMensais() {
         return total > 0 ? (pendentes / total) * 100 : 0;
     });
 
+    console.log("Dados do Gráfico (Labels):", labels);
+    console.log("Dados do Gráfico (Pendentes):", dataPendentes);
+    console.log("Dados do Gráfico (Percentual):", dataPercentual);
+
+
+    // Se o gráfico existir, destrói
     if (state.charts.pendenciasMensais) {
         state.charts.pendenciasMensais.destroy();
     }
     
     const ctx = document.getElementById('chartPendenciasMensais');
     if (!ctx) return;
+    
+    // CORREÇÃO: Se não houver dados, não tenta desenhar o gráfico
+    if (labels.length === 0) {
+        ctx.style.display = 'none'; // Esconde a tela se estiver vazia
+        return;
+    }
+    ctx.style.display = 'block'; // Garante que esteja visível
     
     state.charts.pendenciasMensais = new Chart(ctx, {
         type: 'bar',
@@ -860,6 +873,7 @@ function initializeAcompanhamento() {
 
 function renderTableHeaderAcomp() {
     const tr = document.createElement('tr');
+    // CORREÇÃO: Renderiza apenas as colunas em COLUMN_ORDER (que agora não tem Bandeira/Regional)
     COLUMN_ORDER.forEach(key => {
         const th = document.createElement('th');
         th.textContent = COLUMN_MAP[key] || key;
@@ -927,12 +941,17 @@ function renderTableBodyAcomp(data) {
         const tr = document.createElement('tr');
         
         let diasClass = 'pendencia-baixa';
-        if (item.diasPendente >= 30) {
-            diasClass = 'pendencia-alta';
-        } else if (item.diasPendente >= 15) {
-            diasClass = 'pendencia-media';
+        // CORREÇÃO: Se passar de 3 dias, fica vermelho (pendencia-bad)
+        if (item.diasPendente >= 3) {
+            diasClass = 'diff-pendencia-bad'; // Usando a classe de cor vermelha do style.css
+        } else if (item.diasPendente >= 1) {
+             diasClass = 'diff-pendencia-good'; // Cor verde para menos de 3 dias (positivo)
+        } else {
+             diasClass = 'text-gray-500';
         }
 
+
+        // CORREÇÃO: Renderiza apenas as colunas definidas em COLUMN_ORDER
         COLUMN_ORDER.forEach(key => {
             const td = document.createElement('td');
             td.textContent = item[key] || '-';
@@ -950,6 +969,7 @@ function renderTableBodyAcomp(data) {
         });
 
         const tdDays = document.createElement('td');
+        // CORREÇÃO: Aplica a classe de cor de pendência
         tdDays.innerHTML = `<strong class="${diasClass}">${item.diasPendente}</strong>`;
         tdDays.style.textAlign = 'center';
         tr.appendChild(tdDays);
