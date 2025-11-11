@@ -581,9 +581,21 @@ function initializeDashboard() {
     showLoading(true, 'Calculando dashboard...');
     
     try {
-        const mesFiltro = document.getElementById('filterMesDash').value;
-        const regionalFiltro = document.getElementById('filterRegionalDash').value;
-        const filialFiltro = document.getElementById('filterCodFilialDash').value;
+        // Pega os valores dos filtros COM VERIFICAÇÃO
+        const filterMesDashEl = document.getElementById('filterMesDash');
+        const filterRegionalDashEl = document.getElementById('filterRegionalDash');
+        const filterCodFilialDashEl = document.getElementById('filterCodFilialDash');
+        
+        if (!filterMesDashEl || !filterRegionalDashEl || !filterCodFilialDashEl) {
+            console.error('[Dashboard] Elementos de filtro não encontrados no DOM.');
+            mostrarNotificacao('Erro: Filtros do dashboard não encontrados.', 'error');
+            showLoading(false);
+            return;
+        }
+        
+        const mesFiltro = filterMesDashEl.value;
+        const regionalFiltro = filterRegionalDashEl.value;
+        const filialFiltro = filterCodFilialDashEl.value;
 
         // 1. Filtra os dados conforme a UI para todos os cálculos
         let filteredData = state.allData;
@@ -594,7 +606,6 @@ function initializeDashboard() {
         }
 
         if (mesFiltro) {
-            // CORREÇÃO: Filtragem por Mês de Criação
             filteredData = filteredData.filter(item => utils.formatDateToMonth(item.DATA_CRIACAO) === mesFiltro);
         }
         if (regionalFiltro) {
@@ -642,7 +653,7 @@ function initializeDashboard() {
         feather.replace();
 
     } catch (e) {
-        console.error(`Erro ao processar dashboard: ${e}`);
+        console.error(`Erro ao processar dashboard: ${e.message}`, e);
         mostrarNotificacao(`Erro ao gerar dashboard: ${e.message}`, 'error');
     } finally {
         showLoading(false);
