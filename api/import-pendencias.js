@@ -8,6 +8,17 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const DATA_TABLE = 'pendencias_documentos_data';
 const META_TABLE = 'pendencias_documentos_meta';
 
+// Helper para gerar um UUID. Assume que o runtime suporta crypto.randomUUID().
+const generateUniqueId = () => {
+    try {
+        // Usa o método nativo mais seguro
+        return crypto.randomUUID();
+    } catch (e) {
+        // Fallback para IDs únicos baseados em data e random number
+        return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    }
+}
+
 export default async (req, res) => {
     // 1. Validação do Método
     if (req.method !== 'POST') {
@@ -60,11 +71,16 @@ export default async (req, res) => {
             return res.status(400).json({ error: 'Corpo da requisição deve ser um array não-vazio de dados.' });
         }
         
-        // A API REST espera minúsculas, mas a entrada do JS está em maiúsculas (corrigido no parsePastedData)
-        // Então, garantimos que a API converte para minúsculas antes de enviar ao DB.
-        const mapKeysToLowerCase = (data) => {
+        // CORREÇÃO CRÍTICA:
+        // 1. Mapeia para minúsculas (necessário para a API REST do Supabase).
+        // 2. Adiciona um ID único para garantir que a constraint de PKEY seja satisfeita,
+        //    assumindo que a chave primária da tabela é 'id'.
+        const mapKeysAndAddId = (data) => {
             return data.map(item => {
                 const newItem = {};
+                // Garante que todo item tem um ID único
+                newItem.id = generateUniqueId(); 
+
                 for (const key in item) {
                     if (Object.prototype.hasOwnProperty.call(item, key)) {
                         // Atenção: A API espera que as colunas sejam minusculas para o Supabase
@@ -74,25 +90,25 @@ export default async (req, res) => {
                 return newItem;
             });
         };
-        newData = mapKeysToLowerCase(newData);
+        newData = mapKeysAndAddId(newData);
 
         console.log(`[import-pendencias] Recebidos ${newData.length} registros do admin ${user.email}`);
         
-        // --- INÍCIO DO PROCESSO DE IMPORTAÇÃO (USANDO UPSERT) ---
+        // --- INÍCIO DO PROCESSO DE IMPORTAÇÃO (USANDO INSERT) ---
         
         // Etapa 1: Limpeza da Base Antiga
         // Excluindo todos os dados existentes
         const { error: deleteError } = await supabaseAdmin
             .from(DATA_TABLE)
             .delete()
-            .neq('chapa', 'N/A'); // Condição para garantir que o delete não falhe (ex: chapa não nula)
+            .neq('chapa', 'N/A'); 
 
         if (deleteError) {
-             console.warn(`[import-pendencias] Aviso: Falha ao limpar base antiga. Prosseguindo com o upsert.`, deleteError.message);
+             console.warn(`[import-pendencias] Aviso: Falha ao limpar base antiga. Prosseguindo com a inserção.`, deleteError.message);
         }
 
         // Etapa 2: Inserção dos novos dados.
-        // Usamos .insert() pois a base está limpa, é mais eficiente que upsert.
+        // O `id` gerado agora deve evitar a violação de chave primária.
         const { error: insertError } = await supabaseAdmin
             .from(DATA_TABLE)
             .insert(newData); 
