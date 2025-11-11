@@ -56,7 +56,7 @@ const utils = {
     },
     // NOVO: Converte data de DD/MM/YYYY ou DD/MM/YY para YYYY-MM-DD (ISO 8601)
     formatToISO(dateStr) {
-        if (!dateStr || dateStr.toLowerCase().includes('n/a')) return null;
+        if (!dateStr || dateStr.toLowerCase().includes('n/a') || dateStr === '-') return null;
         const cleanedStr = dateStr.split(' ')[0].trim(); // Remove a parte da hora (00:00:00)
         
         // Tenta formatos DD/MM/YYYY ou DD/MM/YY
@@ -73,12 +73,28 @@ const utils = {
         
         return null; // Retorna nulo se não for um formato reconhecido
     },
+    // NOVO: Converte data ISO (YYYY-MM-DD) para DD/MM/YYYY (para exibição)
+    formatToBR(isoDateStr) {
+        if (!isoDateStr || isoDateStr.toLowerCase().includes('n/a') || isoDateStr === '-') return '-';
+        // Tenta parsear a string ISO
+        const parts = isoDateStr.split('-');
+        if (parts.length === 3) {
+            const [year, month, day] = parts;
+            return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+        }
+        return isoDateStr;
+    },
     // Retorna a data no formato YYYY-MM
     formatDateToMonth(dateStr) {
-        if (!dateStr || dateStr.toLowerCase().includes('n/a')) return null;
+        if (!dateStr || dateStr.toLowerCase().includes('n/a') || dateStr === '-') return null;
         try {
-            // Usa a função de conversão para garantir o formato correto
-            const isoDate = utils.formatToISO(dateStr);
+            // Usa a função de conversão para garantir o formato correto (ISO)
+            // Se for DD/MM/YYYY, o parseDate vai falhar, então usamos o formatToISO
+            let isoDate = dateStr;
+            if (dateStr.includes('/')) {
+                 isoDate = utils.formatToISO(dateStr);
+            }
+            
             if (!isoDate) return null;
             
             return isoDate.substring(0, 7); // YYYY-MM
@@ -96,7 +112,7 @@ const utils = {
     },
     // Converte string de data para objeto Date (para cálculos de dias)
     parseDate(dateStr) {
-        if (!dateStr || dateStr.toLowerCase().includes('n/a')) return null;
+        if (!dateStr || dateStr.toLowerCase().includes('n/a') || dateStr === '-') return null;
         try {
             // Usa a função de conversão para obter o formato ISO
             const isoDate = utils.formatToISO(dateStr);
@@ -115,36 +131,12 @@ const utils = {
         const diffTime = Math.abs(date2.getTime() - date1.getTime());
         return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     },
-    // Retorna se um documento está pendente *relativo ao mês de criação*
-    isPendente(item) {
-        // Documento está pendente se DATA_ASSINATURA está vazia OU
-        // se DATA_ASSINATURA é no mês posterior ao DATA_CRIACAO
-        const mesCriacao = utils.formatDateToMonth(item.DATA_CRIACAO);
-        const mesAssinatura = utils.formatDateToMonth(item.DATA_ASSINATURA);
-
-        if (!mesCriacao) return false; // Sem data de criação, ignora
-
-        if (!mesAssinatura) {
-            return true; // Não assinado -> Pendente
-        }
-        
-        // Se a assinatura for no mês da criação, não é pendência.
-        if (mesAssinatura === mesCriacao) {
-            return false;
-        }
-
-        // Se a assinatura é posterior, foi pendência (mas não está mais)
-        // O relatório de pendentes (ACOMPANHAMENTO) só mostra quem AINDA não tem assinatura.
-        return false; // Assinado -> Não está mais pendente
-    },
     // Retorna se um documento *AINDA* está pendente (não assinado)
     isAberto(item) {
-        const status = (item.DESC_STATUS || '').toLowerCase();
-        // Assume pendente se a data de assinatura é N/A ou o status indica não finalizado
+        // Verifica se DATA_ASSINATURA é nula ou se a string indica não-assinatura
         return !item.DATA_ASSINATURA || 
                 item.DATA_ASSINATURA.toLowerCase().includes('n/a') ||
-                status.includes('pendente') ||
-                status.includes('aguardando');
+                item.DATA_ASSINATURA === '-';
     }
 };
 
@@ -426,15 +418,16 @@ async function loadInitialData() {
         // 3. Popula filtros e redesenha o Dashboard
         populateFilterLists();
         
-        // Se a view ativa for o Dashboard, redesenha
-        if (window.location.hash === '#dashboard' || window.location.hash === '') {
-             initializeDashboard(); // Força o cálculo do Dashboard após carregar tudo
+        // Otimização: Chama a inicialização da view ativa
+        const hash = window.location.hash || '#dashboard';
+        if (hash === '#dashboard') {
+             initializeDashboard(); 
+        } else if (hash === '#acompanhamento') {
+             initializeAcompanhamento(); 
         }
 
-        // Se a view ativa for o Acompanhamento, redesenha
-         if (window.location.hash === '#acompanhamento') {
-             initializeAcompanhamento(); // Força o cálculo do Acompanhamento após carregar tudo
-        }
+        // NOVO: Renderiza o gráfico de evolução geral (independente dos filtros)
+        processChartPendenciasMensais(state.allData);
         
     } catch (e) {
         console.error("Falha ao carregar dados iniciais:", e);
@@ -456,6 +449,7 @@ function populateFilterLists() {
     };
 
     allData.forEach(item => {
+        // CORREÇÃO: Usa a data de criação para agrupar o mês
         const mesCriacao = utils.formatDateToMonth(item.DATA_CRIACAO);
         if (mesCriacao) sets.mes.add(mesCriacao);
         if (item.REGIONAL) sets.regional.add(item.REGIONAL);
@@ -491,6 +485,7 @@ function populateFilterLists() {
         mesDash.value = mesReferencia; // Seta o filtro para o mês mais recente
     } else {
         document.getElementById('mesReferenciaMeta').textContent = 'N/A';
+        mesDash.value = '';
     }
 
     // Popula selects do Acompanhamento (usa a mesma lista para simplificar)
@@ -571,11 +566,9 @@ function showView(viewId, element) {
 // --- FUNÇÕES DO DASHBOARD ---
 
 function initializeDashboard() {
-    // Se não houver dados, o loadInitialData vai ser chamado (porém, este método pode ser chamado 
-    // antes do loadInitialData terminar, então fazemos a checagem básica).
     if (state.allData.length === 0) {
         showLoading(true, 'Aguardando carregamento de dados...');
-        return; // Retorna e espera o loadInitialData chamar novamente no final
+        return; 
     }
 
     showLoading(true, 'Calculando dashboard...');
@@ -585,10 +578,15 @@ function initializeDashboard() {
         const regionalFiltro = document.getElementById('filterRegionalDash').value;
         const filialFiltro = document.getElementById('filterCodFilialDash').value;
 
-        // 1. Filtra os dados conforme a UI
+        // 1. Filtra os dados conforme a UI para o Ranking/Meta
         let filteredData = state.allData;
+        
+        // Aplica filtros de permissão
+        if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.CODFILIAL));
+        }
+
         if (mesFiltro) {
-            // Filtro por mês de criação
             filteredData = filteredData.filter(item => utils.formatDateToMonth(item.DATA_CRIACAO) === mesFiltro);
         }
         if (regionalFiltro) {
@@ -597,20 +595,23 @@ function initializeDashboard() {
         if (filialFiltro) {
             filteredData = filteredData.filter(item => item.CODFILIAL === filialFiltro);
         }
-
-        // 2. Processa Meta e Indicadores (SÓ se o filtro for por Mês)
+        
+        // 2. Processa Meta (SÓ se o filtro for por Mês e SEM outros filtros)
+        const metaProgressContainer = document.getElementById('metaProgressContainer');
         if (mesFiltro && !regionalFiltro && !filialFiltro) {
-            processMeta(mesFiltro); // O mais importante
-            processRanking(mesFiltro); // Ranking daquele mês
+            metaProgressContainer.style.display = 'block';
+            processMeta(mesFiltro, filteredData); 
         } else {
             // Limpa o painel da meta se houver filtros adicionais (não faz sentido o cálculo)
-            document.getElementById('metaProgressContainer').innerHTML = `<p class="alert alert-info">A meta só é calculada quando o filtro é estritamente o Mês de Criação.</p>`;
-            // Processa o ranking com os filtros
-            processRanking(mesFiltro); 
+            metaProgressContainer.style.display = 'none';
+            // Mensagem de informação (JÁ TEM NO HTML)
         }
 
-        // 3. Processa o Gráfico (sempre o total, para manter a evolução)
-        processChartPendenciasMensais(); 
+        // 3. Processa Ranking (usa os filtros)
+        processRanking(mesFiltro, filteredData); 
+
+        // 4. O gráfico de evolução é sempre geral (para manter a série histórica completa)
+        // processChartPendenciasMensais(state.allData);
         
         feather.replace();
 
@@ -622,17 +623,15 @@ function initializeDashboard() {
     }
 }
 
-function processMeta(mesReferencia) {
-    const totalCriadoNoMes = state.allData.filter(item => 
-        utils.formatDateToMonth(item.DATA_CRIACAO) === mesReferencia
-    );
+function processMeta(mesReferencia, dataFiltrada) {
+    // A dataFiltrada JÁ CONTÉM SOMENTE OS REGISTROS DO mesReferencia (filtrado em initializeDashboard)
     
-    // Pendência: Criado no mês 'M' e não assinado (ou assinado em 'M+1' ou depois)
-    const pendenciasNoMes = totalCriadoNoMes.filter(item => 
-        utils.isAberto(item) || utils.formatDateToMonth(item.DATA_ASSINATURA) > mesReferencia
-    );
+    // Pendência: Criado no mês 'M' (já filtrado) e AINDA está aberto.
+    const totalCriado = dataFiltrada.length;
     
-    const totalCriado = totalCriadoNoMes.length;
+    // Pendência: Documento criado no mês de referência E AINDA não assinado
+    const pendenciasNoMes = dataFiltrada.filter(item => utils.isAberto(item));
+    
     const totalPendencias = pendenciasNoMes.length;
     const percentualPendente = totalCriado > 0 ? (totalPendencias / totalCriado) * 100 : 0;
     
@@ -649,21 +648,33 @@ function processMeta(mesReferencia) {
     
     // Preenche a barra de progresso (Inverso: quanto menor, melhor)
     let progressWidth;
-    if (percentualPendente > META_PORCENTAGEM) {
-        // Se a meta foi ultrapassada, o progresso vai de 0 a 100% do "mau"
-        progressWidth = Math.min(100, percentualPendente / (META_PORCENTAGEM * 2) * 100); 
+    
+    // A barra deve refletir o percentual de pendência até o limite da meta
+    if (percentualPendente <= META_PORCENTAGEM) {
+        // Se abaixo da meta (bom), a barra reflete o quão longe está da meta (ex: 1% de 3% é 66%)
+        progressWidth = Math.min(100, 100 - (percentualPendente / META_PORCENTAGEM) * 100); 
     } else {
-        // Se a meta foi atingida, o progresso reflete o quão longe está de 0%
-        progressWidth = (1 - percentualPendente / META_PORCENTAGEM) * 100;
+        // Se acima da meta (ruim), a barra reflete o quanto ultrapassou
+        // 100% da barra é 2*META_PORCENTAGEM para dar uma visualização de "ultrapassagem"
+        progressWidth = Math.min(100, (percentualPendente / (META_PORCENTAGEM * 2)) * 100); 
     }
     
     const progressFill = document.getElementById('progressFillMeta');
+    // CORREÇÃO: Progressão Inversa (quanto menor o %, mais a barra VERDE deve estar cheia)
+    if (metaAtingida) {
+         progressWidth = Math.min(100, 100 - (percentualPendente / META_PORCENTAGEM) * 100);
+    } else {
+        // Barra vermelha, enchendo conforme ultrapassa a meta
+        progressWidth = Math.min(100, percentualPendente * 100 / (META_PORCENTAGEM * 2));
+    }
+
     progressFill.style.width = `${progressWidth}%`;
     progressFill.className = `progress-fill-pendencias ${metaAtingida ? 'good' : 'bad'}`;
 }
 
-function processChartPendenciasMensais() {
-    const dadosAgregados = state.allData.reduce((acc, item) => {
+// CORREÇÃO: processChartPendenciasMensais agora aceita dados como argumento
+function processChartPendenciasMensais(data) {
+    const dadosAgregados = data.reduce((acc, item) => {
         // CORREÇÃO: Garante que o mês é obtido da DATA_CRIACAO
         const mesCriacao = utils.formatDateToMonth(item.DATA_CRIACAO);
         
@@ -689,7 +700,7 @@ function processChartPendenciasMensais() {
     const labels = meses.map(m => {
         const [year, month] = m.split('-');
         const date = new Date(year, month - 1);
-        return date.toLocaleDateString('pt-BR', { year: 'numeric', month: 'short' }); // MUDANÇA: 'numeric' para ter o ano completo
+        return date.toLocaleDateString('pt-BR', { year: 'numeric', month: 'short' }); 
     });
     
     const dataPendentes = meses.map(m => dadosAgregados[m].pendentes);
@@ -697,11 +708,6 @@ function processChartPendenciasMensais() {
         const { total, pendentes } = dadosAgregados[m];
         return total > 0 ? (pendentes / total) * 100 : 0;
     });
-
-    console.log("Dados do Gráfico (Labels):", labels);
-    console.log("Dados do Gráfico (Pendentes):", dataPendentes);
-    console.log("Dados do Gráfico (Percentual):", dataPercentual);
-
 
     // Se o gráfico existir, destrói
     if (state.charts.pendenciasMensais) {
@@ -711,12 +717,11 @@ function processChartPendenciasMensais() {
     const ctx = document.getElementById('chartPendenciasMensais');
     if (!ctx) return;
     
-    // CORREÇÃO: Se não houver dados, não tenta desenhar o gráfico
     if (labels.length === 0) {
-        ctx.style.display = 'none'; // Esconde a tela se estiver vazia
+        ctx.style.display = 'none'; 
         return;
     }
-    ctx.style.display = 'block'; // Garante que esteja visível
+    ctx.style.display = 'block'; 
     
     state.charts.pendenciasMensais = new Chart(ctx, {
         type: 'bar',
@@ -726,7 +731,7 @@ function processChartPendenciasMensais() {
                 {
                     label: 'Documentos Pendentes',
                     data: dataPendentes,
-                    backgroundColor: 'rgba(216, 59, 94, 0.8)', // Cor do Alerta
+                    backgroundColor: 'rgba(216, 59, 94, 0.8)', 
                     borderColor: 'rgba(216, 59, 94, 1)',
                     borderWidth: 1,
                     yAxisID: 'y'
@@ -735,7 +740,7 @@ function processChartPendenciasMensais() {
                     label: '% Pendente',
                     data: dataPercentual,
                     type: 'line',
-                    borderColor: 'rgba(0, 180, 216, 1)', // Azul (Accent)
+                    borderColor: 'rgba(0, 180, 216, 1)', 
                     backgroundColor: 'rgba(0, 180, 216, 0.2)',
                     fill: true,
                     yAxisID: 'y1'
@@ -762,7 +767,7 @@ function processChartPendenciasMensais() {
                     display: true,
                     position: 'right',
                     title: { display: true, text: '% Pendente' },
-                    grid: { drawOnChartArea: false }, // Esconde a grade do eixo da direita
+                    grid: { drawOnChartArea: false }, 
                     suggestedMax: 20 // Sugere um máximo para o %
                 }
             },
@@ -789,12 +794,10 @@ function processChartPendenciasMensais() {
     });
 }
 
-function processRanking(mesReferencia) {
-    const dataParaRanking = state.allData.filter(item => 
-        !mesReferencia || utils.formatDateToMonth(item.DATA_CRIACAO) === mesReferencia
-    );
-
-    const grupos = dataParaRanking.reduce((acc, item) => {
+// CORREÇÃO: processRanking agora aceita a data filtrada para o cálculo
+function processRanking(mesReferencia, dataFiltrada) {
+    
+    const grupos = dataFiltrada.reduce((acc, item) => {
         const filial = item.CODFILIAL || 'N/A';
         if (filial === 'N/A') return acc;
         
@@ -808,22 +811,19 @@ function processRanking(mesReferencia) {
         }
         
         acc[filial].totalDocumentos++;
-        // CORREÇÃO: A regra de pendência no dashboard deve ser:
-        // Criado no mês de referência (que já é o filtro) E ainda estar aberto.
-        // Se a assinatura foi posterior, ele conta como pendência para o mês, mas
-        // a importação é um snapshot, o cálculo está correto.
-        if (utils.isAberto(item) || utils.formatDateToMonth(item.DATA_ASSINATURA) > mesReferencia) {
+        // Pendência: Documento criado no mês de referência (já filtrado) E AINDA não assinado
+        if (utils.isAberto(item)) {
             acc[filial].totalPendente++;
         }
         return acc;
     }, {});
     
-    // Calcula o percentual e o "Índice" (que é o % de pendência)
+    // Calcula o percentual e ordena pelo pior %
     const rankedData = Object.values(grupos).map(item => ({
         ...item,
         percentualPendente: item.totalDocumentos > 0 ? (item.totalPendente / item.totalDocumentos) * 100 : 0
     }))
-    .sort((a, b) => b.percentualPendente - a.percentualPendente); // Ordena pelo pior %
+    .sort((a, b) => b.percentualPendente - a.percentualPendente); 
     
     // Renderiza a tabela
     const tbody = document.getElementById('tableRankingFilialBody');
@@ -840,12 +840,12 @@ function processRanking(mesReferencia) {
         const corIndice = item.percentualPendente > META_PORCENTAGEM ? 'pendencia-alta' : 'pendencia-baixa';
         
         tr.innerHTML = `
-            <td>${item.filial}</td>
-            <td>${item.regional}</td>
-            <td class="text-right">${item.totalDocumentos.toLocaleString('pt-BR')}</td>
-            <td class="text-right">${item.totalPendente.toLocaleString('pt-BR')}</td>
-            <td class="text-right ${corIndice}">${item.percentualPendente.toFixed(2)}%</td>
-            <td class="text-center">
+            <td style="text-align: center;">${item.filial}</td>
+            <td style="text-align: center;">${item.regional}</td>
+            <td style="text-align: right; font-family: monospace;">${item.totalDocumentos.toLocaleString('pt-BR')}</td>
+            <td style="text-align: right; font-family: monospace;">${item.totalPendente.toLocaleString('pt-BR')}</td>
+            <td style="text-align: right; font-family: monospace;" class="${corIndice}">${item.percentualPendente.toFixed(2)}%</td>
+            <td style="text-align: center;">
                 <span class="status-badge ${corIndice === 'pendencia-alta' ? 'status-demitido' : 'status-ativo'}" style="background-color: ${corIndice === 'pendencia-alta' ? 'var(--pendencia-bad)' : 'var(--pendencia-good)'}; color: white;">
                     ${corIndice === 'pendencia-alta' ? 'Acima Meta' : 'Abaixo Meta'}
                 </span>
@@ -860,27 +860,29 @@ function processRanking(mesReferencia) {
 // --- FUNÇÕES DO ACOMPANHAMENTO ---
 
 function initializeAcompanhamento() {
-    // Se não houver dados, o loadInitialData vai ser chamado (porém, este método pode ser chamado 
-    // antes do loadInitialData terminar, então fazemos a checagem básica).
     if (state.allData.length === 0) {
         showLoading(true, 'Aguardando carregamento de dados...');
-        return; // Retorna e espera o loadInitialData chamar novamente no final
+        return; 
     }
     renderTableHeaderAcomp();
     applyFiltersAcomp();
-    // Os selects de filtro já foram populados em loadInitialData
 }
 
 function renderTableHeaderAcomp() {
     const tr = document.createElement('tr');
-    // CORREÇÃO: Renderiza apenas as colunas em COLUMN_ORDER (que agora não tem Bandeira/Regional)
+    // CORREÇÃO: Renderiza apenas as colunas em COLUMN_ORDER
     COLUMN_ORDER.forEach(key => {
         const th = document.createElement('th');
         th.textContent = COLUMN_MAP[key] || key;
+        // NOVO: Centralização para as colunas importantes
+        if (['CODFILIAL', 'DATA_CRIACAO', 'DATA_ASSINATURA', 'DESC_STATUS'].includes(key)) {
+            th.style.textAlign = 'center';
+        }
         tr.appendChild(th);
     });
     const thDays = document.createElement('th');
     thDays.textContent = 'Dias Pendente';
+    thDays.style.textAlign = 'center'; // Centraliza o cabeçalho
     tr.appendChild(thDays);
     document.getElementById('tableHeadAcomp').innerHTML = '';
     document.getElementById('tableHeadAcomp').appendChild(tr);
@@ -894,8 +896,14 @@ function applyFiltersAcomp() {
     const filtroCodFilial = document.getElementById('filterCodFilialAcomp').value;
     const filtroDocumento = document.getElementById('filterDocumentoAcomp').value;
 
+    // Filtra por quem AINDA está aberto
     let filteredData = state.allData.filter(item => utils.isAberto(item));
     
+    // Aplica filtros de permissão
+    if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+        filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.CODFILIAL));
+    }
+
     if (filtroNome) {
         filteredData = filteredData.filter(item => 
             (item.NOME && item.NOME.toLowerCase().includes(filtroNome)) ||
@@ -930,7 +938,8 @@ function renderTableBodyAcomp(data) {
     
     // Calcula os dias pendentes e ordena por quem está pendente há mais tempo
     const dataComDias = data.map(item => {
-        const dataCriacao = utils.parseDate(item.DATA_CRIACAO);
+        // CORREÇÃO: Usa o item.DATA_CRIACAO que JÁ está no formato ISO (se o parsePastedData rodou)
+        const dataCriacao = item.DATA_CRIACAO ? new Date(item.DATA_CRIACAO + 'T00:00:00Z') : null;
         const diasPendente = dataCriacao ? utils.diffInDays(dataCriacao, new Date()) : 0;
         return { ...item, diasPendente };
     }).sort((a, b) => b.diasPendente - a.diasPendente);
@@ -940,36 +949,40 @@ function renderTableBodyAcomp(data) {
     dataComDias.forEach(item => {
         const tr = document.createElement('tr');
         
-        let diasClass = 'pendencia-baixa';
-        // CORREÇÃO: Se passar de 3 dias, fica vermelho (pendencia-bad)
+        let diasClass = 'text-gray-500';
+        // 3 dias ou mais = vermelho/bad
         if (item.diasPendente >= 3) {
-            diasClass = 'diff-pendencia-bad'; // Usando a classe de cor vermelha do style.css
+            diasClass = 'diff-pendencia-bad'; 
         } else if (item.diasPendente >= 1) {
-             diasClass = 'diff-pendencia-good'; // Cor verde para menos de 3 dias (positivo)
-        } else {
-             diasClass = 'text-gray-500';
+             diasClass = 'diff-pendencia-good'; 
         }
-
 
         // CORREÇÃO: Renderiza apenas as colunas definidas em COLUMN_ORDER
         COLUMN_ORDER.forEach(key => {
             const td = document.createElement('td');
-            td.textContent = item[key] || '-';
-            // Estilos para datas ficarem mais visíveis
+            let value = item[key] || '-';
+            
+            // AJUSTE CRÍTICO: Formatação de Data para DD/MM/YYYY
             if (key.includes('DATA_')) {
+                value = utils.formatToBR(value); // Converte o ISO para DD/MM/YYYY
                 td.style.fontFamily = 'monospace';
                 td.style.fontSize = '0.85rem';
-                if (key === 'DATA_ASSINATURA' && item[key] && !utils.isAberto(item)) {
-                    td.style.color = 'var(--pendencia-good)';
-                } else if (key === 'DATA_ASSINATURA' && !item[key]) {
-                    td.style.color = 'var(--pendencia-bad)';
-                }
+                td.style.textAlign = 'center';
             }
+            
+            // Centralização/Alinhamento adicional
+            if (['CODFILIAL', 'CHAPA', 'DESC_STATUS'].includes(key)) {
+                td.style.textAlign = 'center';
+            } else if (['NOME', 'DOCUMENTO', 'FUNCAO'].includes(key)) {
+                 td.style.whiteSpace = 'normal';
+            }
+            
+            td.textContent = value;
             tr.appendChild(td);
         });
 
         const tdDays = document.createElement('td');
-        // CORREÇÃO: Aplica a classe de cor de pendência
+        // CORREÇÃO: Aplica a classe de cor de pendência e centraliza
         tdDays.innerHTML = `<strong class="${diasClass}">${item.diasPendente}</strong>`;
         tdDays.style.textAlign = 'center';
         tr.appendChild(tdDays);
@@ -1032,7 +1045,8 @@ function handlePreview() {
     }
 
     const previewData = parsedData.slice(0, 15);
-    const headers = COLUMN_ORDER;
+    // CORREÇÃO: Usa as colunas do COLUMN_ORDER (sem Bandeira/Regional)
+    const headers = COLUMN_ORDER; 
     
     let tableHTML = '<table class="tabela"><thead><tr>';
     headers.forEach(key => {
@@ -1043,7 +1057,12 @@ function handlePreview() {
     previewData.forEach(item => {
         tableHTML += '<tr>';
         headers.forEach(key => {
-            tableHTML += `<td>${item[key] || '-'}</td>`;
+            // CORREÇÃO: Formata a data para a pré-visualização também
+            let value = item[key] || '-';
+            if (key.includes('DATA_')) {
+                value = utils.formatToBR(value);
+            }
+            tableHTML += `<td>${value}</td>`;
         });
         tableHTML += '</tr>';
     });
@@ -1063,9 +1082,14 @@ function parsePastedData(text) {
     if (lines.length < 2) throw new Error("Os dados precisam de pelo menos 2 linhas (cabeçalho e dados).");
 
     const delimiter = lines[0].includes('\t') ? '\t' : ',';
-    const headers = lines[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
+    // Colunas esperadas: Incluem BANDEIRA e REGIONAL para passar para a API
+    const EXPECTED_HEADERS = [
+        'BANDEIRA', 'REGIONAL', 'CODFILIAL', 'DOCUMENTO', 'CHAPA', 'NOME', 'FUNCAO', 
+        'DATA_CRIACAO', 'DATA_ASSINATURA', 'DESC_STATUS'
+    ]; 
+    const headers = lines[0].split(delimiter).map(h => h.trim().toUpperCase().replace(/"/g, ''));
     
-    const missingHeaders = COLUMN_ORDER.filter(col => !headers.includes(col));
+    const missingHeaders = EXPECTED_HEADERS.filter(col => !headers.includes(col));
     if (missingHeaders.length > 0) {
         throw new Error(`Cabeçalhos faltando: ${missingHeaders.join(', ')}`);
     }
@@ -1073,18 +1097,20 @@ function parsePastedData(text) {
     const data = lines.slice(1).map(line => {
         const values = line.split(delimiter).map(v => v.trim().replace(/"/g, ''));
         const obj = {};
+        
         headers.forEach((header, index) => {
-            if (COLUMN_ORDER.includes(header)) {
-                obj[header] = values[index] || null;
+            if (EXPECTED_HEADERS.includes(header)) {
+                // CORREÇÃO: Mapeia o valor para a chave em MAIÚSCULAS
+                obj[header] = values[index] || null; 
             }
         });
         
-        // ** NOVO: Conversão de Datas **
+        // ** NOVO: Conversão de Datas (DD/MM/YYYY para ISO YYYY-MM-DD)**
         if (obj.DATA_CRIACAO) {
-            obj.DATA_CRIACAO = utils.formatToISO(obj.DATA_CRIACAO);
+            obj.DATA_CRIACAO = utils.formatToISO(obj.DATA_CRIACAO) || obj.DATA_CRIACAO;
         }
         if (obj.DATA_ASSINATURA) {
-            obj.DATA_ASSINATURA = utils.formatToISO(obj.DATA_ASSINATURA);
+            obj.DATA_ASSINATURA = utils.formatToISO(obj.DATA_ASSINATURA) || obj.DATA_ASSINATURA;
         }
 
         // Validação Mínima: Requer CHAPA e DATA_CRIACAO
@@ -1116,7 +1142,6 @@ async function handleImport() {
 
     let newData;
     try {
-        // O parsePastedData já devolve com as chaves MAIÚSCULAS para bater com a validação
         newData = parsePastedData(pastedData); 
     } catch (err) {
         showImportError(err.message);
@@ -1130,20 +1155,17 @@ async function handleImport() {
     
     showLoading(true, `Enviando ${newData.length} registros para o servidor...`);
     
-    // CORREÇÃO CRÍTICA: Busca o token fresco antes de enviar.
     let authToken = localStorage.getItem('auth_token');
     
     if (!authToken && supabaseClient) {
-        // Tenta buscar um token fresco se o localStorage estiver vazio (e se o cliente existir)
         const { data: { session }, error } = await supabaseClient.auth.getSession();
         if (session) {
             authToken = session.access_token;
-            localStorage.setItem('auth_token', authToken); // Armazena o fresco
+            localStorage.setItem('auth_token', authToken); 
         } else if (error) {
             console.error("Erro ao obter sessão Supabase antes da importação:", error);
         }
     }
-    // FIM DA CORREÇÃO CRÍTICA
     
     if (!authToken) {
         showImportError("Erro: Token de autenticação não encontrado. Faça login novamente.");
@@ -1159,24 +1181,18 @@ async function handleImport() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // *** GARANTINDO O TOKEN AQUI ***
-                'Authorization': `Bearer ${authToken}` // Usa o token fresco
+                'Authorization': `Bearer ${authToken}` 
             },
-            // A API serverless (import-pendencias.js) tem a responsabilidade de converter 
-            // as chaves de volta para minúsculas antes de enviar ao Supabase.
+            // O newData tem as chaves em MAIÚSCULAS no formato correto (incluindo as datas ISO)
             body: JSON.stringify(newData) 
         });
 
         if (!response.ok) {
-            // CORREÇÃO: Tentamos ler a mensagem detalhada da API para exibir
             const errorData = await response.json();
-            // Adicionado log para ajudar na depuração
             console.error("Erro da API /api/import-pendencias:", errorData); 
-            // Se o erro for 401 ou 403, sugere o login
             if (response.status === 401 || response.status === 403) {
                 mostrarNotificacao("Sessão expirada ou permissão insuficiente. Faça login novamente.", 'error', 8000);
             }
-            // Exibe a mensagem de erro detalhada, incluindo 'details' do servidor (que a API retorna)
             throw new Error(errorData.details || errorData.error || `Erro do servidor: ${response.statusText}`); 
         }
 
@@ -1185,9 +1201,7 @@ async function handleImport() {
         ui.dataInput.value = '';
         
         showLoading(true, 'Recarregando dados...');
-        await loadInitialData(); // Recarrega os dados do Supabase (que agora vai buscar TUDO)
-        
-        // A navegação e o redraw já estão dentro do loadInitialData
+        await loadInitialData(); 
         
         showLoading(false);
         mostrarNotificacao(result.message || "Dados importados com sucesso!", 'success');
@@ -1195,7 +1209,6 @@ async function handleImport() {
     } catch (err) {
         console.error("Erro durante a importação:", err);
         showLoading(false);
-        // CORREÇÃO: Mostra a mensagem de erro da API (que agora inclui o 'details' do backend)
         showImportError(`Erro fatal: ${err.message}.`); 
     }
 }
@@ -1204,19 +1217,11 @@ async function handleImport() {
 // --- INICIALIZAÇÃO E EVENTOS ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Inicialização e Autenticação
-    // A chamada initializeSupabaseAndUser() agora cria o cliente Supabase
     initializeSupabaseAndUser();
 
-    // 2. Listeners Globais
-    const modalClose = document.getElementById('modalClose');
-    // CORREÇÃO: Removendo este listener que estava dando erro, o modalClose só existe no banco_horas.html
-    // if (modalClose) modalClose.addEventListener('click', () => document.getElementById('detailsModal').style.display = 'none');
-    
     document.getElementById('logoutButton').addEventListener('click', logout);
     document.getElementById('logoutLink').addEventListener('click', logout);
     
-    // Dropdown de perfil
     const profileDropdownButton = document.getElementById('profileDropdownButton');
     const profileDropdown = document.getElementById('profileDropdown');
     if (profileDropdownButton) {
@@ -1237,7 +1242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filterMesDash').addEventListener('change', initializeDashboard);
     document.getElementById('filterRegionalDash').addEventListener('change', initializeDashboard);
     document.getElementById('filterCodFilialDash').addEventListener('change', initializeDashboard);
-
+    
     // 4. Listeners do Acompanhamento (usando debounce para inputs de texto)
     document.getElementById('filterRegionalAcomp').addEventListener('change', applyFiltersAcomp);
     document.getElementById('filterCodFilialAcomp').addEventListener('change', applyFiltersAcomp);
