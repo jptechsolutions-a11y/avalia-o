@@ -615,11 +615,12 @@ function initializeDashboard() {
                 processMeta(mesFiltro, filteredData); 
             } else {
                 metaProgressContainer.style.display = 'block'; // MANTÉM VISÍVEL mas limpa os dados
-                document.getElementById('pendenciasMesAtual').textContent = '-';
-                document.getElementById('totalCriadoMesAtual').textContent = '-';
-                document.getElementById('percentualPendente').textContent = 'N/A';
-                document.getElementById('statusMeta').innerHTML = `<span class="text-gray-500">A meta é calculada apenas com o filtro 'Mês de Criação'.</span>`;
-                document.getElementById('progressFillMeta').style.width = `0%`;
+                // Verifica a existência dos elementos antes de tentar manipular
+                if (document.getElementById('pendenciasMesAtual')) document.getElementById('pendenciasMesAtual').textContent = '-';
+                if (document.getElementById('totalCriadoMesAtual')) document.getElementById('totalCriadoMesAtual').textContent = '-';
+                if (document.getElementById('percentualPendente')) document.getElementById('percentualPendente').textContent = 'N/A';
+                if (document.getElementById('statusMeta')) document.getElementById('statusMeta').innerHTML = `<span class="text-gray-500">A meta é calculada apenas com o filtro 'Mês de Criação'.</span>`;
+                if (document.getElementById('progressFillMeta')) document.getElementById('progressFillMeta').style.width = `0%`;
             }
         } // Fim da verificação de metaProgressContainer
 
@@ -680,9 +681,11 @@ function processMeta(mesReferencia, dataFiltrada) {
     }
 
     const progressFill = document.getElementById('progressFillMeta');
-    progressFill.style.width = `${progressWidth}%`;
-    // GARANTIA DE CORES: Usa o mesmo esquema de cores do Banco de Horas (verde para bom, vermelho para ruim)
-    progressFill.className = `progress-fill-pendencias ${metaAtingida ? 'good' : 'bad'}`;
+    if(progressFill) {
+        progressFill.style.width = `${progressWidth}%`;
+        // GARANTIA DE CORES: Usa o mesmo esquema de cores do Banco de Horas (verde para bom, vermelho para ruim)
+        progressFill.className = `progress-fill-pendencias ${metaAtingida ? 'good' : 'bad'}`;
+    }
 }
 
 // CORREÇÃO: processChartPendenciasMensais agora usa a regra histórica
@@ -852,6 +855,8 @@ function processRanking(mesReferencia, dataFiltrada) {
     
     // Renderiza a tabela
     const tbody = document.getElementById('tableRankingFilialBody');
+    if (!tbody) return; // Adicionado check de segurança
+
     tbody.innerHTML = '';
     
     if (rankedData.length === 0) {
