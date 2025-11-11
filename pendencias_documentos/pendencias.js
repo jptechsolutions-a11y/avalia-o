@@ -176,8 +176,8 @@ const state = {
     charts: {
         pendenciasMensais: null,
         rankingFilial: null, 
-        rankingSecao: null,
-        rankingFuncao: null // NOVO: Para o terceiro gráfico
+        // rankingSecao: null, // REMOVIDO: Pendência por Seção
+        rankingFuncao: null 
     },
     setupCompleto: false,
 };
@@ -676,6 +676,7 @@ function processMeta(mesReferencia, dataFiltrada) {
 
     const progressFill = document.getElementById('progressFillMeta');
     progressFill.style.width = `${progressWidth}%`;
+    // GARANTIA DE CORES: Usa o mesmo esquema de cores do Banco de Horas (verde para bom, vermelho para ruim)
     progressFill.className = `progress-fill-pendencias ${metaAtingida ? 'good' : 'bad'}`;
 }
 
@@ -748,6 +749,7 @@ function processChartPendenciasMensais(data, regionalFiltro, filialFiltro) {
                 {
                     label: 'Documentos Pendentes',
                     data: dataPendentes,
+                    // COR: Vermelho/Pink (Bad)
                     backgroundColor: 'rgba(216, 59, 94, 0.8)', 
                     borderColor: 'rgba(216, 59, 94, 1)',
                     borderWidth: 1,
@@ -757,6 +759,7 @@ function processChartPendenciasMensais(data, regionalFiltro, filialFiltro) {
                     label: '% Pendente',
                     data: dataPercentual,
                     type: 'line',
+                    // COR: Azul (Neutro/Série)
                     borderColor: 'rgba(0, 180, 216, 1)', 
                     backgroundColor: 'rgba(0, 180, 216, 0.2)',
                     fill: true,
@@ -854,9 +857,10 @@ function processRanking(mesReferencia, dataFiltrada) {
     const fragment = document.createDocumentFragment();
     rankedData.forEach(item => {
         const tr = document.createElement('tr');
+        // Usando o esquema de cores do Banco de Horas
         const corIndice = item.percentualPendente > META_PORCENTAGEM ? 'pendencia-alta' : 'pendencia-baixa';
         
-        // CORREÇÃO: Aplica text-align: right/center DENTRO do <td> para as colunas específicas
+        // Aplica text-align: right/center DENTRO do <td> para as colunas específicas
         tr.innerHTML = `
             <td style="text-align: center;">${item.filial}</td>
             <td style="text-align: center;">${item.regional}</td>
@@ -874,30 +878,22 @@ function processRanking(mesReferencia, dataFiltrada) {
     tbody.appendChild(fragment);
 }
 
-// NOVO: Função para renderizar os gráficos de pizza do dashboard
+// NOVO: Função para renderizar os gráficos de pizza/barra do dashboard
 function processDashboardCharts(data, mesReferencia) {
     
     // Filtra SÓ as pendências históricas para os gráficos
     // Aqui usamos o filtro de mês da UI, se ele estiver ativo.
     const dataPendencia = data.filter(item => utils.isPendenciaHistorica(item, mesReferencia));
     
-    // 1. Ranking por Filial (Total Pendente)
+    // 1. Ranking por Filial (Total Pendente) -> VAI SER BARRA
     const gruposFilial = dataPendencia.reduce((acc, item) => {
         const key = item.CODFILIAL || 'N/A';
-        if (!acc[key]) acc[key] = { filial: key, pendentes: 0 };
+        if (!acc[key]) acc[key] = { filial: key, pendentes: 0, total: 0 };
         acc[key].pendentes++;
         return acc;
     }, {});
     
-    // 2. Ranking por Seção (Total Pendente)
-    const gruposSecao = dataPendencia.reduce((acc, item) => {
-        const key = item.SECAO || 'N/A';
-        if (!acc[key]) acc[key] = { secao: key, pendentes: 0 };
-        acc[key].pendentes++;
-        return acc;
-    }, {});
-
-    // 3. Ranking por Função (Total Pendente)
+    // 2. Ranking por Função (Total Pendente)
     const gruposFuncao = dataPendencia.reduce((acc, item) => {
         const key = item.FUNCAO || 'N/A';
         if (!acc[key]) acc[key] = { funcao: key, pendentes: 0 };
@@ -906,32 +902,26 @@ function processDashboardCharts(data, mesReferencia) {
     }, {});
     
     
-    // 4. Renderiza Filial (Gráfico 1)
+    // 3. Renderiza Filial (Gráfico 1) - MUDANÇA PARA GRÁFICO DE BARRAS
     const chartFilialData = aggregateChartData(Object.values(gruposFilial).map(g => [g.filial, g.pendentes]), 'Filial', 'Total de Pendentes (Filial)');
     renderChart(
-        document.getElementById('chartRankingFilial'), // ID CORRETO DO HTML
+        document.getElementById('chartRankingFilial'), 
         'rankingFilial', 
-        'doughnut', // Muda para doughnut (melhor visual)
+        'bar', // TIPO BARRA SOLICITADO
         chartFilialData.labels, 
         chartFilialData.values,
-        '% Pendência por Filial'
+        'Total de Pendências por Filial'
     );
     
-    // 5. Renderiza Seção (Gráfico 2)
-    const chartSecaoData = aggregateChartData(Object.values(gruposSecao).map(g => [g.secao, g.pendentes]), 'Seção', 'Total de Pendentes (Seção)');
-    renderChart(
-        document.getElementById('chartRankingSecao'), // ID CORRETO DO HTML
-        'rankingSecao', 
-        'doughnut', 
-        chartSecaoData.labels, 
-        chartSecaoData.values,
-        '% Pendência por Seção'
-    );
-
-    // 6. Renderiza Função (Gráfico 3)
+    // REMOVIDO: Ranking por Seção
+    // if (state.charts.rankingSecao) {
+    //    state.charts.rankingSecao.destroy();
+    // }
+    
+    // 4. Renderiza Função (Gráfico 2 - Continua PIZZA/DOUGHNUT)
     const chartFuncaoData = aggregateChartData(Object.values(gruposFuncao).map(g => [g.funcao, g.pendentes]), 'Função', 'Total de Pendentes (Função)');
     renderChart(
-        document.getElementById('chartRankingFuncao'), // ID CORRETO DO HTML
+        document.getElementById('chartRankingFuncao'), 
         'rankingFuncao', 
         'doughnut', 
         chartFuncaoData.labels, 
@@ -941,7 +931,7 @@ function processDashboardCharts(data, mesReferencia) {
 }
 
 /**
- * Agrega dados para os gráficos de pizza (Top 10 + Outros).
+ * Agrega dados para os gráficos (Top 10 + Outros).
  * @param {Array} dataArray - Array de arrays: [['chave', valor], ...].
  * @param {string} title - Título da agregação.
  */
@@ -978,19 +968,21 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
         state.charts[chartStateKey].destroy();
     }
     
+    // Cores unificadas para os gráficos. Usamos as cores do tema:
+    const primaryColor = '#16A34A'; // Verde (Good/Abaixo da Meta)
+    const badColor = '#D83B5E';   // Vermelho/Pink (Bad/Acima da Meta)
+    const accentColor = '#0077B6'; // Azul (Neutro/Destaque)
+
     const ctx = canvas.getContext('2d');
-    state.charts[chartStateKey] = new Chart(ctx, {
+    
+    let chartConfig = {
         type: type,
         data: {
             labels: labels,
             datasets: [{
                 label: label,
                 data: data,
-                backgroundColor: [
-                    // Cores bonitas para os gráficos de pizza (Adicionado cores pendência)
-                    '#D83B5E', '#0077B6', '#FFB703', '#16A34A', '#00B4D8', 
-                    '#90E0EF', '#FB8500', '#023047', '#219EBC', '#ADB5BD'
-                ],
+                backgroundColor: [], // Definido abaixo
                 borderColor: '#ffffff',
                 borderWidth: (type === 'pie' || type === 'doughnut') ? 2 : 1
             }]
@@ -1006,32 +998,73 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
                         boxWidth: 12
                     }
                 },
-                // NOVO: Configuração de % (Plugin datalabels)
                 datalabels: {
+                    display: (type === 'pie' || type === 'doughnut'), // Apenas para pie/doughnut
                     formatter: (value, ctx) => {
-                        if (type !== 'pie' && type !== 'doughnut') {
-                            return null;
-                        }
-                        let sum = 0;
-                        let dataArr = ctx.chart.data.datasets[0].data;
-                        dataArr.map(data => {
-                            sum += data;
-                        });
+                        if (type !== 'pie' && type !== 'doughnut') return null;
+                        let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
                         let percentage = (value * 100 / sum);
-                        // NÃO mostra se for muito pequeno
                         return percentage < 3 ? '' : percentage.toFixed(1) + '%';
                     },
                     color: '#fff',
-                    font: {
-                        weight: 'bold',
-                        size: 12
-                    },
+                    font: { weight: 'bold', size: 12 },
                     textShadowBlur: 2,
                     textShadowColor: 'rgba(0, 0, 0, 0.5)'
                 }
             }
         }
-    });
+    };
+
+    if (type === 'bar') {
+        // --- CONFIGURAÇÃO PARA GRÁFICO DE BARRAS (Filial) ---
+        chartConfig.options.legend.display = false; // Não precisa de legenda em barras simples
+        
+        // Gerar cores dinâmicas (ex: gradiente de vermelho para azul)
+        const barColors = labels.map((_, index) => {
+            // Se for um gráfico de ranking (Filial), usamos o esquema BadColor (vermelho)
+            if (chartStateKey === 'rankingFilial') {
+                // Tenta dar um gradiente de BadColor a AccentColor
+                const ratio = index / labels.length;
+                
+                // Exemplo de interpolação simples (BadColor sempre dominante)
+                const r = parseInt(216 + ratio * (0 - 216));
+                const g = parseInt(59 + ratio * (180 - 59));
+                const b = parseInt(94 + ratio * (216 - 94));
+                return `rgba(${r}, ${g}, ${b}, 0.8)`;
+            }
+            return accentColor; 
+        });
+
+        chartConfig.data.datasets[0].backgroundColor = barColors;
+        chartConfig.data.datasets[0].borderColor = badColor; // Borda BadColor
+        chartConfig.data.datasets[0].borderWidth = 1;
+
+        chartConfig.options.scales = {
+            x: {
+                // Configurações para rótulos longos de Filial
+                ticks: {
+                    maxRotation: 45,
+                    minRotation: 45
+                }
+            },
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Total de Pendências (un.)' }
+            }
+        };
+
+    } else if (type === 'doughnut' || type === 'pie') {
+        // --- CONFIGURAÇÃO PARA GRÁFICOS DE PIZZA/DONUT ---
+        chartConfig.data.datasets[0].backgroundColor = [
+            // Cores bonitas para os gráficos de pizza (Unificadas)
+            badColor, primaryColor, accentColor, '#FFB703', '#90E0EF', 
+            '#FB8500', '#023047', '#219EBC', '#8ECAE6', '#ADB5BD'
+        ];
+        chartConfig.data.datasets[0].borderColor = '#ffffff';
+    }
+
+
+    state.charts[chartStateKey] = new Chart(ctx, chartConfig);
 }
 
 
@@ -1125,12 +1158,13 @@ function renderTableBodyAcomp(data) {
         const tr = document.createElement('tr');
         
         let diasClass = 'text-gray-500';
-        if (item.diasPendente >= 5) { // >= 5 dias: Vermelho
+        // CORES UNIFICADAS DO BANCO DE HORAS: Vermelho (Bad/5+ dias) e Verde (Good/1-4 dias)
+        if (item.diasPendente >= 5) { // >= 5 dias: Vermelho (Ruim)
             diasClass = 'diff-pendencia-bad'; 
-        } else if (item.diasPendente >= 2) { // >= 2 dias: Amarelo (Usando Green aqui, mas a cor vermelha está no CSS)
-             diasClass = 'text-yellow-600 font-bold'; 
-        } else if (item.diasPendente >= 1) { // 1 dia: Neutro/Verde Claro
-             diasClass = 'diff-pendencia-good'; 
+        } else if (item.diasPendente >= 1) { // >= 1 dia: Verde (Ainda é Pendência, mas está no prazo)
+             diasClass = 'diff-pendencia-good'; // Usa cor verde (Good)
+        } else {
+             diasClass = 'text-gray-500'; // 0 dias
         }
 
 
