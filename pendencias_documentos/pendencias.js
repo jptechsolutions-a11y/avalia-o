@@ -32,6 +32,19 @@ const COLUMN_ORDER = [
 
 // Funções utilitárias (Data, Parse, etc.)
 const utils = {
+    // NOVO: Converte as chaves de um objeto para MAIÚSCULAS (Correção para Case Sensitivity do DB)
+    mapKeysToUpperCase(dataArray) {
+        if (!Array.isArray(dataArray)) return [];
+        return dataArray.map(item => {
+            const newItem = {};
+            for (const key in item) {
+                if (Object.prototype.hasOwnProperty.call(item, key)) {
+                    newItem[key.toUpperCase()] = item[key];
+                }
+            }
+            return newItem;
+        });
+    },
     // NOVO: Converte data de DD/MM/YYYY ou DD/MM/YY para YYYY-MM-DD (ISO 8601)
     formatToISO(dateStr) {
         if (!dateStr || dateStr.toLowerCase().includes('n/a')) return null;
@@ -339,7 +352,9 @@ async function loadInitialData() {
             supabaseRequest(metaQuery, 'GET')
         ]);
         
-        state.allData = dataRes || [];
+        // CORREÇÃO CRÍTICA: Converter todas as chaves para MAIÚSCULAS
+        // O Supabase retorna chaves minúsculas, mas o restante do JS espera MAIÚSCULAS.
+        state.allData = utils.mapKeysToUpperCase(dataRes || []);
 
         // Atualiza a data da última importação
         if (metaRes && metaRes.length > 0) {
@@ -992,7 +1007,8 @@ async function handleImport() {
 
     let newData;
     try {
-        newData = parsePastedData(pastedData);
+        // O parsePastedData já devolve com as chaves MAIÚSCULAS para bater com a validação
+        newData = parsePastedData(pastedData); 
     } catch (err) {
         showImportError(err.message);
         return;
@@ -1023,7 +1039,9 @@ async function handleImport() {
                 // *** GARANTINDO O TOKEN AQUI ***
                 'Authorization': `Bearer ${authToken}`
             },
-            body: JSON.stringify(newData)
+            // A API serverless (import-pendencias.js) tem a responsabilidade de converter 
+            // as chaves de volta para minúsculas antes de enviar ao Supabase.
+            body: JSON.stringify(newData) 
         });
 
         if (!response.ok) {
