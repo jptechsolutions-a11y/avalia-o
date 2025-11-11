@@ -6,16 +6,14 @@
     <title>Pendência de Documentos | G&G</title>
     <link rel="icon" href="../icon.png" type="image/png">
     
-    <!-- Scripts de Estilo e Ícones (Padrão do App) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="../style.css?v=3">
+    <link rel="stylesheet" href="../style.css?v=4">
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     
-    <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <!-- Chart.js para os gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
     <style>
         /* Estilos específicos para pendências */
@@ -41,14 +39,18 @@
             align-items: center;
             gap: 4px;
         }
+        /* Ajuste do grid para 3 colunas quando o report-grid tem 3 itens */
+        @media (min-width: 1024px) {
+            .report-grid-3 {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-100">
 
-    <!-- Shell principal -->
     <div id="appShell" class="h-screen flex flex-col" style="display: none;">
 
-        <!-- Header -->
         <header id="topBar" class="flex-shrink-0">
             <div class="flex items-center gap-4">
                 <button id="sidebarToggle" class="btn-icon">
@@ -90,10 +92,8 @@
             </div>
         </header>
 
-        <!-- Main System -->
         <div id="mainSystem" class="flex flex-1 overflow-hidden">
 
-            <!-- Sidebar -->
             <aside class="sidebar collapsed">
                 <nav class="p-2 pt-4">
                     <a href="#dashboard" class="nav-item active" title="Dashboard Pendências">
@@ -115,11 +115,9 @@
             
             <div id="sidebarOverlay"></div>
 
-            <!-- Main Content -->
             <main class="main-content">
                 <div class="container mx-auto px-6 py-8">
                 
-                    <!-- VIEW 1: Dashboard -->
                     <div id="dashboardView" class="view-content active">
                         <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
                             <h1><i data-feather="alert-triangle" class="h-7 w-7 text-pendencia-bad"></i> Dashboard Pendências de Documentos</h1>
@@ -129,7 +127,6 @@
                             </div>
                         </div>
 
-                        <!-- Filtros do Dashboard -->
                         <div class="filter-bar">
                             <div class="form-group">
                                 <label for="filterMesDash">Filtrar por Mês de Criação</label>
@@ -151,7 +148,6 @@
                             </div>
                         </div>
 
-                        <!-- Indicador de Meta e Progresso -->
                         <div class="info-card flex flex-col md:flex-row justify-between items-start header-pendencias">
                             <div class="mb-4 md:mb-0 md:w-1/2">
                                 <h3><i data-feather="target" class="h-5 w-5 mr-2"></i> Meta de Regularização Mensal</h3>
@@ -178,8 +174,27 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Gráfico de Pendências por Mês -->
+                        
+                        <div class="report-grid report-grid-3">
+                            <div class="chart-card">
+                                <h3><i data-feather="pie-chart"></i> % Pendência por Filial</h3>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartRankingFilial"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3><i data-feather="pie-chart"></i> % Pendência por Seção</h3>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartRankingSecao"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3><i data-feather="pie-chart"></i> % Pendência por Função</h3>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartRankingFuncao"></canvas>
+                                </div>
+                            </div>
+                        </div>
                         <div class="chart-card">
                             <h3><i data-feather="bar-chart-2"></i> Evolução das Pendências por Mês (Baseado na Data de Criação)</h3>
                             <div class="chart-container-wrapper" style="height: 350px;">
@@ -187,7 +202,6 @@
                             </div>
                         </div>
 
-                        <!-- Indicadores de Filial por Pendência -->
                         <div class="info-card">
                             <h3><i data-feather="zap" class="h-5 w-5 mr-2"></i> Ranking de Filiais por Pendência</h3>
                             <p class="text-sm text-gray-600 -mt-4 mb-4">Acompanhamento das filiais com o maior número de pendências e o índice.</p>
@@ -211,14 +225,12 @@
                         </div>
                     </div>
 
-                    <!-- VIEW 2: Acompanhamento Detalhado -->
                     <div id="acompanhamentoView" class="view-content">
                         <div class="info-card">
                             <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
                                 <h3 class="!mb-0 !pb-0 !border-b-0"><i data-feather="list" class="h-5 w-5 mr-2"></i> Documentos Ainda Pendentes</h3>
                             </div>
 
-                            <!-- Filtros -->
                             <div class="filter-bar mt-4">
                                 <div class="form-group">
                                     <label for="filterNomeAcomp">Filtrar por Nome/Chapa</label>
@@ -244,7 +256,6 @@
                                 </div>
                             </div>
 
-                            <!-- Tabela de Pendentes -->
                             <div id="tableContainer" class="table-container mt-6">
                                 <table class="tabela">
                                     <thead id="tableHeadAcomp"></thead>
@@ -257,7 +268,6 @@
                         </div>
                     </div>
 
-                    <!-- VIEW 3: Configurações (Admin) -->
                     <div id="configuracoesView" class="view-content">
                         <div id="accessStatusConfig" class="access-status" style="display: none;"></div>
                         <div id="adminPanel" class="info-card mb-6 header-pendencias">
@@ -299,16 +309,13 @@
         </div>
     </div>
 
-    <!-- Container de Notificações -->
     <div id="notificationContainer"></div>
 
-    <!-- Loading Overlay -->
     <div id="loading" class="loading">
         <div class="spinner"></div>
         <p id="loadingText">Processando...</p>
     </div>
 
-    <!-- JS DO SISTEMA -->
     <script src="pendencias.js" defer></script>
 </body>
 </html>
