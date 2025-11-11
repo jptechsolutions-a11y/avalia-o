@@ -18,12 +18,12 @@ const COLUMN_MAP = {
     'DOCUMENTO': 'Documento',
     'CHAPA': 'Chapa',
     'NOME': 'Nome',
-    'FUNCAO': 'Função', // REMOVIDO DE COLUMN_ORDER
+    'FUNCAO': 'Função',
     'DATA_CRIACAO': 'Criação',
     'DATA_ASSINATURA': 'Assinatura',
     'DESC_STATUS': 'Status'
 };
-// AJUSTE: Removida a coluna 'FUNCAO'
+// AJUSTE: Removida a coluna 'FUNCAO' (apenas para a tabela de acompanhamento)
 const COLUMN_ORDER = [
     'CODFILIAL', 'DOCUMENTO', 
     'CHAPA', 'NOME', 
@@ -108,7 +108,7 @@ const utils = {
     parseDate(dateStr) {
         if (!dateStr || dateStr.toLowerCase().includes('n/a') || dateStr === '-') return null;
         try {
-            const isoDate = utils.formatToISO(dateStr);
+            const isoDate = dateStr.includes('/') ? utils.formatToISO(dateStr) : dateStr;
             if (!isoDate) return null;
             
             const date = new Date(isoDate + 'T00:00:00Z'); 
@@ -130,15 +130,17 @@ const utils = {
                 item.DATA_ASSINATURA === '-';
     },
     
-    // NOVO: Regra de Pendência Histórica
+    // Regra de Pendência Histórica
     isPendenciaHistorica(item, mesDeReferencia) {
         if (!item.DATA_CRIACAO) return false;
         
         const mesCriacao = utils.formatDateToMonth(item.DATA_CRIACAO);
         const mesAssinatura = utils.formatDateToMonth(item.DATA_ASSINATURA);
 
+        // Se o filtro de mês estiver ativo, só conta a pendência SE for do mês de criação.
+        // A exceção é para o acompanhamento (sem filtro de mês), onde contamos todos abertos.
         if (mesDeReferencia && mesCriacao !== mesDeReferencia) {
-            return false; // Não é pendência deste mês
+            return false;
         }
 
         // 1. Se ainda está aberto, é pendência.
@@ -167,12 +169,15 @@ const state = {
         mes: [],
         regional: [],
         codfilial: [],
-        documento: []
+        documento: [],
+        secao: [], 
+        funcao: [] 
     },
     charts: {
         pendenciasMensais: null,
-        rankingFilial: null, // NOVO
-        rankingSecao: null // NOVO
+        rankingFilial: null, 
+        rankingSecao: null,
+        rankingFuncao: null // NOVO: Para o terceiro gráfico
     },
     setupCompleto: false,
 };
@@ -445,8 +450,8 @@ function populateFilterLists() {
         regional: new Set(),
         codfilial: new Set(),
         documento: new Set(),
-        secao: new Set(), // Adicionada Seção ao filtro de dashboard
-        funcao: new Set() // Adicionada Função ao filtro de dashboard
+        secao: new Set(), 
+        funcao: new Set() 
     };
 
     allData.forEach(item => {
@@ -455,16 +460,16 @@ function populateFilterLists() {
         if (item.REGIONAL) sets.regional.add(item.REGIONAL);
         if (item.CODFILIAL) sets.codfilial.add(item.CODFILIAL);
         if (item.DOCUMENTO) sets.documento.add(item.DOCUMENTO);
-        if (item.SECAO) sets.secao.add(item.SECAO); // Novo
-        if (item.FUNCAO) sets.funcao.add(item.FUNCAO); // Novo
+        if (item.SECAO) sets.secao.add(item.SECAO); 
+        if (item.FUNCAO) sets.funcao.add(item.FUNCAO); 
     });
 
     state.listasFiltros.mes = [...sets.mes].sort().reverse();
     state.listasFiltros.regional = [...sets.regional].sort();
     state.listasFiltros.codfilial = [...sets.codfilial].sort();
     state.listasFiltros.documento = [...sets.documento].sort();
-    state.listasFiltros.secao = [...sets.secao].sort(); // Novo
-    state.listasFiltros.funcao = [...sets.funcao].sort(); // Novo
+    state.listasFiltros.secao = [...sets.secao].sort(); 
+    state.listasFiltros.funcao = [...sets.funcao].sort(); 
 
     // Popula selects do Dashboard
     const mesDash = document.getElementById('filterMesDash');
@@ -662,9 +667,11 @@ function processMeta(mesReferencia, dataFiltrada) {
     let progressWidth;
     
     if (metaAtingida) {
-         progressWidth = Math.min(100, 100 - (percentualPendente / META_PORCENTAGEM) * 100);
+         // Se atingiu, a barra é baseada no quão próximo de 0% estamos
+         progressWidth = Math.min(100, 100 - (percentualPendente / (META_PORCENTAGEM * 1.5)) * 100);
     } else {
-        progressWidth = Math.min(100, percentualPendente * 100 / (META_PORCENTAGEM * 2));
+        // Se não atingiu, mostra o valor real, mas limita a 100% da barra
+        progressWidth = Math.min(100, percentualPendente * 100 / META_PORCENTAGEM);
     }
 
     const progressFill = document.getElementById('progressFillMeta');
@@ -677,6 +684,9 @@ function processChartPendenciasMensais(data, regionalFiltro, filialFiltro) {
     
     // Aplica os filtros de escopo para a série histórica
     let filteredData = data;
+    if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+        filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.CODFILIAL));
+    }
     if (regionalFiltro) {
         filteredData = filteredData.filter(item => item.REGIONAL === regionalFiltro);
     }
@@ -846,12 +856,13 @@ function processRanking(mesReferencia, dataFiltrada) {
         const tr = document.createElement('tr');
         const corIndice = item.percentualPendente > META_PORCENTAGEM ? 'pendencia-alta' : 'pendencia-baixa';
         
+        // CORREÇÃO: Aplica text-align: right/center DENTRO do <td> para as colunas específicas
         tr.innerHTML = `
             <td style="text-align: center;">${item.filial}</td>
             <td style="text-align: center;">${item.regional}</td>
-            <td style="text-align: right; font-family: monospace;">${item.totalDocumentos.toLocaleString('pt-BR')}</td>
-            <td style="text-align: right; font-family: monospace;">${item.totalPendente.toLocaleString('pt-BR')}</td>
-            <td style="text-align: right; font-family: monospace;" class="${corIndice}">${item.percentualPendente.toFixed(2)}%</td>
+            <td style="text-align: center; font-family: monospace;">${item.totalDocumentos.toLocaleString('pt-BR')}</td>
+            <td style="text-align: center; font-family: monospace;">${item.totalPendente.toLocaleString('pt-BR')}</td>
+            <td style="text-align: center; font-family: monospace;" class="${corIndice}">${item.percentualPendente.toFixed(2)}%</td>
             <td style="text-align: center;">
                 <span class="status-badge ${corIndice === 'pendencia-alta' ? 'status-demitido' : 'status-ativo'}" style="background-color: ${corIndice === 'pendencia-alta' ? 'var(--pendencia-bad)' : 'var(--pendencia-good)'}; color: white;">
                     ${corIndice === 'pendencia-alta' ? 'Acima Meta' : 'Abaixo Meta'}
@@ -867,45 +878,65 @@ function processRanking(mesReferencia, dataFiltrada) {
 function processDashboardCharts(data, mesReferencia) {
     
     // Filtra SÓ as pendências históricas para os gráficos
+    // Aqui usamos o filtro de mês da UI, se ele estiver ativo.
     const dataPendencia = data.filter(item => utils.isPendenciaHistorica(item, mesReferencia));
     
     // 1. Ranking por Filial (Total Pendente)
     const gruposFilial = dataPendencia.reduce((acc, item) => {
         const key = item.CODFILIAL || 'N/A';
-        if (!acc[key]) acc[key] = { total: 0, pendentes: 0 };
+        if (!acc[key]) acc[key] = { filial: key, pendentes: 0 };
         acc[key].pendentes++;
-        // A contagem total é difícil aqui, então faremos por TOTAL PENDENTE
         return acc;
     }, {});
     
     // 2. Ranking por Seção (Total Pendente)
     const gruposSecao = dataPendencia.reduce((acc, item) => {
         const key = item.SECAO || 'N/A';
-        if (!acc[key]) acc[key] = { total: 0, pendentes: 0 };
+        if (!acc[key]) acc[key] = { secao: key, pendentes: 0 };
         acc[key].pendentes++;
         return acc;
     }, {});
 
-    // 3. Renderiza Filial (Gráfico 1)
+    // 3. Ranking por Função (Total Pendente)
+    const gruposFuncao = dataPendencia.reduce((acc, item) => {
+        const key = item.FUNCAO || 'N/A';
+        if (!acc[key]) acc[key] = { funcao: key, pendentes: 0 };
+        acc[key].pendentes++;
+        return acc;
+    }, {});
+    
+    
+    // 4. Renderiza Filial (Gráfico 1)
     const chartFilialData = aggregateChartData(Object.values(gruposFilial).map(g => [g.filial, g.pendentes]), 'Filial', 'Total de Pendentes (Filial)');
     renderChart(
-        document.getElementById('chartResumoSecao'), // Reutilizando a div do HTML
+        document.getElementById('chartRankingFilial'), // ID CORRETO DO HTML
         'rankingFilial', 
-        'pie', 
+        'doughnut', // Muda para doughnut (melhor visual)
         chartFilialData.labels, 
         chartFilialData.values,
         '% Pendência por Filial'
     );
     
-    // 4. Renderiza Seção (Gráfico 2)
+    // 5. Renderiza Seção (Gráfico 2)
     const chartSecaoData = aggregateChartData(Object.values(gruposSecao).map(g => [g.secao, g.pendentes]), 'Seção', 'Total de Pendentes (Seção)');
     renderChart(
-        document.getElementById('chartResumoFuncao'), // Reutilizando a div do HTML
+        document.getElementById('chartRankingSecao'), // ID CORRETO DO HTML
         'rankingSecao', 
-        'pie', 
+        'doughnut', 
         chartSecaoData.labels, 
         chartSecaoData.values,
         '% Pendência por Seção'
+    );
+
+    // 6. Renderiza Função (Gráfico 3)
+    const chartFuncaoData = aggregateChartData(Object.values(gruposFuncao).map(g => [g.funcao, g.pendentes]), 'Função', 'Total de Pendentes (Função)');
+    renderChart(
+        document.getElementById('chartRankingFuncao'), // ID CORRETO DO HTML
+        'rankingFuncao', 
+        'doughnut', 
+        chartFuncaoData.labels, 
+        chartFuncaoData.values,
+        '% Pendência por Função'
     );
 }
 
@@ -956,8 +987,9 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
                 label: label,
                 data: data,
                 backgroundColor: [
-                    '#0077B6', '#00B4D8', '#90E0EF', '#023047', '#D83B5E', // Pendencia Bad Adicionada
-                    '#FFB703', '#FB8500', '#219EBC', '#8ECAE6', '#ADB5BD'
+                    // Cores bonitas para os gráficos de pizza (Adicionado cores pendência)
+                    '#D83B5E', '#0077B6', '#FFB703', '#16A34A', '#00B4D8', 
+                    '#90E0EF', '#FB8500', '#023047', '#219EBC', '#ADB5BD'
                 ],
                 borderColor: '#ffffff',
                 borderWidth: (type === 'pie' || type === 'doughnut') ? 2 : 1
@@ -974,7 +1006,7 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
                         boxWidth: 12
                     }
                 },
-                // NOVO: Configuração de % (Plugin não está no escopo, simulamos o rótulo)
+                // NOVO: Configuração de % (Plugin datalabels)
                 datalabels: {
                     formatter: (value, ctx) => {
                         if (type !== 'pie' && type !== 'doughnut') {
@@ -986,6 +1018,7 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
                             sum += data;
                         });
                         let percentage = (value * 100 / sum);
+                        // NÃO mostra se for muito pequeno
                         return percentage < 3 ? '' : percentage.toFixed(1) + '%';
                     },
                     color: '#fff',
@@ -1081,7 +1114,7 @@ function renderTableBodyAcomp(data) {
     }
     
     const dataComDias = data.map(item => {
-        const dataCriacao = item.DATA_CRIACAO ? new Date(item.DATA_CRIACAO + 'T00:00:00Z') : null;
+        const dataCriacao = utils.parseDate(item.DATA_CRIACAO); // Usa a função parseDate
         const diasPendente = dataCriacao ? utils.diffInDays(dataCriacao, new Date()) : 0;
         return { ...item, diasPendente };
     }).sort((a, b) => b.diasPendente - a.diasPendente);
@@ -1092,11 +1125,14 @@ function renderTableBodyAcomp(data) {
         const tr = document.createElement('tr');
         
         let diasClass = 'text-gray-500';
-        if (item.diasPendente >= 3) {
+        if (item.diasPendente >= 5) { // >= 5 dias: Vermelho
             diasClass = 'diff-pendencia-bad'; 
-        } else if (item.diasPendente >= 1) {
+        } else if (item.diasPendente >= 2) { // >= 2 dias: Amarelo (Usando Green aqui, mas a cor vermelha está no CSS)
+             diasClass = 'text-yellow-600 font-bold'; 
+        } else if (item.diasPendente >= 1) { // 1 dia: Neutro/Verde Claro
              diasClass = 'diff-pendencia-good'; 
         }
+
 
         COLUMN_ORDER.forEach(key => {
             const td = document.createElement('td');
@@ -1111,7 +1147,7 @@ function renderTableBodyAcomp(data) {
             
             if (['CODFILIAL', 'CHAPA', 'DESC_STATUS'].includes(key)) {
                 td.style.textAlign = 'center';
-            } else if (['NOME', 'DOCUMENTO'].includes(key)) { // FUNCAO REMOVIDA DAQUI
+            } else if (['NOME', 'DOCUMENTO'].includes(key)) { 
                  td.style.whiteSpace = 'normal';
             }
             
