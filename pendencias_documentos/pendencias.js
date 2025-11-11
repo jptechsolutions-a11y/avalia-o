@@ -32,16 +32,34 @@ const COLUMN_ORDER = [
 
 // Funções utilitárias (Data, Parse, etc.)
 const utils = {
+    // NOVO: Converte data de DD/MM/YYYY ou DD/MM/YY para YYYY-MM-DD (ISO 8601)
+    formatToISO(dateStr) {
+        if (!dateStr || dateStr.toLowerCase().includes('n/a')) return null;
+        const cleanedStr = dateStr.split(' ')[0].trim(); // Remove a parte da hora (00:00:00)
+        
+        // Tenta formatos DD/MM/YYYY ou DD/MM/YY
+        const parts = cleanedStr.split('/');
+        if (parts.length === 3) {
+            let [day, month, year] = parts;
+            // Corrige ano de 2 dígitos (se for o caso)
+            if (year.length === 2) {
+                year = '20' + year; // Assume anos 2000+
+            }
+            // Retorna o formato ISO YYYY-MM-DD
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        
+        return null; // Retorna nulo se não for um formato reconhecido
+    },
     // Retorna a data no formato YYYY-MM
     formatDateToMonth(dateStr) {
         if (!dateStr || dateStr.toLowerCase().includes('n/a')) return null;
         try {
-            const date = new Date(dateStr);
-            // Corrige o fuso horário para garantir que o mês seja o correto
-            date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            return `${year}-${month}`;
+            // Usa a função de conversão para garantir o formato correto
+            const isoDate = utils.formatToISO(dateStr);
+            if (!isoDate) return null;
+            
+            return isoDate.substring(0, 7); // YYYY-MM
         } catch (e) {
             return null;
         }
@@ -58,9 +76,12 @@ const utils = {
     parseDate(dateStr) {
         if (!dateStr || dateStr.toLowerCase().includes('n/a')) return null;
         try {
-            // Tenta criar Date, corrige o fuso para evitar erros de dia
-            const date = new Date(dateStr);
-            date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+            // Usa a função de conversão para obter o formato ISO
+            const isoDate = utils.formatToISO(dateStr);
+            if (!isoDate) return null;
+            
+            // Cria a data a partir do formato ISO (garantindo que o fuso horário não cause erros de dia)
+            const date = new Date(isoDate + 'T00:00:00Z'); // Adiciona T00:00:00Z para tratar como UTC e evitar desvios
             return date;
         } catch (e) {
             return null;
@@ -502,7 +523,7 @@ function initializeDashboard() {
         feather.replace();
 
     } catch (e) {
-        console.error("Erro ao processar dashboard:", e);
+        console.error(`Erro ao processar dashboard: ${e}`);
         mostrarNotificacao(`Erro ao gerar dashboard: ${e.message}`, 'error');
     } finally {
         showLoading(false);
@@ -933,6 +954,15 @@ function parsePastedData(text) {
                  obj[header] = values[index] || null;
             }
         });
+        
+        // ** NOVO: Conversão de Datas **
+        if (obj.DATA_CRIACAO) {
+            obj.DATA_CRIACAO = utils.formatToISO(obj.DATA_CRIACAO);
+        }
+        if (obj.DATA_ASSINATURA) {
+            obj.DATA_ASSINATURA = utils.formatToISO(obj.DATA_ASSINATURA);
+        }
+
         // Validação Mínima: Requer CHAPA e DATA_CRIACAO
         if (!obj.CHAPA || !obj.DATA_CRIACAO) {
             console.warn("Linha sem 'CHAPA' ou 'DATA_CRIACAO' ignorada:", line);
