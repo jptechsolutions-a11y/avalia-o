@@ -39,11 +39,11 @@
             align-items: center;
             gap: 4px;
         }
-        /* Ajuste do grid para 3 colunas quando o report-grid tem 3 itens */
+        /* Ajuste do grid para 2 colunas após remoção da Seção */
         @media (min-width: 1024px) {
-            /* NOVO: Força o grid de 3 colunas para os gráficos */
-            .report-grid-3 {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+            /* NOVO: Força o grid de 2 colunas para os gráficos */
+            .report-grid-2 {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
     </style>
@@ -176,24 +176,19 @@
                             </div>
                         </div>
                         
-                        <!-- CORREÇÃO: IDs dos canvas dos gráficos de pizza -->
-                        <div class="report-grid report-grid-3">
+                        <!-- REMOVIDO: Gráfico de Pendência por Seção -->
+                        <!-- ATUALIZADO: Grid para 2 colunas (report-grid-2) -->
+                        <div class="report-grid report-grid-2">
                             <div class="chart-card">
-                                <h3><i data-feather="pie-chart"></i> % Pendência por Filial</h3>
+                                <h3><i data-feather="bar-chart"></i> % Pendência por Filial</h3> <!-- MUDANÇA: Agora é gráfico de barras -->
                                 <div class="chart-container-wrapper" style="height: 350px;">
-                                    <canvas id="chartRankingFilial"></canvas> <!-- ID Correto -->
-                                </div>
-                            </div>
-                            <div class="chart-card">
-                                <h3><i data-feather="pie-chart"></i> % Pendência por Seção</h3>
-                                <div class="chart-container-wrapper" style="height: 350px;">
-                                    <canvas id="chartRankingSecao"></canvas> <!-- ID Correto -->
+                                    <canvas id="chartRankingFilial"></canvas> 
                                 </div>
                             </div>
                             <div class="chart-card">
                                 <h3><i data-feather="pie-chart"></i> % Pendência por Função</h3>
                                 <div class="chart-container-wrapper" style="height: 350px;">
-                                    <canvas id="chartRankingFuncao"></canvas> <!-- NOVO ID -->
+                                    <canvas id="chartRankingFuncao"></canvas> 
                                 </div>
                             </div>
                         </div>
@@ -209,7 +204,6 @@
                             <h3><i data-feather="zap" class="h-5 w-5 mr-2"></i> Ranking de Filiais por Pendência</h3>
                             <p class="text-sm text-gray-600 -mt-4 mb-4">Acompanhamento das filiais com o maior número de pendências e o índice.</p>
                             <div id="tableRankingContainer" class="table-container mt-4">
-                                <!-- CORREÇÃO: Adicionada classe 'text-center' na tabela para forçar centralização -->
                                 <table class="tabela text-center" id="tableRankingFilialPendencias">
                                     <thead>
                                         <tr>
@@ -273,7 +267,6 @@
                     </div>
 
                     <!-- Conteúdo: Configurações -->
-                    <!-- O problema de layout das configurações será corrigido no style.css, mas o HTML fica o mesmo -->
                     <div id="configuracoesView" class="view-content">
                         <div id="accessStatusConfig" class="access-status" style="display: none;"></div>
                         <div id="adminPanel" class="info-card mb-6 header-pendencias">
