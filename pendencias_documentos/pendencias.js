@@ -1041,7 +1041,11 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
 
     if (type === 'bar') {
         // --- CONFIGURAÇÃO PARA GRÁFICO DE BARRAS (Filial) ---
-        chartConfig.options.legend.display = false; // Não precisa de legenda em barras simples
+        
+        // ***** INÍCIO DA CORREÇÃO *****
+        // O objeto 'legend' está dentro de 'plugins'
+        chartConfig.options.plugins.legend.display = false; // Não precisa de legenda em barras simples
+        // ***** FIM DA CORREÇÃO *****
         
         // Gerar cores dinâmicas (ex: gradiente de vermelho para azul)
         const barColors = labels.map((_, index) => {
