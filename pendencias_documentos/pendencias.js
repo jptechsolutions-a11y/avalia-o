@@ -18,13 +18,12 @@ const COLUMN_MAP = {
     'DOCUMENTO': 'Documento',
     'CHAPA': 'Chapa',
     'NOME': 'Nome',
-    'FUNCAO': 'Função',
-    'SECAO': 'Seção', // ADICIONADO PARA CONSISTÊNCIA
+    'FUNCAO': 'Função', // REMOVIDO DE COLUMN_ORDER
     'DATA_CRIACAO': 'Criação',
     'DATA_ASSINATURA': 'Assinatura',
     'DESC_STATUS': 'Status'
 };
-// AJUSTADO: Removida a coluna 'FUNCAO' da exibição de Acompanhamento
+// AJUSTE: Removida a coluna 'FUNCAO'
 const COLUMN_ORDER = [
     'CODFILIAL', 'DOCUMENTO', 
     'CHAPA', 'NOME', 
@@ -109,7 +108,7 @@ const utils = {
     parseDate(dateStr) {
         if (!dateStr || dateStr.toLowerCase().includes('n/a') || dateStr === '-') return null;
         try {
-            const isoDate = dateStr.includes('/') ? utils.formatToISO(dateStr) : dateStr;
+            const isoDate = utils.formatToISO(dateStr);
             if (!isoDate) return null;
             
             const date = new Date(isoDate + 'T00:00:00Z'); 
@@ -126,24 +125,20 @@ const utils = {
     },
     // Retorna se um documento *AINDA* está pendente (não assinado)
     isAberto(item) {
-        const status = (item.DESC_STATUS || '').toLowerCase();
         return !item.DATA_ASSINATURA || 
                 item.DATA_ASSINATURA.toLowerCase().includes('n/a') ||
-                item.DATA_ASSINATURA === '-' ||
-                status.includes('pendente') ||
-                status.includes('aguardando'); // Adiciona mais checks de status
+                item.DATA_ASSINATURA === '-';
     },
     
-    // Regra de Pendência Histórica (Se assinado em mês posterior ou ainda aberto)
-    isPendenciaHistorica(item, mesDeReferencia = null) {
+    // NOVO: Regra de Pendência Histórica
+    isPendenciaHistorica(item, mesDeReferencia) {
         if (!item.DATA_CRIACAO) return false;
         
         const mesCriacao = utils.formatDateToMonth(item.DATA_CRIACAO);
         const mesAssinatura = utils.formatDateToMonth(item.DATA_ASSINATURA);
 
-        // Se estivermos filtrando por um mês específico, o item deve ter sido criado naquele mês
         if (mesDeReferencia && mesCriacao !== mesDeReferencia) {
-            return false;
+            return false; // Não é pendência deste mês
         }
 
         // 1. Se ainda está aberto, é pendência.
@@ -172,15 +167,12 @@ const state = {
         mes: [],
         regional: [],
         codfilial: [],
-        documento: [],
-        secao: [], // Adicionado Seção ao filtro de dashboard
-        funcao: [] // Adicionado Função ao filtro de dashboard
+        documento: []
     },
     charts: {
         pendenciasMensais: null,
-        rankingFilial: null, 
-        rankingSecao: null,
-        rankingFuncao: null // ADICIONADO
+        rankingFilial: null, // NOVO
+        rankingSecao: null // NOVO
     },
     setupCompleto: false,
 };
@@ -256,7 +248,7 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 // --- FIM DA FUNÇÃO DE REQUISIÇÃO ---
 
 
-// --- FUNÇÕES DE INICIALIZAÇÃO E UI ---
+// --- FUNÇÕES DE INICIALIZAÇÃO E UI (Não alteradas exceto por dependências) ---
 
 function showLoading(show, text = 'Processando...') {
     const loading = document.getElementById('loading');
@@ -336,8 +328,7 @@ async function initializeSupabaseAndUser() {
         state.auth = session;
         localStorage.setItem('auth_token', session.access_token); 
         
-        // ADICIONADO 'secao' e 'funcao' para consistência de dados
-        const endpoint = `usuarios?select=nome,role,profile_picture_url,permissoes_filiais,email,secao,funcao`;
+        const endpoint = `usuarios?select=nome,role,profile_picture_url,permissoes_filiais,email`;
         const profileResponse = await supabaseRequest(endpoint, 'GET');
         
         if (!profileResponse || profileResponse.length === 0) {
@@ -347,6 +338,7 @@ async function initializeSupabaseAndUser() {
         state.currentUser = profile; 
         
         state.isAdmin = (profile.role === 'admin');
+        // ATENÇÃO: permissoes_filiais vem como ARRAY
         state.permissoes_filiais = profile.permissoes_filiais || null; 
 
         const userName = profile.nome || profile.email || 'Usuário';
@@ -445,7 +437,7 @@ async function loadInitialData() {
     }
 }
 
-// Preenche os selects de filtro do dashboard e do acompanhamento
+// Preenche os selects de filtro do dashboard e do acompanhamento (Não alterada)
 function populateFilterLists() {
     const allData = state.allData;
     const sets = {
@@ -596,6 +588,7 @@ function initializeDashboard() {
         }
 
         if (mesFiltro) {
+            // CORREÇÃO: Filtragem por Mês de Criação
             filteredData = filteredData.filter(item => utils.formatDateToMonth(item.DATA_CRIACAO) === mesFiltro);
         }
         if (regionalFiltro) {
@@ -609,9 +602,10 @@ function initializeDashboard() {
         const metaProgressContainer = document.getElementById('metaProgressContainer');
         if (mesFiltro && !regionalFiltro && !filialFiltro) {
             metaProgressContainer.style.display = 'block';
+            // Passa os dados filtrados (só do mês)
             processMeta(mesFiltro, filteredData); 
         } else {
-            metaProgressContainer.style.display = 'block'; 
+            metaProgressContainer.style.display = 'block'; // MANTÉM VISÍVEL mas limpa os dados
             document.getElementById('pendenciasMesAtual').textContent = '-';
             document.getElementById('totalCriadoMesAtual').textContent = '-';
             document.getElementById('percentualPendente').textContent = 'N/A';
@@ -625,7 +619,10 @@ function initializeDashboard() {
         // 4. Processa Gráficos de Pizza (usa os dados filtrados)
         processDashboardCharts(filteredData, mesFiltro);
 
-        // 5. O gráfico de evolução é geral, mas respeita o escopo
+        // 5. O gráfico de evolução (bottom) usa a nova regra de pendência.
+        // Ele deve ser CALCULADO sobre TODOS OS DADOS (state.allData) para ver a evolução completa,
+        // mas deve respeitar os filtros de Regional/Filial/etc. para o escopo.
+        // MANTIDO: O gráfico de evolução é geral (usa allData)
         processChartPendenciasMensais(state.allData, regionalFiltro, filialFiltro);
         
         feather.replace();
@@ -849,13 +846,12 @@ function processRanking(mesReferencia, dataFiltrada) {
         const tr = document.createElement('tr');
         const corIndice = item.percentualPendente > META_PORCENTAGEM ? 'pendencia-alta' : 'pendencia-baixa';
         
-        // AJUSTE: Centralização das colunas no Ranking
         tr.innerHTML = `
             <td style="text-align: center;">${item.filial}</td>
             <td style="text-align: center;">${item.regional}</td>
-            <td style="text-align: center; font-family: monospace;">${item.totalDocumentos.toLocaleString('pt-BR')}</td>
-            <td style="text-align: center; font-family: monospace;">${item.totalPendente.toLocaleString('pt-BR')}</td>
-            <td style="text-align: center; font-family: monospace;" class="${corIndice}">${item.percentualPendente.toFixed(2)}%</td>
+            <td style="text-align: right; font-family: monospace;">${item.totalDocumentos.toLocaleString('pt-BR')}</td>
+            <td style="text-align: right; font-family: monospace;">${item.totalPendente.toLocaleString('pt-BR')}</td>
+            <td style="text-align: right; font-family: monospace;" class="${corIndice}">${item.percentualPendente.toFixed(2)}%</td>
             <td style="text-align: center;">
                 <span class="status-badge ${corIndice === 'pendencia-alta' ? 'status-demitido' : 'status-ativo'}" style="background-color: ${corIndice === 'pendencia-alta' ? 'var(--pendencia-bad)' : 'var(--pendencia-good)'}; color: white;">
                     ${corIndice === 'pendencia-alta' ? 'Acima Meta' : 'Abaixo Meta'}
@@ -868,36 +864,32 @@ function processRanking(mesReferencia, dataFiltrada) {
 }
 
 // NOVO: Função para renderizar os gráficos de pizza do dashboard
-function processDashboardCharts(dataFiltrada, mesReferencia) {
+function processDashboardCharts(data, mesReferencia) {
     
     // Filtra SÓ as pendências históricas para os gráficos
-    const dadosPendencia = dataFiltrada.filter(item => utils.isPendenciaHistorica(item, mesReferencia));
-    const totalPendencias = dadosPendencia.length;
-
-    // Destrói gráficos antigos
-    if (state.charts.rankingFilial) state.charts.rankingFilial.destroy();
-    if (state.charts.rankingSecao) state.charts.rankingSecao.destroy();
-    if (state.charts.rankingFuncao) state.charts.rankingFuncao.destroy();
+    const dataPendencia = data.filter(item => utils.isPendenciaHistorica(item, mesReferencia));
     
-    if (totalPendencias === 0) { return; }
-
-    // --- Helper para Agregação (reutilizável) ---
-    const aggregateByField = (field) => {
-        return dadosPendencia.reduce((acc, item) => {
-            const key = item[field] || 'N/A';
-            if (key === 'N/A') return acc;
-            
-            if (!acc[key]) { acc[key] = { fieldValue: key, total: 0, }; }
-            acc[key].total++;
-            return acc;
-        }, {});
-    };
-
     // 1. Ranking por Filial (Total Pendente)
-    const gruposFilial = aggregateByField('CODFILIAL');
-    const chartFilialData = aggregateChartData(Object.values(gruposFilial).map(g => [g.fieldValue, g.total]));
+    const gruposFilial = dataPendencia.reduce((acc, item) => {
+        const key = item.CODFILIAL || 'N/A';
+        if (!acc[key]) acc[key] = { total: 0, pendentes: 0 };
+        acc[key].pendentes++;
+        // A contagem total é difícil aqui, então faremos por TOTAL PENDENTE
+        return acc;
+    }, {});
+    
+    // 2. Ranking por Seção (Total Pendente)
+    const gruposSecao = dataPendencia.reduce((acc, item) => {
+        const key = item.SECAO || 'N/A';
+        if (!acc[key]) acc[key] = { total: 0, pendentes: 0 };
+        acc[key].pendentes++;
+        return acc;
+    }, {});
+
+    // 3. Renderiza Filial (Gráfico 1)
+    const chartFilialData = aggregateChartData(Object.values(gruposFilial).map(g => [g.filial, g.pendentes]), 'Filial', 'Total de Pendentes (Filial)');
     renderChart(
-        document.getElementById('chartRankingFilial'), 
+        document.getElementById('chartResumoSecao'), // Reutilizando a div do HTML
         'rankingFilial', 
         'pie', 
         chartFilialData.labels, 
@@ -905,28 +897,15 @@ function processDashboardCharts(dataFiltrada, mesReferencia) {
         '% Pendência por Filial'
     );
     
-    // 2. Ranking por Seção (Total Pendente)
-    const gruposSecao = aggregateByField('SECAO');
-    const chartSecaoData = aggregateChartData(Object.values(gruposSecao).map(g => [g.fieldValue, g.total]));
+    // 4. Renderiza Seção (Gráfico 2)
+    const chartSecaoData = aggregateChartData(Object.values(gruposSecao).map(g => [g.secao, g.pendentes]), 'Seção', 'Total de Pendentes (Seção)');
     renderChart(
-        document.getElementById('chartRankingSecao'), 
+        document.getElementById('chartResumoFuncao'), // Reutilizando a div do HTML
         'rankingSecao', 
         'pie', 
         chartSecaoData.labels, 
         chartSecaoData.values,
         '% Pendência por Seção'
-    );
-    
-    // 3. Ranking por Função (Total Pendente)
-    const gruposFuncao = aggregateByField('FUNCAO');
-    const chartFuncaoData = aggregateChartData(Object.values(gruposFuncao).map(g => [g.fieldValue, g.total]));
-    renderChart(
-        document.getElementById('chartRankingFuncao'), 
-        'rankingFuncao', 
-        'pie', 
-        chartFuncaoData.labels, 
-        chartFuncaoData.values,
-        '% Pendência por Função'
     );
 }
 
@@ -935,7 +914,7 @@ function processDashboardCharts(dataFiltrada, mesReferencia) {
  * @param {Array} dataArray - Array de arrays: [['chave', valor], ...].
  * @param {string} title - Título da agregação.
  */
-function aggregateChartData(dataArray) {
+function aggregateChartData(dataArray, keyName, valueName) {
     
     // Ordena e pega o Top 10
     const sorted = dataArray
@@ -968,9 +947,6 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
         state.charts[chartStateKey].destroy();
     }
     
-    // NOVO: Registrar plugin de datalabels (se já não estiver)
-    Chart.register(ChartDataLabels);
-    
     const ctx = canvas.getContext('2d');
     state.charts[chartStateKey] = new Chart(ctx, {
         type: type,
@@ -980,9 +956,8 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
                 label: label,
                 data: data,
                 backgroundColor: [
-                    '#0077B6', '#00B4D8', '#90E0EF', '#023047', '#D83B5E', // Cor pendencia-bad adicionada
-                    '#FFB703', '#FB8500', '#219EBC', '#8ECAE6', '#ADB5BD',
-                    '#16A34A', '#34D399', '#6366F1'
+                    '#0077B6', '#00B4D8', '#90E0EF', '#023047', '#D83B5E', // Pendencia Bad Adicionada
+                    '#FFB703', '#FB8500', '#219EBC', '#8ECAE6', '#ADB5BD'
                 ],
                 borderColor: '#ffffff',
                 borderWidth: (type === 'pie' || type === 'doughnut') ? 2 : 1
@@ -999,12 +974,17 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
                         boxWidth: 12
                     }
                 },
+                // NOVO: Configuração de % (Plugin não está no escopo, simulamos o rótulo)
                 datalabels: {
                     formatter: (value, ctx) => {
                         if (type !== 'pie' && type !== 'doughnut') {
                             return null;
                         }
-                        let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                        let sum = 0;
+                        let dataArr = ctx.chart.data.datasets[0].data;
+                        dataArr.map(data => {
+                            sum += data;
+                        });
                         let percentage = (value * 100 / sum);
                         return percentage < 3 ? '' : percentage.toFixed(1) + '%';
                     },
@@ -1035,8 +1015,7 @@ function initializeAcompanhamento() {
 
 function renderTableHeaderAcomp() {
     const tr = document.createElement('tr');
-    // Filtra a coluna FUNCAO
-    COLUMN_ORDER.filter(key => key !== 'FUNCAO').forEach(key => { 
+    COLUMN_ORDER.forEach(key => {
         const th = document.createElement('th');
         th.textContent = COLUMN_MAP[key] || key;
         // Centralização para as colunas importantes
@@ -1102,8 +1081,7 @@ function renderTableBodyAcomp(data) {
     }
     
     const dataComDias = data.map(item => {
-        // CORREÇÃO: Usa utils.parseDate para garantir o formato correto (trata BR para ISO)
-        const dataCriacao = utils.parseDate(item.DATA_CRIACAO);
+        const dataCriacao = item.DATA_CRIACAO ? new Date(item.DATA_CRIACAO + 'T00:00:00Z') : null;
         const diasPendente = dataCriacao ? utils.diffInDays(dataCriacao, new Date()) : 0;
         return { ...item, diasPendente };
     }).sort((a, b) => b.diasPendente - a.diasPendente);
@@ -1114,30 +1092,26 @@ function renderTableBodyAcomp(data) {
         const tr = document.createElement('tr');
         
         let diasClass = 'text-gray-500';
-        // 3 dias ou mais = vermelho/bad
         if (item.diasPendente >= 3) {
             diasClass = 'diff-pendencia-bad'; 
         } else if (item.diasPendente >= 1) {
              diasClass = 'diff-pendencia-good'; 
         }
 
-        // Filtra a coluna FUNCAO
-        COLUMN_ORDER.filter(key => key !== 'FUNCAO').forEach(key => { 
+        COLUMN_ORDER.forEach(key => {
             const td = document.createElement('td');
             let value = item[key] || '-';
             
-            // AJUSTE CRÍTICO: Formatação de Data para DD/MM/YYYY
             if (key.includes('DATA_')) {
-                value = utils.formatToBR(value); // Converte o ISO para DD/MM/YYYY
+                value = utils.formatToBR(value); 
                 td.style.fontFamily = 'monospace';
                 td.style.fontSize = '0.85rem';
                 td.style.textAlign = 'center';
             }
             
-            // Centralização/Alinhamento adicional
             if (['CODFILIAL', 'CHAPA', 'DESC_STATUS'].includes(key)) {
                 td.style.textAlign = 'center';
-            } else if (['NOME', 'DOCUMENTO'].includes(key)) {
+            } else if (['NOME', 'DOCUMENTO'].includes(key)) { // FUNCAO REMOVIDA DAQUI
                  td.style.whiteSpace = 'normal';
             }
             
@@ -1146,7 +1120,6 @@ function renderTableBodyAcomp(data) {
         });
 
         const tdDays = document.createElement('td');
-        // CORREÇÃO: Aplica a classe de cor de pendência e centraliza
         tdDays.innerHTML = `<strong class="${diasClass}">${item.diasPendente}</strong>`;
         tdDays.style.textAlign = 'center';
         tr.appendChild(tdDays);
@@ -1157,7 +1130,7 @@ function renderTableBodyAcomp(data) {
 }
 
 
-// --- FUNÇÕES DE CONFIGURAÇÃO (IMPORT) ---
+// --- FUNÇÕES DE CONFIGURAÇÃO (IMPORT - Não alteradas) ---
 
 function initializeConfiguracoes() {
     const adminPanel = document.getElementById('adminPanel');
@@ -1246,7 +1219,7 @@ function parsePastedData(text) {
     if (lines.length < 2) throw new Error("Os dados precisam de pelo menos 2 linhas (cabeçalho e dados).");
 
     const delimiter = lines[0].includes('\t') ? '\t' : ',';
-    // CORREÇÃO: Adicionada SECAO na lista de headers esperados
+    // Colunas esperadas: Incluem BANDEIRA e REGIONAL para passar para a API
     const EXPECTED_HEADERS = [
         'BANDEIRA', 'REGIONAL', 'CODFILIAL', 'DOCUMENTO', 'CHAPA', 'NOME', 'FUNCAO', 'SECAO',
         'DATA_CRIACAO', 'DATA_ASSINATURA', 'DESC_STATUS'
@@ -1375,9 +1348,6 @@ async function handleImport() {
 // --- INICIALIZAÇÃO E EVENTOS (Não alterados) ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    // NOVO: Registrar datalabels (garante que está registrado)
-    Chart.register(ChartDataLabels);
-    
     initializeSupabaseAndUser();
 
     document.getElementById('logoutButton').addEventListener('click', logout);
