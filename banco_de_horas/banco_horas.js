@@ -476,9 +476,9 @@ function filtrarDisponiveis() {
 }
 
 /**
- * --- CORREÇÃO 1: Loop no Setup ---
- * Salva o time e, em vez de recarregar a página, atualiza o estado local
- * e navega para a view principal.
+ * --- CORREÇÃO 2: Lógica de Cascata ---
+ * Salva o time E TAMBÉM busca a cascata de subordinados dos
+ * gestores selecionados.
  */
 async function handleSalvarTime() {
     showLoading(true, 'Salvando seu time...');
@@ -492,59 +492,77 @@ async function handleSalvarTime() {
     }
 
     try {
-        // Cria um array de Promises, uma para cada colaborador a ser atualizado
+        // --- ETAPA 1: Salvar os gestores diretos ---
         const promessas = chapasSelecionadas.map(chapa => {
-            // ASSUME lowercase
             const payload = {
                 gestor_chapa: state.userMatricula,
                 status: 'ativo' // Tira do status 'novato'
             };
-            // Usamos o matricula como chave de update (ASSUME lowercase)
             return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
         });
 
-        // Executa todas as atualizações em paralelo
         await Promise.all(promessas);
+        mostrarNotificacao('Gestores diretos salvos! Buscando sub-times (cascata)...', 'success');
+        
+        // --- ETAPA 2: Buscar a "Cascata" (a correção) ---
+        showLoading(true, 'Buscando times dos gestores selecionados...');
 
-        mostrarNotificacao('Time salvo com sucesso!', 'success');
-        
-        // --- INÍCIO DA CORREÇÃO (Problema 1) ---
-        // NÃO recarregamos mais a página para evitar race conditions.
-        // Atualizamos o estado local e navegamos manualmente.
-        
-        // 1. Encontra os objetos completos dos colaboradores selecionados
-        const timeCompleto = chapasSelecionadas.map(chapa => {
-            let colab = state.disponiveis.find(c => c.matricula === chapa);
-            if (colab) {
-                // Atualiza o gestor localmente
-                colab.gestor_chapa = state.userMatricula;
-                colab.status = 'ativo';
-                return colab;
+        // 2a. Pegar o mapa de configuração de gestores (quem é gestor?)
+        const configMap = state.gestorConfig.reduce((acc, regra) => {
+            if (regra.pode_ser_gestor) {
+                acc[regra.funcao.toLowerCase()] = true; 
             }
-            // Fallback (se já estava no 'meuTime' de alguma forma)
-            let colabTime = state.meuTime.find(c => c.matricula === chapa);
-            if(colabTime) return colabTime;
-            
-            // Fallback final
-            return { matricula: chapa, gestor_chapa: state.userMatricula, status: 'ativo', nome: 'Colaborador Salvo' };
+            return acc;
+        }, {});
+
+        // 2b. Buscar a cascata para CADA gestor selecionado
+        const subTeamPromises = chapasSelecionadas.map(chapa => 
+            loadRecursiveTeam(chapa, configMap)
+        );
+        const subTeamsResults = await Promise.allSettled(subTeamPromises);
+
+        // 2c. Juntar os resultados
+        let timeCompleto = [];
+        let chapasTimeCompleto = new Set(chapasSelecionadas); // Adiciona os gestores diretos
+
+        // Adiciona os gestores diretos (objetos completos)
+        chapasSelecionadas.forEach(chapa => {
+            let colab = state.disponiveis.find(c => c.matricula === chapa) || state.meuTime.find(c => c.matricula === chapa);
+            if (colab) {
+                colab.gestor_chapa = state.userMatricula; // Atualiza localmente
+                colab.status = 'ativo';
+                timeCompleto.push(colab);
+            }
         });
 
-        // 2. Atualiza o estado global
+        // Adiciona as cascatas (sub-times)
+        subTeamsResults.forEach(result => {
+            if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+                result.value.forEach(subordinado => {
+                    if (!chapasTimeCompleto.has(subordinado.matricula)) {
+                        timeCompleto.push(subordinado);
+                        chapasTimeCompleto.add(subordinado.matricula);
+                    }
+                });
+            }
+        });
+
+        // --- ETAPA 3: Atualizar Estado e Navegar ---
+        
+        // 1. Atualiza o estado global
         state.meuTime = timeCompleto;
         
-        // 3. Remove os movidos da lista de disponíveis
-        state.disponiveis = state.disponiveis.filter(c => !chapasSelecionadas.includes(c.matricula));
+        // 2. Remove os movidos da lista de disponíveis
+        state.disponiveis = state.disponiveis.filter(c => !chapasTimeCompleto.has(c.matricula));
         
-        // 4. Libera a sidebar
+        // 3. Libera a sidebar
         const sidebar = document.querySelector('.sidebar');
         sidebar.style.pointerEvents = 'auto';
         sidebar.style.opacity = '1';
 
-        // 5. Navega para a view principal
-        // Define o hash ANTES de chamar showView para que a navegação seja "permanente"
+        // 4. Navega para a view principal
         window.location.hash = '#meuTime'; 
         showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
-        // --- FIM DA CORREÇÃO ---
 
     } catch (err) {
         mostrarNotificacao(`Erro ao salvar: ${err.message}`, 'error');
