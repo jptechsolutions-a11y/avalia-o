@@ -218,17 +218,24 @@ async function loadModuleData() {
         // *** CORREÇÃO: Colunas em minúsculas ***
         let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial'; // Pega a filial
         
-        // Filtro base (sem gestor ou novato)
-        // *** CORREÇÃO: Colunas em minúsculas ***
-        disponiveisQuery += '&or=(gestor_chapa.is.null,status.eq.novato)';
-
-        // Filtro de Filial: Aplica se usuário NÃO for admin e TIVER permissões
+        // 1. Define o filtro base de disponibilidade (Sem Gestor OU Novato)
+        const availableFilter = 'or(gestor_chapa.is.null,status.eq.novato)';
+        
+        // 2. Define o filtro de filial (se não for admin)
+        let filialFilter = null;
         if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
             // Formata para a query: filial.in.("753","754")
-            // *** CORREÇÃO: Coluna em minúscula ***
-            const filiaisFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
-            disponiveisQuery += `&${filiaisFilter}`;
-            console.log("Aplicando filtro de filial:", filiaisFilter);
+            filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+            console.log("Aplicando filtro de filial:", filialFilter);
+        }
+
+        // 3. Combina os filtros
+        if (filialFilter) {
+            // Combina os dois: (Disponível) E (Na minha filial)
+            disponiveisQuery += `&and=(${availableFilter},${filialFilter})`;
+        } else {
+            // Se não tiver filtro de filial (ex: admin), usa só o filtro de disponibilidade
+            disponiveisQuery += `&${availableFilter}`;
         }
         // *** FIM DA CORREÇÃO ***
 
