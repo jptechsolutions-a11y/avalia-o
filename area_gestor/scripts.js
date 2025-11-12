@@ -212,15 +212,20 @@ async function loadModuleData() {
     
     try {
         // ATUALIZADO: Carrega o time, disponíveis, config E todas as funções
+        // *** CORREÇÃO: Todas as colunas da tabela 'colaboradores' (CHAPA, GESTOR_CHAPA, FUNCAO, STATUS) foram convertidas para minúsculas. ***
         const [configRes, timeRes, disponiveisRes, funcoesRes] = await Promise.allSettled([
             // 1. Busca a tabela de configuração (para admins)
+            // (Esta tabela parece usar maiúsculas, mantido como está)
             supabaseRequest('tabela_gestores_config?select=*', 'GET'),
+            
             // 2. Busca o time direto do gestor
-            supabaseRequest(`colaboradores?select=*&GESTOR_CHAPA=eq.${state.userMatricula}`, 'GET'),
+            supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET'), // <-- CORRIGIDO para lowercase
+            
             // 3. Busca colaboradores "novatos" ou "sem gestor"
-            supabaseRequest(`colaboradores?select=CHAPA,NOME,FUNCAO&or=(GESTOR_CHAPA.is.null,STATUS.eq.novato)`, 'GET'),
-            // 4. NOVO: Busca todas as funções únicas usando a função RPC
-            supabaseRequest('rpc/get_distinct_funcoes', 'POST')
+            supabaseRequest(`colaboradores?select=chapa,nome,funcao&or=(gestor_chapa.is.null,status.eq.novato)`, 'GET'), // <-- CORRIGIDO para lowercase
+            
+            // 4. CORREÇÃO: Busca todas as funções únicas (substituindo a RPC que falhou)
+            supabaseRequest('colaboradores?select=funcao', 'GET') // <-- CORRIGIDO para lowercase
         ]);
 
         if (configRes.status === 'fulfilled' && configRes.value) {
@@ -243,8 +248,10 @@ async function loadModuleData() {
         
         // NOVO: Armazena todas as funções
         if (funcoesRes.status === 'fulfilled' && funcoesRes.value) {
-            // A RPC retorna [{funcao_distinta: 'A'}, {funcao_distinta: 'B'}]
-            state.todasAsFuncoes = funcoesRes.value.map(f => f.funcao_distinta);
+            // *** CORREÇÃO: Processa a nova consulta direta (substituindo a RPC) ***
+            // A consulta retorna [{funcao: 'A'}, {funcao: 'B'}, {funcao: 'A'}]
+            const funcoesSet = new Set(funcoesRes.value.map(f => f.funcao)); // <-- CORRIGIDO para f.funcao (lowercase)
+            state.todasAsFuncoes = [...funcoesSet].filter(Boolean); // Filtra nulos/vazios
         } else {
             console.error("Erro ao carregar funções:", funcoesRes.reason);
         }
@@ -294,16 +301,19 @@ function renderListasTimes(disponiveis, meuTime) {
     listaDisponiveisEl.innerHTML = '';
     listaMeuTimeEl.innerHTML = '';
     
+    // *** CORREÇÃO: Usa lowercase (chapa) ***
     // Filtra disponíveis para não mostrar quem JÁ ESTÁ no meu time (caso de 'novato' que já foi pego)
-    const chapasMeuTime = new Set(meuTime.map(c => c.CHAPA));
-    const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.CHAPA));
+    const chapasMeuTime = new Set(meuTime.map(c => c.chapa));
+    const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.chapa));
 
+    // *** CORREÇÃO: Usa lowercase (chapa, nome, funcao) ***
     disponiveisFiltrados.forEach(c => {
-        listaDisponiveisEl.innerHTML += `<option value="${c.CHAPA}">${c.NOME} (${c.CHAPA}) - ${c.FUNCAO || 'N/A'}</option>`;
+        listaDisponiveisEl.innerHTML += `<option value="${c.chapa}">${c.nome} (${c.chapa}) - ${c.funcao || 'N/A'}</option>`;
     });
     
+    // *** CORREÇÃO: Usa lowercase (chapa, nome, funcao) ***
     meuTime.forEach(c => {
-        listaMeuTimeEl.innerHTML += `<option value="${c.CHAPA}">${c.NOME} (${c.CHAPA}) - ${c.FUNCAO || 'N/A'}</option>`;
+        listaMeuTimeEl.innerHTML += `<option value="${c.chapa}">${c.nome} (${c.chapa}) - ${c.funcao || 'N/A'}</option>`;
     });
 }
 
@@ -351,12 +361,14 @@ async function handleSalvarTime() {
     try {
         // Cria um array de Promises, uma para cada colaborador a ser atualizado
         const promessas = chapasSelecionadas.map(chapa => {
+            // *** CORREÇÃO: Usa lowercase (gestor_chapa, status) ***
             const payload = {
-                GESTOR_CHAPA: state.userMatricula,
-                STATUS: 'ativo' // Tira do status 'novato'
+                gestor_chapa: state.userMatricula,
+                status: 'ativo' // Tira do status 'novato'
             };
-            // Usamos o CHAPA como chave de update
-            return supabaseRequest(`colaboradores?CHAPA=eq.${chapa}`, 'PATCH', payload);
+            // *** CORREÇÃO: Usa lowercase (chapa) no filtro ***
+            // Usamos o chapa como chave de update
+            return supabaseRequest(`colaboradores?chapa=eq.${chapa}`, 'PATCH', payload);
         });
 
         // Executa todas as atualizações em paralelo
@@ -382,9 +394,10 @@ async function handleSalvarTime() {
 function updateDashboardStats(data) {
     if (!data) data = [];
     const total = data.length;
-    const ativos = data.filter(c => c.STATUS === 'ativo').length;
-    const inativos = data.filter(c => c.STATUS === 'inativo').length;
-    const novatos = data.filter(c => c.STATUS === 'novato').length;
+    // *** CORREÇÃO: Usa lowercase (status) ***
+    const ativos = data.filter(c => c.status === 'ativo').length;
+    const inativos = data.filter(c => c.status === 'inativo').length;
+    const novatos = data.filter(c => c.status === 'novato').length;
     
     document.getElementById('statTotalTime').textContent = total;
     document.getElementById('statAtivos').textContent = ativos;
@@ -400,8 +413,9 @@ function populateFilters(data) {
     const filialSelect = document.getElementById('filterFilial');
     const funcaoSelect = document.getElementById('filterFuncao');
     
-    const filiais = [...new Set(data.map(c => c.CODFILIAL).filter(Boolean))].sort();
-    const funcoes = [...new Set(data.map(c => c.FUNCAO).filter(Boolean))].sort();
+    // *** CORREÇÃO: Usa lowercase (codfilial, funcao) ***
+    const filiais = [...new Set(data.map(c => c.codfilial).filter(Boolean))].sort();
+    const funcoes = [...new Set(data.map(c => c.funcao).filter(Boolean))].sort();
     
     filialSelect.innerHTML = '<option value="">Todas as filiais</option>';
     funcaoSelect.innerHTML = '<option value="">Todas as funções</option>';
@@ -434,18 +448,19 @@ function renderMeuTimeTable(data) {
     data.forEach(item => {
         const tr = document.createElement('tr');
         
-        const dtAdmissao = item.DT_ADMISSAO ? new Date(item.DT_ADMISSAO).toLocaleDateString('pt-BR') : '-';
-        const status = item.STATUS || 'ativo';
+        // *** CORREÇÃO: Usa lowercase (dt_admissao, status, nome, chapa, etc.) ***
+        const dtAdmissao = item.dt_admissao ? new Date(item.dt_admissao).toLocaleDateString('pt-BR') : '-';
+        const status = item.status || 'ativo';
         let statusClass = 'status-ativo';
         if (status === 'inativo') statusClass = 'status-inativo';
         if (status === 'novato') statusClass = 'status-aviso'; // Reutilizando a cor 'aviso'
 
         tr.innerHTML = `
-            <td>${item.NOME || '-'}</td>
-            <td>${item.CHAPA || '-'}</td>
-            <td>${item.FUNCAO || '-'}</td>
-            <td>${item.SECAO || '-'}</td>
-            <td>${item.CODFILIAL || '-'}</td>
+            <td>${item.nome || '-'}</td>
+            <td>${item.chapa || '-'}</td>
+            <td>${item.funcao || '-'}</td>
+            <td>${item.secao || '-'}</td>
+            <td>${item.codfilial || '-'}</td>
             <td>${dtAdmissao}</td>
             <td><span class="status-badge ${statusClass}">${status}</span></td>
             <td class="actions">
@@ -473,13 +488,14 @@ function applyFilters() {
     const statusFiltro = document.getElementById('filterStatus').value;
     
     const filteredData = state.meuTime.filter(item => {
+        // *** CORREÇÃO: Usa lowercase (nome, chapa, codfilial, funcao, status) ***
         const nomeChapaMatch = nomeFiltro === '' || 
-            (item.NOME && item.NOME.toLowerCase().includes(nomeFiltro)) ||
-            (item.CHAPA && item.CHAPA.toLowerCase().includes(nomeFiltro));
+            (item.nome && item.nome.toLowerCase().includes(nomeFiltro)) ||
+            (item.chapa && item.chapa.toLowerCase().includes(nomeFiltro));
         
-        const filialMatch = filialFiltro === '' || item.CODFILIAL === filialFiltro;
-        const funcaoMatch = funcaoFiltro === '' || item.FUNCAO === funcaoFiltro;
-        const statusMatch = statusFiltro === '' || (item.STATUS || 'ativo') === statusFiltro;
+        const filialMatch = filialFiltro === '' || item.codfilial === filialFiltro;
+        const funcaoMatch = funcaoFiltro === '' || item.funcao === funcaoFiltro;
+        const statusMatch = statusFiltro === '' || (item.status || 'ativo') === statusFiltro;
         
         return nomeChapaMatch && filialMatch && funcaoMatch && statusMatch;
     });
@@ -500,7 +516,7 @@ function renderGestorConfigTable(data) {
         return;
     }
 
-    // Ordena por nível
+    // (Assumindo que tabela_gestores_config usa MAIÚSCULAS, conforme lógica de salvar)
     data.sort((a, b) => a.NIVEL_HIERARQUIA - b.NIVEL_HIERARQUIA);
 
     data.forEach(item => {
@@ -535,11 +551,13 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
     const select = document.getElementById('configFuncaoSelect');
     if (!select) return;
 
-    // Cria um Set (lista rápida) das funções que já foram configuradas
+    // (Assumindo que gestorConfig.FUNCAO é MAIÚSCULA)
     const funcoesConfiguradas = new Set(gestorConfig.map(c => c.FUNCAO));
     
-    // Filtra 'todasAsFuncoes' para mostrar apenas as que não estão no Set
-    const funcoesDisponiveis = todasAsFuncoes.filter(f => !funcoesConfiguradas.has(f));
+    // Filtra 'todasAsFuncoes' (que vêm de colaboradores.funcao, minúsculas)
+    // para mostrar apenas as que não estão no Set
+    // *** CORREÇÃO: Compara lowercase (de todasAsFuncoes) com uppercase (de funcoesConfiguradas) ***
+    const funcoesDisponiveis = todasAsFuncoes.filter(f => !funcoesConfiguradas.has(f.toUpperCase()));
     
     select.innerHTML = ''; // Limpa
     
@@ -550,6 +568,7 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
     
     select.innerHTML = '<option value="">Selecione uma função...</option>';
     funcoesDisponiveis.forEach(funcao => {
+        // O valor salvo no dropdown é o minúsculo (original)
         select.innerHTML += `<option value="${funcao}">${funcao}</option>`;
     });
 }
@@ -558,7 +577,7 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
  * Salva a nova regra de gestão no banco de dados.
  */
 async function handleSalvarConfig() {
-    const funcao = document.getElementById('configFuncaoSelect').value;
+    const funcao = document.getElementById('configFuncaoSelect').value; // (vem lowercase)
     const nivel = document.getElementById('configNivel').value;
     const podeGestor = document.getElementById('configPodeSerGestor').value === 'true';
 
@@ -567,8 +586,9 @@ async function handleSalvarConfig() {
         return;
     }
     
+    // (Salva a FUNCAO em MAIÚSCULAS no banco de config, para manter o padrão dessa tabela)
     const payload = {
-        FUNCAO: funcao,
+        FUNCAO: funcao.toUpperCase(),
         PODE_SER_GESTOR: podeGestor,
         NIVEL_HIERARQUIA: parseInt(nivel)
     };
@@ -629,6 +649,7 @@ async function initializeApp() {
         localStorage.setItem('auth_token', session.access_token);
         
         // 3. Busca o Perfil do Usuário
+        // (Buscando colunas lowercase: matricula, nome, role, etc.)
         const endpoint = `usuarios?auth_user_id=eq.${state.auth.user.id}&select=nome,role,profile_picture_url,permissoes_filiais,matricula,email`;
         const profileResponse = await supabaseRequest(endpoint, 'GET');
         
@@ -639,7 +660,7 @@ async function initializeApp() {
         const profile = profileResponse[0];
         state.userId = state.auth.user.id;
         state.isAdmin = (profile.role === 'admin');
-        state.userMatricula = profile.matricula || null;
+        state.userMatricula = profile.matricula || null; // (matricula é lowercase)
         state.permissoes_filiais = profile.permissoes_filiais || null;
         state.userNome = profile.nome || session.user.email.split('@')[0];
 
@@ -678,7 +699,7 @@ async function initializeApp() {
     } catch (err) {
         console.error("Erro fatal na inicialização:", err);
         showLoading(false);
-        if (!err.message.includes("Sessão expirada")) {
+        if (err.message && !err.message.includes("Sessão expirada")) {
             mostrarNotificacao(`Erro ao carregar: ${err.message}`, 'error', 10000);
         }
     } finally {
