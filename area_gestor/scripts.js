@@ -70,7 +70,7 @@ function logout() {
     }
 }
 
-// --- Função de Navegação (Nova) ---
+// --- Função de Navegação (Atualizada com lógica) ---
 function showView(viewId, element) {
     document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
     const viewEl = document.getElementById(viewId);
@@ -90,22 +90,24 @@ function showView(viewId, element) {
     const profileDropdown = document.getElementById('profileDropdown');
     if (profileDropdown) profileDropdown.classList.remove('open');
     
-    // Lógica específica da view (a ser preenchida)
+    // Lógica específica da view
     try {
         switch (viewId) {
             case 'meuTimeView':
-                // Chamar função para carregar dados do time
-                // ex: loadMeuTime();
+                // Funções que usam os dados carregados no state
+                updateDashboardStats(state.meuTime);
+                populateFilters(state.meuTime);
+                applyFilters(); // Renderiza a tabela inicial
                 break;
             case 'transferirView':
-                // Chamar função para preparar formulário de transferência
+                // (Ainda a implementar)
                 break;
             case 'atualizarQLPView':
-                // Verificar admin
+                // (Ainda a implementar)
                 break;
             case 'configuracoesView':
-                // Verificar admin
-                // ex: loadGestorConfig();
+                // Renderiza a tabela de config
+                renderGestorConfigTable(state.gestorConfig);
                 break;
         }
     } catch(e) {
@@ -154,6 +156,212 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
         throw error; 
     }
 }
+
+// --- Funções de Lógica do Módulo (NOVAS) ---
+
+/**
+ * Carrega os dados essenciais do módulo (config e time do gestor)
+ * Chamado uma vez durante a inicialização.
+ */
+async function loadModuleData() {
+    if (!state.userMatricula && !state.isAdmin) {
+        mostrarNotificacao('Você não é um gestor configurado (sem matrícula).', 'warning');
+        document.getElementById('tableBodyMeuTime').innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Você não parece ser um gestor. Matrícula de usuário não encontrada.</td></tr>';
+        return;
+    }
+    
+    showLoading(true, 'Carregando dados do time...');
+    
+    try {
+        const [configRes, timeRes] = await Promise.allSettled([
+            // 1. Busca a tabela de configuração (para admins)
+            supabaseRequest('tabela_gestores_config?select=*', 'GET'),
+            // 2. Busca o time direto do gestor (Plano de Teste Passo 3)
+            // NOTA: A hierarquia em cascata (Gerente > Coordenador > Supervisor) é mais complexa e será implementada depois.
+            supabaseRequest(`colaboradores?select=*&GESTOR_CHAPA=eq.${state.userMatricula}`, 'GET')
+        ]);
+
+        if (configRes.status === 'fulfilled' && configRes.value) {
+            state.gestorConfig = configRes.value;
+        } else {
+            console.error("Erro ao carregar config:", configRes.reason);
+        }
+
+        if (timeRes.status === 'fulfilled' && timeRes.value) {
+            state.meuTime = timeRes.value;
+        } else {
+            console.error("Erro ao carregar time:", timeRes.reason);
+        }
+        
+    } catch (err) {
+        mostrarNotificacao(`Erro ao carregar dados: ${err.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/**
+ * Atualiza os 4 cards do dashboard com base nos dados do time.
+ */
+function updateDashboardStats(data) {
+    if (!data) data = [];
+    const total = data.length;
+    const ativos = data.filter(c => c.STATUS === 'ativo').length;
+    const inativos = data.filter(c => c.STATUS === 'inativo').length;
+    const novatos = data.filter(c => c.STATUS === 'novato').length;
+    
+    document.getElementById('statTotalColab').textContent = total;
+    document.getElementById('statAtivos').textContent = ativos;
+    document.getElementById('statNovatos').textContent = novatos;
+    document.getElementById('statInativos').textContent = inativos;
+}
+
+/**
+ * Preenche os <select> de filtro com base nos dados do time.
+ */
+function populateFilters(data) {
+    if (!data) data = [];
+    const filialSelect = document.getElementById('filterFilial');
+    const funcaoSelect = document.getElementById('filterFuncao');
+    
+    const filiais = [...new Set(data.map(c => c.CODFILIAL).filter(Boolean))].sort();
+    const funcoes = [...new Set(data.map(c => c.FUNCAO).filter(Boolean))].sort();
+
+    // Guarda os valores antigos para não resetar a seleção
+    const oldFilial = filialSelect.value;
+    const oldFuncao = funcaoSelect.value;
+
+    filialSelect.innerHTML = '<option value="">Todas as filiais</option>';
+    funcaoSelect.innerHTML = '<option value="">Todas as funções</option>';
+    
+    filiais.forEach(f => filialSelect.innerHTML += `<option value="${f}">${f}</option>`);
+    funcoes.forEach(f => funcaoSelect.innerHTML += `<option value="${f}">${f}</option>`);
+
+    // Restaura os valores
+    filialSelect.value = oldFilial;
+    funcaoSelect.value = oldFuncao;
+}
+
+/**
+ * Renderiza a tabela principal de "Meu Time"
+ */
+function renderMeuTimeTable(data) {
+    const tbody = document.getElementById('tableBodyMeuTime');
+    const message = document.getElementById('tableMessageMeuTime');
+    tbody.innerHTML = '';
+
+    if (data.length === 0) {
+        message.classList.remove('hidden');
+        if (state.meuTime.length === 0) { // Se o cache original está vazio
+             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Seu time ainda não possui colaboradores vinculados.</td></tr>';
+        } else { // Se o cache tem dados, mas o filtro limpou
+             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Nenhum colaborador encontrado para os filtros aplicados.</td></tr>';
+        }
+        return;
+    }
+    message.classList.add('hidden');
+
+    const fragment = document.createDocumentFragment();
+    data.forEach(c => {
+        const tr = document.createElement('tr');
+        
+        let dtAdmissao = 'N/A';
+        if (c.DT_ADMISSAO) {
+            try {
+                // Tenta formatar a data. Assume que pode ser YYYY-MM-DD
+                const dataObj = new Date(c.DT_ADMISSAO + 'T00:00:00Z'); // Adiciona T00:00:00Z para tratar como UTC
+                dtAdmissao = dataObj.toLocaleDateString('pt-BR');
+            } catch(e) { 
+                dtAdmissao = c.DT_ADMISSAO; // Fallback se a data for inválida
+            }
+        }
+        
+        const status = c.STATUS || 'ativo';
+        let statusClass = 'status-ativo';
+        if (status === 'inativo') statusClass = 'status-inativo';
+        if (status === 'novato') statusClass = 'status-aviso'; // Reusa a cor amarela (aviso)
+
+        tr.innerHTML = `
+            <td>${c.NOME || 'N/A'}</td>
+            <td>${c.CHAPA || 'N/A'}</td>
+            <td>${c.FUNCAO || 'N/A'}</td>
+            <td>${c.SECAO || 'N/A'}</td>
+            <td>${dtAdmissao}</td>
+            <td>${c.CODFILIAL || 'N/A'}</td>
+            <td><span class="status-badge ${statusClass}">${status}</span></td>
+            <td class="actions">
+                <button class="btn btn-sm btn-info" onclick="/* showDetails('${c.CHAPA}') */" title="Ver Detalhes">
+                    <i data-feather="eye" class="h-4 w-4"></i>
+                </button>
+            </td>
+        `;
+        fragment.appendChild(tr);
+    });
+    tbody.appendChild(fragment);
+    feather.replace();
+}
+
+/**
+ * Aplica os filtros da UI na tabela "Meu Time"
+ */
+function applyFilters() {
+    const nomeFiltro = document.getElementById('filterNome').value.toLowerCase();
+    const filialFiltro = document.getElementById('filterFilial').value;
+    const funcaoFiltro = document.getElementById('filterFuncao').value;
+    const statusFiltro = document.getElementById('filterStatus').value;
+
+    let filteredData = state.meuTime;
+
+    if (nomeFiltro) {
+        filteredData = filteredData.filter(c => 
+            (c.NOME && c.NOME.toLowerCase().includes(nomeFiltro)) ||
+            (c.CHAPA && String(c.CHAPA).toLowerCase().includes(nomeFiltro))
+        );
+    }
+    if (filialFiltro) {
+        filteredData = filteredData.filter(c => c.CODFILIAL === filialFiltro);
+    }
+    if (funcaoFiltro) {
+        filteredData = filteredData.filter(c => c.FUNCAO === funcaoFiltro);
+    }
+    if (statusFiltro) {
+        filteredData = filteredData.filter(c => c.STATUS === statusFiltro);
+    }
+    
+    renderMeuTimeTable(filteredData);
+}
+
+/**
+ * Renderiza a tabela de Configuração de Gestores (Admin)
+ */
+function renderGestorConfigTable(data) {
+    const tbody = document.getElementById('tableBodyGestorConfig');
+    tbody.innerHTML = '';
+    if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5">Nenhum dado de configuração carregado.</td></tr>';
+        return;
+    }
+    data.sort((a,b) => a.NIVEL_HIERARQUIA - b.NIVEL_HIERARQUIA); // Ordenar por nível
+    data.forEach(config => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${config.FUNCAO}</td>
+                <td>${config.PODE_SER_GESTOR ? '<span class="status-badge status-ativo">Sim</span>' : '<span class="status-badge status-inativo">Não</span>'}</td>
+                <td>${config.NIVEL_HIERARQUIA}</td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-warning" onclick="/* editConfig('${config.FUNCAO}') */" title="Editar">
+                        <i data-feather="edit-2" class="h-4 w-4"></i>
+                    </button>
+                     <button class="btn btn-sm btn-danger" onclick="/* deleteConfig('${config.FUNCAO}') */" title="Excluir">
+                        <i data-feather="trash-2" class="h-4 w-4"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    feather.replace();
+}
+
 
 // --- Inicialização ---
 async function initializeApp() {
@@ -205,10 +413,13 @@ async function initializeApp() {
             document.getElementById('adminUpdateLink').style.display = 'block';
         }
         
+        // NOVO: Carregar dados ANTES de mostrar a view
+        await loadModuleData();
+        
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
         
-        handleHashChange(); // Carregar a view correta
+        handleHashChange(); // Carregar a view correta (agora com dados)
 
     } catch (err) {
         console.error("Erro na inicialização:", err);
@@ -237,6 +448,8 @@ function handleHashChange() {
             console.warn("Acesso negado a view de admin.");
             mostrarNotificacao("Acesso negado. Esta área é restrita a administradores.", "warning");
             window.location.hash = '#meuTime'; // Volta para o padrão
+            // Recarrega a view padrão
+            showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
             return;
         }
         viewId = newViewId;
@@ -308,5 +521,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // NOVO: Listeners para os filtros
+    document.getElementById('filterNome').addEventListener('input', applyFilters);
+    document.getElementById('filterFilial').addEventListener('change', applyFilters);
+    document.getElementById('filterFuncao').addEventListener('change', applyFilters);
+    document.getElementById('filterStatus').addEventListener('change', applyFilters);
+
     feather.replace();
 });
