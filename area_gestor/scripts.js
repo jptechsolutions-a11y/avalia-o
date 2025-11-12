@@ -872,7 +872,7 @@ async function handleSalvarConfig() {
     
     // *** CORREÇÃO: Salva a 'funcao' em minúsculo na tabela de config ***
     const payload = {
-        funcao: funcao.toLowerCase(), // <-- CORRIGIDO
+        funcao: funcao.toUpperCase(), // <-- CORRIGIDO PARA UPPERCASE (para bater com o banco)
         pode_ser_gestor: podeGestor, // (Correto: minúsculo)
         nivel_hierarquia: parseInt(nivel) // (Correto: minúsculo)
     };
@@ -921,10 +921,10 @@ async function handleExcluirConfig(funcao) {
     
     try {
         // Usa 'funcao' (minúscula) como a chave para exclusão
-        await supabaseRequest(`tabela_gestores_config?funcao=eq.${funcao.toLowerCase()}`, 'DELETE');
+        await supabaseRequest(`tabela_gestores_config?funcao=eq.${funcao.toUpperCase()}`, 'DELETE');
 
         // Atualiza o estado local
-        state.gestorConfig = state.gestorConfig.filter(item => item.funcao !== funcao.toLowerCase());
+        state.gestorConfig = state.gestorConfig.filter(item => item.funcao.toUpperCase() !== funcao.toUpperCase());
 
         // Re-renderiza a UI
         renderGestorConfigTable(state.gestorConfig);
@@ -1016,7 +1016,7 @@ async function initializeApp() {
         // 6. Encontrar o nível do gestor (agora que o config foi carregado)
         if (state.userFuncao && state.gestorConfig.length > 0) {
             // *** CORREÇÃO: Compara a funcao (minúscula) com as chaves do mapa (minúsculas) ***
-            const gestorRegra = state.gestorConfig.find(r => r.funcao === state.userFuncao.toLowerCase());
+            const gestorRegra = state.gestorConfig.find(r => r.funcao.toLowerCase() === state.userFuncao.toLowerCase());
             if (gestorRegra) {
                 state.userNivel = gestorRegra.nivel_hierarquia; // Armazena o nível
             }
