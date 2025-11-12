@@ -209,37 +209,57 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 async function loadRecursiveTeam(gestorChapa, configMap) {
     let team = [];
     
-    // 1. Busca subordinados diretos (ASSUMINDO COLUNAS minúsculas)
+    console.log(`[Cascata] Buscando time de: ${gestorChapa}`);
+    
+    // 1. Busca subordinados diretos
     const reports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${gestorChapa}`, 'GET');
     
     if (!reports || reports.length === 0) {
+        console.log(`[Cascata] ${gestorChapa} não tem subordinados diretos.`);
         return []; // Condição de parada: gestor sem time
     }
+
+    console.log(`[Cascata] ${gestorChapa} tem ${reports.length} subordinados diretos.`);
 
     // 2. Adiciona os subordinados diretos ao time
     team = team.concat(reports);
 
-    // 3. Identifica quais desses subordinados são também gestores (ASSUMINDO COLUNAS minúsculas)
+    // 3. Identifica quais desses subordinados são também gestores
+    // CORREÇÃO: Verifica se a função do subordinado está no configMap E se ele pode ser gestor
     const subManagerChapas = reports
         .filter(r => {
-            const func = r.funcao ? r.funcao.toLowerCase() : null; // Pega funcao (upper) e converte
-            return func && configMap[func]; // Compara com o configMap (lower)
+            const func = r.funcao ? r.funcao.toLowerCase() : null;
+            const isManager = func && configMap[func]; // Verifica se a função pode ser gestor
+            if (isManager) {
+                console.log(`[Cascata] ${r.nome} (${r.matricula}) é sub-gestor (${r.funcao}).`);
+            }
+            return isManager;
         })
-        .map(r => r.matricula); // Pega matricula (lower)
+        .map(r => r.matricula);
 
     if (subManagerChapas.length === 0) {
+        console.log(`[Cascata] ${gestorChapa} não tem sub-gestores. Fim da cascata.`);
         return team; // Condição de parada: sem sub-gestores
     }
 
+    console.log(`[Cascata] ${gestorChapa} tem ${subManagerChapas.length} sub-gestor(es): ${subManagerChapas.join(', ')}`);
+
     // 4. Busca recursivamente o time de cada sub-gestor
     const subTeamPromises = subManagerChapas.map(chapa => loadRecursiveTeam(chapa, configMap));
-    const subTeams = await Promise.all(subTeamPromises);
+    const subTeamsResults = await Promise.allSettled(subTeamPromises);
 
     // 5. Adiciona os times dos sub-gestores ao time principal
-    subTeams.forEach(subTeam => {
-        team = team.concat(subTeam);
+    subTeamsResults.forEach((result, index) => {
+        if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+            const subTeam = result.value;
+            console.log(`[Cascata] Sub-gestor ${subManagerChapas[index]} trouxe ${subTeam.length} colaboradores.`);
+            team = team.concat(subTeam);
+        } else {
+            console.error(`[Cascata] Erro ao buscar time do sub-gestor ${subManagerChapas[index]}:`, result.reason);
+        }
     });
 
+    console.log(`[Cascata] Total acumulado para ${gestorChapa}: ${team.length} colaboradores.`);
     return team;
 }
 
