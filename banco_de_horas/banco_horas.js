@@ -43,133 +43,6 @@ const sessionStorageAdapter = {
   removeItem: (key) => sessionStorage.removeItem(key),
 };
 
-// --- FUNÇÃO DE REQUISIÇÃO CORRIGIDA (Baseada no script.js) ---
-async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
-    // *** CORREÇÃO APLICADA AQUI ***
-    // Trocado de 'state.auth.access_token' para 'localStorage.getItem'
-    const authToken = localStorage.getItem('auth_token'); 
-    
-    if (!authToken) {
-        console.error("Token JWT não encontrado no localStorage, deslogando.");
-        logout(); // A função logout será definida mais abaixo
-        throw new Error("Sessão expirada. Faça login novamente.");
-    }
-    
-    const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
-    
-    const config = {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`, 
-            ...headers 
-        }
-    };
-
-    if (!config.headers['Prefer']) {
-        config.headers['Prefer'] = 'return=representation';
-    }
-
-    if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
-        config.body = JSON.stringify(body);
-    }
-
-    try {
-        const response = await fetch(url, config);
-
-        if (!response.ok) {
-            let errorData = { message: `Erro ${response.status}: ${response.statusText}` };
-            try { 
-                errorData = await response.json(); 
-            } catch(e) {
-                // Resposta não-JSON
-            }
-            
-            console.error("Erro Supabase (via Proxy):", errorData);
-            const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
-            
-            if (response.status === 401) {
-                throw new Error("Não autorizado. Sua sessão pode ter expirado.");
-            }
-            throw new Error(detailedError);
-        }
-
-        if (config.headers['Prefer'] === 'count=exact') {
-            const countRange = response.headers.get('content-range'); 
-            const count = countRange ? countRange.split('/')[1] : '0';
-            return { count: parseInt(count || '0', 10) };
-        }
-
-        if (response.status === 204 || response.headers.get('content-length') === '0' ) {
-            return null; 
-        }
-
-        return await response.json(); 
-
-    } catch (error) {
-        console.error("Erro na função supabaseRequest:", error.message);
-        if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
-            if(typeof logout === 'function') logout(); 
-        }
-        throw error; 
-    }
-}
-// --- FIM DA FUNÇÃO CORRIGIDA ---
-
-
-// ****** NOVA FUNÇÃO (BASEADA NO 'pendencias.js') ******
-// Carrega TODOS os dados do banco de horas, usando paginação.
-async function loadInitialData() {
-    showLoading(true, 'Carregando todos os dados do banco de horas...');
-    const DATA_TABLE = 'banco_horas_data'; // Tabela correta
-    
-    try {
-        const pageSize = 1000;
-        let currentPage = 0;
-        let hasMoreData = true;
-        let allRecords = [];
-
-        // 1. Paginação para buscar TODOS os dados
-        while (hasMoreData) {
-            const offset = currentPage * pageSize;
-            const range = `&offset=${offset}&limit=${pageSize}`;
-
-            // Busca todas as colunas
-            const query = `${DATA_TABLE}?select=*${range}`; 
-            
-            const dataRes = await supabaseRequest(query, 'GET', null, { 
-                'Prefer': `return=representation,count=exact`
-            });
-
-            if (dataRes && Array.isArray(dataRes)) {
-                allRecords = allRecords.concat(dataRes);
-                
-                if (dataRes.length < pageSize) {
-                    hasMoreData = false;
-                } else {
-                    currentPage++;
-                    showLoading(true, `Carregando dados... ${allRecords.length} registros...`);
-                }
-            } else {
-                hasMoreData = false; 
-            }
-        }
-        
-        // Armazena todos os dados no estado global
-        state.allData = allRecords; 
-        console.log(`Carregamento concluído. Total de ${state.allData.length} registros no 'state.allData'.`);
-
-    } catch (e) {
-        console.error("Falha ao carregar dados iniciais:", e);
-        mostrarNotificacao(`Falha ao carregar dados: ${e.message}`, 'error');
-        state.allData = []; // Garante que esteja vazio em caso de falha
-    } finally {
-        showLoading(false);
-    }
-}
-// ****** FIM DA NOVA FUNÇÃO ******
-
-
 // --- O estado global permanece o mesmo ---
 const state = {
     auth: null,
@@ -273,7 +146,138 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FUNÇÕES ---
 
-   function showLoading(show, text = 'Processando...') {
+    // ****** BLOCO DE FUNÇÕES MOVIDO PARA DENTRO DO DOMContentLoaded ******
+
+    // --- FUNÇÃO DE REQUISIÇÃO CORRIGIDA (Baseada no script.js) ---
+    async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
+        // *** CORREÇÃO APLICADA AQUI ***
+        // Trocado de 'state.auth.access_token' para 'localStorage.getItem'
+        const authToken = localStorage.getItem('auth_token'); 
+        
+        if (!authToken) {
+            console.error("Token JWT não encontrado no localStorage, deslogando.");
+            logout(); // A função logout será definida mais abaixo
+            throw new Error("Sessão expirada. Faça login novamente.");
+        }
+        
+        const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
+        
+        const config = {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`, 
+                ...headers 
+            }
+        };
+
+        if (!config.headers['Prefer']) {
+            config.headers['Prefer'] = 'return=representation';
+        }
+
+        if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+            config.body = JSON.stringify(body);
+        }
+
+        try {
+            const response = await fetch(url, config);
+
+            if (!response.ok) {
+                let errorData = { message: `Erro ${response.status}: ${response.statusText}` };
+                try { 
+                    errorData = await response.json(); 
+                } catch(e) {
+                    // Resposta não-JSON
+                }
+                
+                console.error("Erro Supabase (via Proxy):", errorData);
+                const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
+                
+                if (response.status === 401) {
+                    throw new Error("Não autorizado. Sua sessão pode ter expirado.");
+                }
+                throw new Error(detailedError);
+            }
+
+            if (config.headers['Prefer'] === 'count=exact') {
+                const countRange = response.headers.get('content-range'); 
+                const count = countRange ? countRange.split('/')[1] : '0';
+                return { count: parseInt(count || '0', 10) };
+            }
+
+            if (response.status === 204 || response.headers.get('content-length') === '0' ) {
+                return null; 
+            }
+
+            return await response.json(); 
+
+        } catch (error) {
+            console.error("Erro na função supabaseRequest:", error.message);
+            if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
+                if(typeof logout === 'function') logout(); 
+            }
+            throw error; 
+        }
+    }
+    // --- FIM DA FUNÇÃO CORRIGIDA ---
+
+
+    // ****** NOVA FUNÇÃO (BASEADA NO 'pendencias.js') ******
+    // Carrega TODOS os dados do banco de horas, usando paginação.
+    async function loadInitialData() {
+        showLoading(true, 'Carregando todos os dados do banco de horas...');
+        const DATA_TABLE = 'banco_horas_data'; // Tabela correta
+        
+        try {
+            const pageSize = 1000;
+            let currentPage = 0;
+            let hasMoreData = true;
+            let allRecords = [];
+
+            // 1. Paginação para buscar TODOS os dados
+            while (hasMoreData) {
+                const offset = currentPage * pageSize;
+                const range = `&offset=${offset}&limit=${pageSize}`;
+
+                // Busca todas as colunas
+                const query = `${DATA_TABLE}?select=*${range}`; 
+                
+                const dataRes = await supabaseRequest(query, 'GET', null, { 
+                    'Prefer': `return=representation,count=exact`
+                });
+
+                if (dataRes && Array.isArray(dataRes)) {
+                    allRecords = allRecords.concat(dataRes);
+                    
+                    if (dataRes.length < pageSize) {
+                        hasMoreData = false;
+                    } else {
+                        currentPage++;
+                        showLoading(true, `Carregando dados... ${allRecords.length} registros...`);
+                    }
+                } else {
+                    hasMoreData = false; 
+                }
+            }
+            
+            // Armazena todos os dados no estado global
+            state.allData = allRecords; 
+            console.log(`Carregamento concluído. Total de ${state.allData.length} registros no 'state.allData'.`);
+
+        } catch (e) {
+            console.error("Falha ao carregar dados iniciais:", e);
+            mostrarNotificacao(`Falha ao carregar dados: ${e.message}`, 'error');
+            state.allData = []; // Garante que esteja vazio em caso de falha
+        } finally {
+            showLoading(false);
+        }
+    }
+    // ****** FIM DA NOVA FUNÇÃO ******
+
+    // ****** FIM DO BLOCO MOVIDO ******
+
+
+    function showLoading(show, text = 'Processando...') {
         if (ui.loadingText) {
             ui.loadingText.textContent = text;
         }
