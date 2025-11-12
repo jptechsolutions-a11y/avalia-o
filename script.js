@@ -26,7 +26,7 @@ window.GG = {
         solicitacoes: [], 
         colaboradoresGestores: [], 
         avaliacaoAtual: null, 
-        dadosCarregados: false, 
+        dadosCarregados: false, // <-- FLAG DE CONTROLE
         avaliacoesFiltradas: []
     },
     
@@ -158,9 +158,30 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
             this.showMainSystem();
             
-            await this.carregarDadosIniciais();
+            // --- OTIMIZAÇÃO APLICADA ---
+            this.mostrarLoading(true);
+            this.atualizarStatusDados('🔄 Carregando dados...', 'info');
+
+            // 1. Prepara as promises de carregamento
+            const dataPromises = [this.carregarDadosIniciais()];
+            if (this.currentUser.role === 'admin') {
+                dataPromises.push(this.carregarDadosAdmin());
+            }
+
+            // 2. Espera que TUDO seja carregado
+            await Promise.allSettled(dataPromises);
             
+            this.dados.dadosCarregados = true;
+            this.atualizarStatusConexaoHome(true);
+            this.atualizarEstatisticasHome(); // Atualiza a home (view padrão)
+            this.atualizarStatusDados(`✅ Dados carregados!`, 'success', 3000);
+            this.mostrarLoading(false);
+            
+            console.log("✅ Sistema inicializado com dados em cache!");
+            
+            // 3. Só agora carrega a view inicial (baseada no hash)
             this.handleHashChange();
+            // --- FIM DA OTIMIZAÇÃO ---
             
         } catch (error) {
             console.error("Erro detalhado na inicialização do app:", error);
@@ -265,6 +286,20 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
         const profileDropdown = document.getElementById('profileDropdown');
         if (profileDropdown) profileDropdown.classList.remove('open');
+
+        // --- OTIMIZAÇÃO APLICADA ---
+        // Verifica se os dados estão prontos antes de tentar renderizar views que dependem deles
+        if (!this.dados.dadosCarregados && viewId !== 'perfilView') {
+            console.warn(`View ${viewId} chamada antes dos dados estarem prontos. Aguardando...`);
+            // Mostra o loading (que já deve estar visível) e impede a renderização da view
+            this.mostrarLoading(true); 
+            return; 
+        }
+        // Se os dados estão prontos, garante que o loading saia (exceto para perfil)
+        if (this.dados.dadosCarregados && viewId !== 'perfilView') {
+            this.mostrarLoading(false);
+        }
+        // --- FIM DA OTIMIZAÇÃO ---
 
         try {
             switch (viewId) {
@@ -374,8 +409,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     
     
     async carregarDadosIniciais() {
-        this.mostrarLoading(true);
-        this.atualizarStatusDados('🔄 Carregando dados...', 'info');
+        // --- OTIMIZAÇÃO: Esta função agora SÓ carrega os dados e não atualiza a UI ---
         try {
             const results = await Promise.allSettled([
                 this.supabaseRequest('colaboradores?select=*', 'GET'), 
@@ -403,17 +437,12 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
             console.log("Dados carregados:", this.dados);
 
-            this.dados.dadosCarregados = true;
-            this.atualizarStatusConexaoHome(true);
-            this.atualizarEstatisticasHome();
-            this.atualizarStatusDados(`✅ Dados carregados!`, 'success', 3000);
-            console.log("✅ Sistema inicializado!");
         } catch (e) {
             this.atualizarStatusConexaoHome(false);
             this.atualizarStatusDados(`❌ Falha ao carregar dados: ${e.message}`, 'danger');
             console.error('❌ Erro fatal no carregamento:', e);
         } finally {
-            this.mostrarLoading(false);
+            // N/A
         }
     },
 
@@ -784,12 +813,14 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
     async carregarHistorico(){ 
         this.mostrarLoading(true);
+
+        // --- OTIMIZAÇÃO APLICADA ---
+        // REMOVIDO: Bloco 'if (!this.dados.dadosCarregados)' que recarregava tudo.
+        // A função agora confia que os dados já estão em cache.
+        // --- FIM DA OTIMIZAÇÃO ---
+
         if (!this.dados.dadosCarregados) {
-            await this.carregarDadosIniciais();
-        }
-        
-        if (!this.dados.dadosCarregados) {
-            this.mostrarAlerta("Não foi possível carregar os dados. Verifique a conexão.", 'error');
+            this.mostrarAlerta("Dados ainda não carregados. Aguarde.", 'error');
             this.mostrarLoading(false);
             return;
         }
@@ -867,9 +898,9 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                         <td><strong>${av.pontuacao}</strong></td>
                         <td>${this.escapeHTML(av.classificacao)}</td>
                        <td class="actions">
-                    <button class="btn btn-sm btn-success" onclick='window.GG.aprovarSolicitacao(${s.id}, ${JSON.stringify(s.nome)}, ${JSON.stringify(s.email)})'>
-                        <i data-feather="check" class="h-4 w-4"></i>
-                    </button>
+                            <button class="btn btn-sm btn-info" onclick="window.GG.exibirLaudo(${av.id})">
+                                <i data-feather="printer" class="h-4 w-4"></i>
+                            </button>
                         </td>
                     </tr>`;
         });
@@ -924,12 +955,13 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         document.getElementById('accessStatusConfig').style.display = 'block';
 
         this.mostrarLoading(true);
-        if (!this.dados.dadosCarregados) {
-            await this.carregarDadosIniciais(); 
-        }
         
-        await this.carregarDadosAdmin(); 
-
+        // --- OTIMIZAÇÃO APLICADA ---
+        // REMOVIDO: Bloco 'if (!this.dados.dadosCarregados)'
+        // REMOVIDO: 'await this.carregarDadosAdmin()' (agora é feito no initializeApp)
+        // --- FIM DA OTIMIZAÇÃO ---
+        
+        // Apenas renderiza os dados que já estão no cache
         this.renderizarTabelasAdmin(); 
         
         this.renderizarTabelaIndicadores(); 
@@ -972,6 +1004,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     // -----------------------------------------------------------------
 
     async carregarDadosAdmin() {
+        // --- OTIMIZAÇÃO: Esta função agora SÓ carrega os dados e não atualiza a UI ---
         try {
             const [usuariosRes, solicitacoesRes] = await Promise.allSettled([
                 this.supabaseRequest('usuarios?select=*&order=nome.asc', 'GET'),
@@ -1027,8 +1060,10 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             this.mostrarLoading(true);
             await this.supabaseRequest(`solicitacoes_acesso?id=eq.${id}`, 'PATCH', { status: 'rejeitado' });
             this.mostrarAlerta('Solicitação rejeitada.', 'success');
-            await this.carregarDadosAdmin(); 
-            this.renderizarTabelasAdmin(); 
+            
+            // ATUALIZA O CACHE
+            this.dados.solicitacoes = this.dados.solicitacoes.filter(s => s.id !== id);
+            this.renderizarTabelasAdmin(); // Re-renderiza a partir do cache
         } catch(e) {
             this.mostrarAlerta(`Erro ao rejeitar: ${e.message}`, 'error');
         } finally {
@@ -1062,9 +1097,13 @@ async aprovarSolicitacao(id, nome, email) {
 
             this.mostrarAlerta('Usuário aprovado e convite enviado!', 'success');
             
-            // Atualizar a lista de solicitações
-            await this.carregarDadosAdmin(); 
-            this.renderizarTabelasAdmin(); 
+            // ATUALIZA O CACHE
+            this.dados.solicitacoes = this.dados.solicitacoes.filter(s => s.id !== id);
+            // Re-busca a lista de usuários para incluir o novo
+            const usuariosRes = await this.supabaseRequest('usuarios?select=*&order=nome.asc', 'GET');
+            this.dados.usuarios = (usuariosRes.status === 'fulfilled' && usuariosRes.value) ? usuariosRes.value : [];
+            
+            this.renderizarTabelasAdmin(); // Re-renderiza a partir do cache
 
         } catch(e) {
             this.mostrarAlerta(`Erro ao aprovar: ${e.message}`, 'error');
@@ -2288,5 +2327,3 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // (Dentro do objeto window.GG)
-
-    
