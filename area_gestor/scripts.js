@@ -111,6 +111,7 @@ function showView(viewId, element) {
                 break;
             case 'transferirView':
                 // (Ainda a implementar)
+                loadTransferViewData();
                 break;
             case 'atualizarQLPView':
                 // (Ainda a implementar)
@@ -418,8 +419,8 @@ function filtrarDisponiveis() {
 }
 
 /**
- * Salva o time no banco de dados (Passo 3 da funcionalidade)
- */
+// ... (Funções de Lógica do Módulo - sem alterações) ...
+// ...
 async function handleSalvarTime() {
     showLoading(true, 'Salvando seu time...');
     const listaMeuTimeEl = document.getElementById('listaMeuTime');
@@ -611,6 +612,136 @@ function renderGestorConfigTable(data) {
     });
     feather.replace();
 }
+
+// ====================================================================
+// NOVAS FUNÇÕES: Lógica da Aba Transferência
+// ====================================================================
+
+/**
+ * Carrega os dados para a view de Transferência
+ */
+async function loadTransferViewData() {
+    const selectColaborador = document.getElementById('selectColaboradorTransfer');
+    const selectGestor = document.getElementById('selectNovoGestor');
+    const btnConfirm = document.getElementById('btnConfirmTransfer');
+    
+    if (!selectColaborador || !selectGestor || !btnConfirm) {
+        console.error("Elementos da view 'transferir' não encontrados.");
+        return;
+    }
+
+    // 1. Popula colaboradores do time atual
+    selectColaborador.innerHTML = '<option value="">Selecione um colaborador...</option>';
+    state.meuTime.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(c => {
+        selectColaborador.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula})</option>`;
+    });
+
+    // 2. Popula gestores de destino
+    selectGestor.innerHTML = '<option value="">Carregando gestores...</option>';
+    selectGestor.disabled = true;
+    btnConfirm.disabled = true; // Desabilita o botão até que ambos sejam selecionados
+
+    try {
+        // Pega funções que podem ser gestor (do cache)
+        const funcoesGestor = state.gestorConfig
+            .filter(r => r.pode_ser_gestor)
+            .map(r => `"${r.funcao}"`); // Adiciona aspas para a query
+        
+        if (funcoesGestor.length === 0) {
+            throw new Error("Nenhuma função de gestor configurada.");
+        }
+
+        // Busca todos os colaboradores que SÃO gestores, EXCETO o usuário atual
+        const query = `colaboradores?select=nome,matricula,funcao&funcao=in.(${funcoesGestor.join(',')})&matricula=neq.${state.userMatricula}`;
+        const gestores = await supabaseRequest(query, 'GET');
+
+        if (!gestores || gestores.length === 0) {
+            throw new Error("Nenhum outro gestor encontrado para transferência.");
+        }
+
+        selectGestor.innerHTML = '<option value="">Selecione um gestor de destino...</option>';
+        gestores.sort((a,b) => a.nome.localeCompare(b.nome)).forEach(g => {
+            selectGestor.innerHTML += `<option value="${g.matricula}">${g.nome} (${g.funcao})</option>`;
+        });
+        selectGestor.disabled = false;
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao carregar gestores: ${err.message}`, 'error');
+        selectGestor.innerHTML = `<option value="">${err.message}</option>`;
+    }
+}
+
+/**
+ * Habilita o botão de confirmar transferência
+ */
+function checkTransferButtonState() {
+    const selectColaborador = document.getElementById('selectColaboradorTransfer').value;
+    const selectGestor = document.getElementById('selectNovoGestor').value;
+    const btnConfirm = document.getElementById('btnConfirmTransfer');
+    
+    if (!btnConfirm) return; // Proteção caso o elemento não exista
+    
+    if (selectColaborador && selectGestor) {
+        btnConfirm.disabled = false;
+    } else {
+        btnConfirm.disabled = true;
+    }
+}
+
+/**
+ * Executa a transferência do colaborador
+ */
+async function handleConfirmTransfer() {
+    const selectColaborador = document.getElementById('selectColaboradorTransfer');
+    const selectGestor = document.getElementById('selectNovoGestor');
+    const btnConfirm = document.getElementById('btnConfirmTransfer');
+
+    const colaboradorMatricula = selectColaborador.value;
+    const novoGestorMatricula = selectGestor.value;
+
+    if (!colaboradorMatricula || !novoGestorMatricula) {
+        mostrarNotificacao('Selecione um colaborador e um gestor de destino.', 'warning');
+        return;
+    }
+
+    const colaboradorNome = selectColaborador.options[selectColaborador.selectedIndex].text;
+    const gestorNome = selectGestor.options[selectGestor.selectedIndex].text;
+    
+    // Como não podemos usar confirm(), vamos direto para a ação.
+    // Em um app real, aqui entraria um modal de confirmação.
+    
+    showLoading(true, `Transferindo ${colaboradorNome} para ${gestorNome}...`);
+    btnConfirm.disabled = true;
+
+    try {
+        const payload = {
+            gestor_chapa: novoGestorMatricula
+        };
+        
+        await supabaseRequest(`colaboradores?matricula=eq.${colaboradorMatricula}`, 'PATCH', payload);
+
+        // Sucesso!
+        mostrarNotificacao('Colaborador transferido com sucesso!', 'success');
+
+        // Atualiza o estado local
+        state.meuTime = state.meuTime.filter(c => c.matricula !== colaboradorMatricula);
+
+        // Reseta a view de transferência
+        selectColaborador.value = "";
+        selectGestor.value = "";
+        
+        // Vai para a view "Meu Time" para ver o resultado
+        showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao transferir: ${err.message}`, 'error');
+    } finally {
+        showLoading(false);
+        // O botão continuará desabilitado pois os campos foram resetados.
+        checkTransferButtonState();
+    }
+}
+
 
 // ====================================================================
 // NOVAS FUNÇÕES: Lógica da Aba Configurações
@@ -951,6 +1082,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // NOVO: Listener para salvar Configuração
     document.getElementById('btnSalvarConfig').addEventListener('click', handleSalvarConfig);
+
+    // NOVO: Listeners para a view de Transferência
+    const selColab = document.getElementById('selectColaboradorTransfer');
+    const selGestor = document.getElementById('selectNovoGestor');
+    const btnTransfer = document.getElementById('btnConfirmTransfer');
+    
+    if (selColab) selColab.addEventListener('change', checkTransferButtonState);
+    if (selGestor) selGestor.addEventListener('change', checkTransferButtonState);
+    if (btnTransfer) btnTransfer.addEventListener('click', handleConfirmTransfer);
 
     feather.replace();
 });
