@@ -117,6 +117,59 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 // --- FIM DA FUNÇÃO CORRIGIDA ---
 
 
+// ****** NOVA FUNÇÃO (BASEADA NO 'pendencias.js') ******
+// Carrega TODOS os dados do banco de horas, usando paginação.
+async function loadInitialData() {
+    showLoading(true, 'Carregando todos os dados do banco de horas...');
+    const DATA_TABLE = 'banco_horas_data'; // Tabela correta
+    
+    try {
+        const pageSize = 1000;
+        let currentPage = 0;
+        let hasMoreData = true;
+        let allRecords = [];
+
+        // 1. Paginação para buscar TODOS os dados
+        while (hasMoreData) {
+            const offset = currentPage * pageSize;
+            const range = `&offset=${offset}&limit=${pageSize}`;
+
+            // Busca todas as colunas
+            const query = `${DATA_TABLE}?select=*${range}`; 
+            
+            const dataRes = await supabaseRequest(query, 'GET', null, { 
+                'Prefer': `return=representation,count=exact`
+            });
+
+            if (dataRes && Array.isArray(dataRes)) {
+                allRecords = allRecords.concat(dataRes);
+                
+                if (dataRes.length < pageSize) {
+                    hasMoreData = false;
+                } else {
+                    currentPage++;
+                    showLoading(true, `Carregando dados... ${allRecords.length} registros...`);
+                }
+            } else {
+                hasMoreData = false; 
+            }
+        }
+        
+        // Armazena todos os dados no estado global
+        state.allData = allRecords; 
+        console.log(`Carregamento concluído. Total de ${state.allData.length} registros no 'state.allData'.`);
+
+    } catch (e) {
+        console.error("Falha ao carregar dados iniciais:", e);
+        mostrarNotificacao(`Falha ao carregar dados: ${e.message}`, 'error');
+        state.allData = []; // Garante que esteja vazio em caso de falha
+    } finally {
+        showLoading(false);
+    }
+}
+// ****** FIM DA NOVA FUNÇÃO ******
+
+
 // --- O estado global permanece o mesmo ---
 const state = {
     auth: null,
@@ -124,7 +177,8 @@ const state = {
     isAdmin: false,
     permissoes_filiais: null, // NOVO: Para permissão
     userMatricula: null, // <-- ADICIONADO
-    allData: [], // MUDANÇA: Isso não é mais "TUDO", é apenas a VIEW ATUAL
+    allData: [], // <-- MUDANÇA: Cache global com TUDO
+    viewData: [], // <-- O que está sendo exibido na tabela de acompanhamento
     previousData: {}, // NOVO: Cache para dados anteriores
     setupCompleto: false, // <-- NOVA FLAG
     
@@ -372,7 +426,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // **** NOVO: Bloco de setup único ****
         // Roda a configuração inicial (filtros, histórico) APENAS UMA VEZ
-        if (!state.setupCompleto && state.auth) {
+        // Isso agora depende de 'state.allData' ter sido carregado
+        if (!state.setupCompleto && state.auth && state.allData.length > 0) {
             console.log("Executando setup de inicialização único...");
             // Essas funções carregam dados essenciais na primeira vez
             listenToMetadata(); // Data da última atualização
@@ -473,8 +528,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // ****** FUNÇÃO MODIFICADA (PARA USAR RPC E POPULAR FILTROS DO DASHBOARD) ******
-    async function populateFilterDatalists() { 
+    // ****** FUNÇÃO MODIFICADA (PARA USAR state.allData) ******
+    function populateFilterDatalists() { 
         // Filtros da Tabela
         const regionalList = document.getElementById('regionalList');
         const filialList = document.getElementById('filialList');
@@ -482,19 +537,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Filtros do Dashboard (agora são <select>)
         // (ui.filterRegionalDash, ui.filterCodFilialDash, etc.)
 
-        console.log("Populando filtros...");
+        console.log("Populando filtros a partir do state.allData...");
         try {
-            // CORREÇÃO: Chamar uma única função RPC que retorna todos os filtros
-            // (Assumindo que você criará esta função 'get_all_distinct_filters' no Supabase)
-            // Se não for possível, a alternativa é buscar todos os dados (lento)
-            
-            // ALTERNATIVA (Workaround sem RPC): Buscar todos os dados e filtrar no JS
-            // É menos performático que RPC, mas resolve o erro sem alterar o backend.
-            showLoading(true, 'Carregando filtros...');
-            // ATENÇÃO: Se a tabela for MUITO grande, isso pode dar timeout.
-            // A solução RPC ('get_distinct_..._banco_horas') é a ideal.
-            // Mas este workaround vai corrigir o erro 404 que você viu.
-            const allData = await supabaseRequest('banco_horas_data?select=CODFILIAL,REGIONAL,SECAO,FUNCAO', 'GET');
+            // ADICIONADO: Lê do estado global
+            const allData = state.allData;
             
             const filiaisSet = new Set();
             const regionaisSet = new Set();
@@ -532,9 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         } catch (e) {
             console.error("Falha ao popular datalists:", e);
-            mostrarNotificacao("Erro ao carregar filtros. Verifique a conexão e a tabela 'banco_horas_data'.", "error", 10000);
-        } finally {
-            showLoading(false);
+            mostrarNotificacao("Erro ao processar filtros.", "error", 10000);
         }
     }
     // ****** FIM DA FUNÇÃO MODIFICADA ******
@@ -582,8 +626,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // ****** FUNÇÃO MODIFICADA (AGORA É ASYNC E FAZ FETCH) ******
-    async function applyFilters() {
+    // ****** FUNÇÃO MODIFICADA (AGORA É SINCRONA E USA state.allData) ******
+    function applyFilters() {
         const filterChapa = ui.filterChapa.value.toLowerCase().trim();
         const filterNome = ui.filterNome.value.toLowerCase().trim();
         const filterRegional = ui.filterRegional.value.toLowerCase().trim();
@@ -591,96 +635,81 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showLoading(true, 'Filtrando dados...');
         
-        // 1. Constrói a string de query do Supabase
-        let query = 'banco_horas_data?select=*'; // Pega todas as colunas
-
-        // Aplica filtros de permissão
-        if (!state.isAdmin) {
-            if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-                const filiaisQuery = state.permissoes_filiais.map(f => `"${String(f).trim()}"`).join(',');
-                query += `&CODFILIAL=in.(${filiaisQuery})`;
-            } else if (state.userMatricula) {
-                query += `&CHAPA=eq.${state.userMatricula}`;
-            } else {
-                query += '&limit=0'; // Não-admin sem permissão não vê nada
-            }
-        }
-        
-        // Aplica filtros da UI
-        if (filterChapa) {
-            query += `&CHAPA=ilike.${filterChapa}*`; // "começa com" (case-insensitive)
-        }
-        if (filterNome) {
-            // ****** MUDANÇA (Correção Erro 500) ******
-            // Trocado de 'contém' (%filter%) para 'começa com' (filter*)
-            // Isso usa o índice do banco e evita o timeout (Erro 500)
-            query += `&NOME=ilike.${filterNome}*`; // "começa com" (case-insensitive)
-            // ****** FIM DA MUDANÇA ******
-        }
-        if (filterRegional) {
-            query += `&REGIONAL=eq.${filterRegional}`; // "Exato" (melhor para datalist)
-        }
-        if (filterCodFilial) {
-            query += `&CODFILIAL=eq.${filterCodFilial}`; // "Exato"
-        }
-
-        const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial;
-        
-        // ****** MUDANÇA (Busca Top 200) ******
-        let limit;
-        if (hasFilters) {
-            limit = 500; // User está filtrando, mostra 500 resultados
-        } else {
-            limit = 1000; // SEM filtros, busca 1000 para ordenar em JS e achar os 200 maiores
-        }
-        query += `&limit=${limit}`;
-        // ****** FIM DA MUDANÇA ******
-        
-        // 2. Faz a chamada da API
         try {
-            console.log("Executando query:", query);
-            const filteredData = await supabaseRequest(query, 'GET');
+            // 1. Pega os dados do state.allData
+            let filteredData = state.allData;
+
+            // 2. Aplica filtros de permissão
+            if (!state.isAdmin) {
+                if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+                    filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.CODFILIAL));
+                } else if (state.userMatricula) {
+                    filteredData = filteredData.filter(item => item.CHAPA === state.userMatricula);
+                } else {
+                    filteredData = []; // Não-admin sem permissão não vê nada
+                }
+            }
             
-            // 3. Processa os dados (ordenar em JS, pois `TOTAL_EM_HORA` é string)
+            const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial;
+            
+            // 3. Aplica filtros da UI
+            if (filterChapa) {
+                filteredData = filteredData.filter(item => item.CHAPA && item.CHAPA.toLowerCase().startsWith(filterChapa));
+            }
+            if (filterNome) {
+                // "começa com" (case-insensitive) - mais rápido
+                filteredData = filteredData.filter(item => item.NOME && item.NOME.toLowerCase().startsWith(filterNome));
+            }
+            if (filterRegional) {
+                filteredData = filteredData.filter(item => item.REGIONAL === filterRegional);
+            }
+            if (filterCodFilial) {
+                filteredData = filteredData.filter(item => item.CODFILIAL === filterCodFilial);
+            }
+
+            // 4. Processa os dados (ordenar em JS)
             const dataComMinutos = filteredData.map(item => ({
                 ...item,
                 _minutos: parseHorasParaMinutos(item.TOTAL_EM_HORA)
             }));
 
-            // Ordena os resultados (seja os 1000 ou 500)
+            // Ordena os resultados
             dataComMinutos.sort((a, b) => b._minutos - a._minutos); // Ordena (desc)
             
-            // ****** MUDANÇA (Slice Top 200) ******
+            // 5. Aplica a lógica de "Top 200 / 500"
             let dadosParaRenderizar;
-            if (hasFilters) {
-                dadosParaRenderizar = dataComMinutos; // Mostra todos os 500 resultados filtrados
-            } else {
-                dadosParaRenderizar = dataComMinutos.slice(0, 200); // Mostra SÓ o TOP 200 dos 1000 buscados
-            }
-            // ****** FIM DA MUDANÇA ******
-            
-            state.allData = dadosParaRenderizar; // Salva SÓ O QUE VAI RENDERIZAR
+            const totalResultados = dataComMinutos.length;
 
-            // 4. Mensagens
-            if (dataComMinutos.length === 1000 && !hasFilters) {
-                 ui.tableMessage.innerHTML = `Exibindo os 200 maiores saldos (de 1000 analisados). Use os filtros para buscar.`;
-                 ui.tableMessage.classList.remove('hidden');
-            } else if (dataComMinutos.length === 500 && hasFilters) {
-                 ui.tableMessage.innerHTML = `Exibindo os 500 principais resultados para sua busca. Refine os filtros.`;
-                 ui.tableMessage.classList.remove('hidden');
-            } else if (dataComMinutos.length === 0) {
+            if (hasFilters) {
+                dadosParaRenderizar = dataComMinutos.slice(0, 500); // Mostra no MÁXIMO 500 resultados filtrados
+                if (totalResultados > 500) {
+                     ui.tableMessage.innerHTML = `Exibindo os 500 principais resultados para sua busca (de ${totalResultados} encontrados).`;
+                     ui.tableMessage.classList.remove('hidden');
+                } else {
+                     ui.tableMessage.classList.add('hidden');
+                }
+            } else {
+                dadosParaRenderizar = dataComMinutos.slice(0, 200); // Mostra SÓ o TOP 200
+                if (totalResultados > 200) {
+                     ui.tableMessage.innerHTML = `Exibindo os 200 maiores saldos (de ${totalResultados} totais). Use os filtros para buscar.`;
+                     ui.tableMessage.classList.remove('hidden');
+                } else {
+                     ui.tableMessage.classList.add('hidden');
+                }
+            }
+            
+            if (totalResultados === 0) {
                 ui.tableMessage.innerHTML = 'Nenhum dado encontrado para os filtros aplicados.';
                 ui.tableMessage.classList.remove('hidden');
-            } else {
-                ui.tableMessage.classList.add('hidden');
             }
-
-            renderTableBody(dadosParaRenderizar); // Renderiza a lista final
+            
+            state.viewData = dadosParaRenderizar; // Salva SÓ O QUE VAI RENDERIZAR
+            renderTableBody(state.viewData); // Renderiza a lista final
 
         } catch (err) {
             console.error("Erro ao aplicar filtros:", err);
-            mostrarNotificacao(`Erro ao buscar dados: ${err.message}`, 'error');
-            ui.tableMessage.innerHTML = `Erro ao buscar dados: ${err.message}.`;
+            mostrarNotificacao(`Erro ao filtrar dados: ${err.message}`, 'error');
+            ui.tableMessage.innerHTML = `Erro ao filtrar dados: ${err.message}.`;
             ui.tableMessage.classList.remove('hidden');
         } finally {
             showLoading(false);
@@ -856,8 +885,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoading(true, 'Buscando detalhes...');
 
         try {
-            // MUDANÇA: Busca o item no state.allData (view atual)
-            let currentData = state.allData.find(item => item.CHAPA === chapa);
+            // MUDANÇA: Busca o item no state.viewData (view atual)
+            let currentData = state.viewData.find(item => item.CHAPA === chapa);
             
             if (!currentData) {
                 // Fallback: Se não achar, busca no banco (não deveria acontecer, mas é seguro)
@@ -1042,11 +1071,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // MUDANÇA: Recarrega tudo
             showLoading(true, 'Recarregando dados...');
-            await Promise.all([
-                populateFilterDatalists(),
-                loadHistoryData(),
-                listenToMetadata()
-            ]);
+            
+            // ATUALIZADO: Chama o novo loadInitialData
+            await loadInitialData(); 
+            // Agora popula os filtros e histórico a partir dos dados já carregados
+            populateFilterDatalists();
+            await loadHistoryData();
+            await listenToMetadata();
+            
             // NOVO: Navega para o dashboard e o recarrega
             window.location.hash = '#dashboard';
             handleHashChange(); // Força o recarregamento da view do dashboard
@@ -1090,46 +1122,63 @@ document.addEventListener('DOMContentLoaded', () => {
     
     
     // -----------------------------------------------------------------
-    // --- NOVAS FUNÇÕES DO DASHBOARD ---
+    // --- NOVAS FUNÇÕES DO DASHBOARD (MODIFICADAS) ---
     // -----------------------------------------------------------------
 
     /**
      * Função principal para carregar e renderizar o dashboard.
+     * ****** MODIFICADA: para usar state.allData ******
      */
     async function initializeDashboard() {
-        showLoading(true, 'Carregando dashboard...');
+        
+        // ADICIONADO: Check se os dados estão prontos
+        if (state.allData.length === 0) {
+             showLoading(true, 'Aguardando carregamento de dados...');
+             // Tenta recarregar se algo deu muito errado
+             if (!state.setupCompleto) {
+                 console.warn("Dashboard chamado antes do setup. Forçando recarga.");
+                 await loadInitialData();
+                 populateFilterDatalists();
+                 loadHistoryData();
+                 state.setupCompleto = true;
+             }
+             if (state.allData.length === 0) {
+                 mostrarNotificacao("Nenhum dado de banco de horas carregado.", 'error');
+                 showLoading(false);
+                 return;
+             }
+        }
+        showLoading(true, 'Processando dashboard...');
         
         try {
-            // 1. Monta a query com base nos filtros do dashboard
-            let query = 'banco_horas_data?select=CODFILIAL,REGIONAL,FUNCAO,SECAO,TOTAL_EM_HORA,VAL_PGTO_BHS'; // Apenas colunas necessárias
-            
+            // 1. Pega os valores dos filtros
             const regional = ui.filterRegionalDash.value;
             const filial = ui.filterCodFilialDash.value;
             const secao = ui.filterSecaoDash.value;
             const funcao = ui.filterFuncaoDash.value;
 
+            // 2. Filtra os dados do state.allData
+            let filteredData = state.allData;
+
             // Aplica filtros de permissão
             if (!state.isAdmin) {
                 if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-                    const filiaisQuery = state.permissoes_filiais.map(f => `"${String(f).trim()}"`).join(',');
-                    query += `&CODFILIAL=in.(${filiaisQuery})`;
+                    filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.CODFILIAL));
                 } else if (state.userMatricula) {
-                    query += `&CHAPA=eq.${state.userMatricula}`;
+                    filteredData = filteredData.filter(item => item.CHAPA === state.userMatricula);
                 } else {
-                    query += '&limit=0'; // Não vê nada
+                    filteredData = []; // Não vê nada
                 }
             }
             
             // Aplica filtros da UI do Dashboard
-            if (regional) query += `&REGIONAL=eq.${regional}`;
-            if (filial) query += `&CODFILIAL=eq.${filial}`;
-            if (secao) query += `&SECAO=eq.${secao}`;
-            if (funcao) query += `&FUNCAO=eq.${funcao}`;
-
-            // 2. Busca os dados
-            // Omitir 'limit' para tentar buscar tudo (o proxy/supabase pode limitar a 1000)
-            const data = await supabaseRequest(query, 'GET');
-            state.dashboardData = data;
+            if (regional) filteredData = filteredData.filter(item => item.REGIONAL === regional);
+            if (filial) filteredData = filteredData.filter(item => item.CODFILIAL === filial);
+            if (secao) filteredData = filteredData.filter(item => item.SECAO === secao);
+            if (funcao) filteredData = filteredData.filter(item => item.FUNCAO === funcao);
+            
+            // 3. Salva os dados filtrados
+            state.dashboardData = filteredData;
             
             // 3. O histórico já foi carregado em 'loadHistoryData' (state.dashboardHistory)
             // Apenas filtramos o histórico para bater com os filtros da UI
@@ -1140,10 +1189,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (funcao) historyData = historyData.filter(item => item.FUNCAO === funcao);
 
             // 4. Processa e renderiza os componentes
-            processDashboardTotals(data, historyData);
-            processDashboardCharts(data);
-            processDashboardTable(data, historyData); // NOVO: Passa o histórico
-            processDashboardComparisonChart(data, historyData); // NOVO
+            processDashboardTotals(filteredData, historyData);
+            processDashboardCharts(filteredData);
+            processDashboardTable(filteredData, historyData); // NOVO: Passa o histórico
+            processDashboardComparisonChart(filteredData, historyData); // NOVO
             
             feather.replace(); // Para os ícones de tendência de alta/baixa
 
@@ -1565,15 +1614,14 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await initializeSupabase(); // Espera a inicialização
 
-            // *** CORREÇÃO ADICIONADA AQUI ***
-            // Desliga o loading "Conectando..." após a inicialização.
-            // As funções chamadas por handleHashChange (como loadAllData)
-            // irão gerenciar seus próprios estados de loading.
-            showLoading(false); 
+            // *** NOVA LINHA ADICIONADA AQUI ***
+            // Carrega TODOS os dados do banco de horas ANTES de mostrar qualquer view
+            await loadInitialData(); 
+            // *** FIM DA NOVA LINHA ***
 
             if (state.auth) {
                 // --- SESSÃO VÁLIDA ---
-                handleHashChange(); 
+                handleHashChange(); // Agora isso vai usar os dados pré-carregados
                 window.addEventListener('hashchange', handleHashChange);
 
                 // --- Listeners ---
@@ -1612,6 +1660,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     input.addEventListener('input', () => {
                         clearTimeout(filterTimeout);
                         filterTimeout = setTimeout(() => {
+                            // MUDANÇA: Agora applyFilters é síncrono
                             applyFilters();
                         }, 300); // 300ms de atraso
                     });
@@ -1620,7 +1669,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // NOVO: Listeners para os filtros do Dashboard (agora são SELECTS)
                 [ui.filterRegionalDash, ui.filterCodFilialDash, ui.filterSecaoDash, ui.filterFuncaoDash].forEach(selectElement => {
                     if (selectElement) { // Garante que o elemento existe
-                        selectElement.addEventListener('change', initializeDashboard);
+                        // MUDANÇA: Agora initializeDashboard é assíncrono
+                        selectElement.addEventListener('change', () => initializeDashboard());
                     }
                 });
 
