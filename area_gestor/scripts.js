@@ -205,13 +205,23 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
  * ** NOVO: Função Recursiva para Carregar Time em Cascata **
  * Busca todos os colaboradores abaixo de um gestor, incluindo sub-gestores.
  * ** ATUALIZADO: para usar colunas minúsculas **
+ * ** CORRIGIDO: Adicionado 'visitedChapas' para evitar loops infinitos. **
  */
-async function loadRecursiveTeam(gestorChapa, configMap) {
+async function loadRecursiveTeam(gestorChapa, configMap, visitedChapas) {
+    // --- INÍCIO DA CORREÇÃO ANTI-LOOP ---
+    // Se já visitamos esse gestor nesta busca, paramos para evitar um loop.
+    if (visitedChapas.has(gestorChapa)) {
+        console.warn(`[Cascata] Detectada dependência circular! Gestor ${gestorChapa} já foi visitado. Parando recursão.`);
+        return []; // Previne o loop infinito
+    }
+    visitedChapas.add(gestorChapa); // Marca este gestor como visitado
+    // --- FIM DA CORREÇÃO ---
+
     let team = [];
     
     console.log(`[Cascata] Buscando time de: ${gestorChapa}`);
     
-    // 1. Busca subordinados diretos
+    // 1. Busca subordinados diretos (ASSUMINDO COLUNAS minúsculas)
     const reports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${gestorChapa}`, 'GET');
     
     if (!reports || reports.length === 0) {
@@ -224,18 +234,17 @@ async function loadRecursiveTeam(gestorChapa, configMap) {
     // 2. Adiciona os subordinados diretos ao time
     team = team.concat(reports);
 
-    // 3. Identifica quais desses subordinados são também gestores
-    // CORREÇÃO: Verifica se a função do subordinado está no configMap E se ele pode ser gestor
+    // 3. Identifica quais desses subordinados são também gestores (ASSUMINDO COLUNAS minúsculas)
     const subManagerChapas = reports
         .filter(r => {
-            const func = r.funcao ? r.funcao.toLowerCase() : null;
-            const isManager = func && configMap[func]; // Verifica se a função pode ser gestor
+            const func = r.funcao ? r.funcao.toLowerCase() : null; // Pega funcao (upper) e converte
+            const isManager = func && configMap[func]; // Compara com o configMap (lower)
             if (isManager) {
                 console.log(`[Cascata] ${r.nome} (${r.matricula}) é sub-gestor (${r.funcao}).`);
             }
             return isManager;
         })
-        .map(r => r.matricula);
+        .map(r => r.matricula); // Pega matricula (lower)
 
     if (subManagerChapas.length === 0) {
         console.log(`[Cascata] ${gestorChapa} não tem sub-gestores. Fim da cascata.`);
@@ -245,7 +254,10 @@ async function loadRecursiveTeam(gestorChapa, configMap) {
     console.log(`[Cascata] ${gestorChapa} tem ${subManagerChapas.length} sub-gestor(es): ${subManagerChapas.join(', ')}`);
 
     // 4. Busca recursivamente o time de cada sub-gestor
-    const subTeamPromises = subManagerChapas.map(chapa => loadRecursiveTeam(chapa, configMap));
+    // --- CORREÇÃO: Passa o Set 'visitedChapas' adiante na recursão ---
+    const subTeamPromises = subManagerChapas.map(chapa => 
+        loadRecursiveTeam(chapa, configMap, visitedChapas) // Passa o MESMO Set
+    );
     const subTeamsResults = await Promise.allSettled(subTeamPromises);
 
     // 5. Adiciona os times dos sub-gestores ao time principal
@@ -342,8 +354,9 @@ async function loadModuleData() {
         }
         
         // Executa a busca recursiva e a busca de disponíveis
+        // --- CORREÇÃO: Passa um novo Set() para a busca recursiva ---
         const [timeRes, disponiveisRes] = await Promise.allSettled([
-            loadRecursiveTeam(state.userMatricula, configMap), // <-- NOVO
+            loadRecursiveTeam(state.userMatricula, configMap, new Set()), // <-- CORRIGIDO
             supabaseRequest(disponiveisQuery, 'GET')
         ]);
         
@@ -351,7 +364,9 @@ async function loadModuleData() {
             state.meuTime = timeRes.value;
             console.log(`Carregamento em cascata concluído. Total: ${state.meuTime.length} colaboradores.`);
         } else {
+            // Se a busca recursiva falhar (ex: loop), o time ficará vazio
             console.error("Erro ao carregar time (recursivo):", timeRes.reason);
+            state.meuTime = []; // Garante que o time esteja vazio em caso de falha
         }
         
         if (disponiveisRes.status === 'fulfilled' && disponiveisRes.value) {
@@ -498,7 +513,7 @@ function filtrarDisponiveis() {
 /**
  * --- CORREÇÃO 2: Lógica de Cascata ---
  * Salva o time E TAMBÉM busca a cascata de subordinados dos
- * gestores selecionados, sem recarregar a página.
+ * gestores selecionados.
  */
 async function handleSalvarTime() {
     showLoading(true, 'Salvando seu time...');
@@ -536,9 +551,12 @@ async function handleSalvarTime() {
         }, {});
 
         // 2b. Buscar a cascata para CADA gestor selecionado
-        const subTeamPromises = chapasSelecionadas.map(chapa => 
-            loadRecursiveTeam(chapa, configMap)
-        );
+        // --- CORREÇÃO: Passa um NOVO Set para cada gestor, pré-populado com o gestor raiz ---
+        const subTeamPromises = chapasSelecionadas.map(chapa => {
+            // Cada gestor direto recebe um NOVO Set, pré-populado com o gestor raiz (Fabio)
+            const visitedSet = new Set([state.userMatricula]);
+            return loadRecursiveTeam(chapa, configMap, visitedSet);
+        });
         const subTeamsResults = await Promise.allSettled(subTeamPromises);
 
         // 2c. Juntar os resultados
@@ -586,12 +604,6 @@ async function handleSalvarTime() {
         window.location.hash = '#meuTime'; 
         // Chama o showView diretamente para carregar a tabela
         showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
-
-        /* REMOVIDO O RELOAD
-        setTimeout(() => {
-            window.location.reload();
-        }, 1500);
-        */
 
     } catch (err) {
         mostrarNotificacao(`Erro ao salvar: ${err.message}`, 'error');
