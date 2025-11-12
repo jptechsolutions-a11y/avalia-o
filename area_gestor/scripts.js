@@ -531,7 +531,7 @@ function renderGestorConfigTable(data) {
             <td><span class="status-badge ${podeGestorClass}">${podeGestorText}</span></td>
             <td>${item.nivel_hierarquia}</td>
             <td class="actions">
-                <button class="btn btn-sm btn-danger" title="Excluir Regra (em breve)">
+                <button class="btn btn-sm btn-danger" title="Excluir Regra" onclick="handleExcluirConfig('${item.funcao}')">
                     <i data-feather="trash-2" class="h-4 w-4"></i>
                 </button>
             </td>
@@ -622,6 +622,38 @@ async function handleSalvarConfig() {
 
     } catch (err) {
         mostrarNotificacao(`Erro ao salvar: ${err.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function handleExcluirConfig(funcao) {
+    if (!funcao) {
+        mostrarNotificacao('Função inválida para exclusão.', 'error');
+        return;
+    }
+    
+    if (!confirm(`Tem certeza que deseja excluir a regra de gestão para a função "${funcao}"?`)) {
+        return;
+    }
+
+    showLoading(true, 'Excluindo regra...');
+
+    try {
+        // Usa 'funcao' como a chave para exclusão
+        await supabaseRequest(`tabela_gestores_config?funcao=eq.${funcao}`, 'DELETE');
+
+        // Atualiza o estado local
+        state.gestorConfig = state.gestorConfig.filter(item => item.funcao !== funcao);
+
+        // Re-renderiza a UI
+        renderGestorConfigTable(state.gestorConfig);
+        populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig); // Atualiza o dropdown de adicionar
+
+        mostrarNotificacao('Regra de gestão excluída com sucesso!', 'success');
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao excluir regra: ${err.message}`, 'error');
     } finally {
         showLoading(false);
     }
