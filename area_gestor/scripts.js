@@ -1,6 +1,6 @@
 // Configuração do Supabase (baseado nos seus outros módulos)
 const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
 const SUPABASE_PROXY_URL = '/api/proxy'; // Usando o proxy
 
 // Define o adaptador para sessionStorage
@@ -215,42 +215,40 @@ async function loadModuleData() {
     try {
         // *** INÍCIO DA CORREÇÃO (Filtro de Filial) ***
         // 1. Monta a query de disponíveis dinamicamente
-        // *** CORREÇÃO: Colunas em MAIÚSCULAS ***
-        let disponiveisQuery = 'colaboradores?select=MATRICULA,NOME,FUNCAO,CODFILIAL'; // Pega a filial
+        // *** CORREÇÃO: Colunas em minúsculas ***
+        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,codfilial'; // Pega a filial
         
         // Filtro base (sem gestor ou novato)
-        // *** CORREÇÃO: Colunas em MAIÚSCULAS ***
-        disponiveisQuery += '&or=(GESTOR_CHAPA.is.null,STATUS.eq.novato)';
+        // *** CORREÇÃO: Colunas em minúsculas ***
+        disponiveisQuery += '&or=(gestor_chapa.is.null,status.eq.novato)';
 
         // Filtro de Filial: Aplica se usuário NÃO for admin e TIVER permissões
         if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            // Formata para a query: CODFILIAL.in.("753","754")
-            // *** CORREÇÃO: Coluna em MAIÚSCULA ***
-            const filiaisFilter = `CODFILIAL.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+            // Formata para a query: codfilial.in.("753","754")
+            // *** CORREÇÃO: Coluna em minúscula ***
+            const filiaisFilter = `codfilial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
             disponiveisQuery += `&${filiaisFilter}`;
             console.log("Aplicando filtro de filial:", filiaisFilter);
         }
         // *** FIM DA CORREÇÃO ***
 
         // ATUALIZADO: Carrega o time, disponíveis, config E todas as funções
-        // *** CORREÇÃO: Todas as colunas da tabela 'colaboradores' (CHAPA, GESTOR_CHAPA, FUNCAO, STATUS) foram convertidas para minúsculas. ***
-        // *** RE-CORREÇÃO: Devem ser MAIÚSCULAS ***
+        // *** CORREÇÃO: Todas as colunas da tabela 'colaboradores' (chapa, gestor_chapa, funcao, status) foram convertidas para minúsculas. ***
         const [configRes, timeRes, disponiveisRes, funcoesRes] = await Promise.allSettled([
             // 1. Busca a tabela de configuração (para admins)
-            // *** CORREÇÃO: Busca colunas minúsculas ***
+            // (tabela_gestores_config usa minúsculas, está correto)
             supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
             
             // 2. Busca o time direto do gestor
-            // *** CORREÇÃO: Coluna em MAIÚSCULA ***
-            supabaseRequest(`colaboradores?select=*&GESTOR_CHAPA=eq.${state.userMatricula}`, 'GET'), // <-- CORRIGIDO para MAIÚSCULA
+            // *** CORREÇÃO: Coluna em minúscula ***
+            supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET'), // <-- CORRIGIDO para minúscula
             
             // 3. Busca colaboradores "novatos" ou "sem gestor"
-            // *** CORREÇÃO: Trocado 'chapa' por 'matricula' ***
             supabaseRequest(disponiveisQuery, 'GET'), // <-- USA A QUERY DINÂMICA
             
             // 4. CORREÇÃO: Busca todas as funções únicas (substituindo a RPC que falhou)
-            // *** CORREÇÃO: Coluna em MAIÚSCULA ***
-            supabaseRequest('colaboradores?select=FUNCAO', 'GET') // <-- CORRIGIDO para MAIÚSCULA
+            // *** CORREÇÃO: Coluna em minúscula ***
+            supabaseRequest('colaboradores?select=funcao', 'GET') // <-- CORRIGIDO para minúscula
         ]);
 
         if (configRes.status === 'fulfilled' && configRes.value) {
@@ -274,9 +272,9 @@ async function loadModuleData() {
         // NOVO: Armazena todas as funções
         if (funcoesRes.status === 'fulfilled' && funcoesRes.value) {
             // *** CORREÇÃO: Processa a nova consulta direta (substituindo a RPC) ***
-            // A consulta retorna [{FUNCAO: 'A'}, {FUNCAO: 'B'}, {FUNCAO: 'A'}]
-            // *** CORREÇÃO: Coluna em MAIÚSCULA ***
-            const funcoesSet = new Set(funcoesRes.value.map(f => f.FUNCAO)); // <-- CORRIGIDO para f.FUNCAO (MAIÚSCULA)
+            // A consulta retorna [{funcao: 'A'}, {funcao: 'B'}, {funcao: 'A'}]
+            // *** CORREÇÃO: Coluna em minúscula ***
+            const funcoesSet = new Set(funcoesRes.value.map(f => f.funcao)); // <-- CORRIGIDO para f.funcao (minúscula)
             state.todasAsFuncoes = [...funcoesSet].filter(Boolean); // Filtra nulos/vazios
         } else {
             console.error("Erro ao carregar funções:", funcoesRes.reason);
@@ -326,8 +324,8 @@ function iniciarDefinicaoDeTime() {
 
         // 2. Filtrar a lista
         listaDisponiveisFiltrada = state.disponiveis.filter(colaborador => {
-            // *** CORREÇÃO: Coluna em MAIÚSCULA ***
-            const colaboradorFuncao = colaborador.FUNCAO;
+            // *** CORREÇÃO: Coluna em minúscula ***
+            const colaboradorFuncao = colaborador.funcao;
             
             // Se o colaborador não tem função, permite
             if (!colaboradorFuncao) {
@@ -335,7 +333,7 @@ function iniciarDefinicaoDeTime() {
             }
             
             // Verifica o nível do colaborador
-            // *** CORREÇÃO: Compara a FUNCAO (maiúscula) com as chaves do mapa (minúsculas) ***
+            // *** CORREÇÃO: Compara a funcao (minúscula) com as chaves do mapa (minúsculas) ***
             const colaboradorNivel = mapaNiveis[colaboradorFuncao.toLowerCase()];
             
             // Regra 1: Colaborador não está na tabela de config (sem hierarquia) -> Permite
@@ -369,19 +367,19 @@ function renderListasTimes(disponiveis, meuTime) {
     listaDisponiveisEl.innerHTML = '';
     listaMeuTimeEl.innerHTML = '';
     
-    // *** CORREÇÃO: Usa MAIÚSCULA (MATRICULA) ***
+    // *** CORREÇÃO: Usa minúscula (matricula) ***
     // Filtra disponíveis para não mostrar quem JÁ ESTÁ no meu time (caso de 'novato' que já foi pego)
-    const chapasMeuTime = new Set(meuTime.map(c => c.MATRICULA));
-    const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.MATRICULA));
+    const chapasMeuTime = new Set(meuTime.map(c => c.matricula));
+    const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.matricula));
 
-    // *** CORREÇÃO: Usa MAIÚSCULAS (MATRICULA, NOME, CODFILIAL, FUNCAO) ***
+    // *** CORREÇÃO: Usa minúsculas (matricula, nome, codfilial, funcao) ***
     disponiveisFiltrados.forEach(c => {
-        listaDisponiveisEl.innerHTML += `<option value="${c.MATRICULA}">${c.NOME} (${c.MATRICULA}) [${c.CODFILIAL || 'S/F'}] - ${c.FUNCAO || 'N/A'}</option>`;
+        listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.codfilial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
     
-    // *** CORREÇÃO: Usa MAIÚSCULAS (MATRICULA, NOME, CODFILIAL, FUNCAO) ***
+    // *** CORREÇÃO: Usa minúsculas (matricula, nome, codfilial, funcao) ***
     meuTime.forEach(c => {
-        listaMeuTimeEl.innerHTML += `<option value="${c.MATRICULA}">${c.NOME} (${c.MATRICULA}) [${c.CODFILIAL || 'S/F'}] - ${c.FUNCAO || 'N/A'}</option>`;
+        listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.codfilial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
 }
 
@@ -429,14 +427,14 @@ async function handleSalvarTime() {
     try {
         // Cria um array de Promises, uma para cada colaborador a ser atualizado
         const promessas = chapasSelecionadas.map(chapa => {
-            // *** CORREÇÃO: Usa MAIÚSCULAS (GESTOR_CHAPA, STATUS) ***
+            // *** CORREÇÃO: Usa minúsculas (gestor_chapa, status) ***
             const payload = {
-                GESTOR_CHAPA: state.userMatricula,
-                STATUS: 'ativo' // Tira do status 'novato'
+                gestor_chapa: state.userMatricula,
+                status: 'ativo' // Tira do status 'novato'
             };
-            // *** CORREÇÃO: Usa MAIÚSCULA (MATRICULA) no filtro ***
+            // *** CORREÇÃO: Usa minúscula (matricula) no filtro ***
             // Usamos o matricula como chave de update
-            return supabaseRequest(`colaboradores?MATRICULA=eq.${chapa}`, 'PATCH', payload);
+            return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
         });
 
         // Executa todas as atualizações em paralelo
@@ -462,10 +460,10 @@ async function handleSalvarTime() {
 function updateDashboardStats(data) {
     if (!data) data = [];
     const total = data.length;
-    // *** CORREÇÃO: Usa MAIÚSCULA (STATUS) ***
-    const ativos = data.filter(c => c.STATUS === 'ativo').length;
-    const inativos = data.filter(c => c.STATUS === 'inativo').length;
-    const novatos = data.filter(c => c.STATUS === 'novato').length;
+    // *** CORREÇÃO: Usa minúscula (status) ***
+    const ativos = data.filter(c => c.status === 'ativo').length;
+    const inativos = data.filter(c => c.status === 'inativo').length;
+    const novatos = data.filter(c => c.status === 'novato').length;
     
     document.getElementById('statTotalTime').textContent = total;
     document.getElementById('statAtivos').textContent = ativos;
@@ -481,9 +479,9 @@ function populateFilters(data) {
     const filialSelect = document.getElementById('filterFilial');
     const funcaoSelect = document.getElementById('filterFuncao');
     
-    // *** CORREÇÃO: Usa MAIÚSCULAS (CODFILIAL, FUNCAO) ***
-    const filiais = [...new Set(data.map(c => c.CODFILIAL).filter(Boolean))].sort();
-    const funcoes = [...new Set(data.map(c => c.FUNCAO).filter(Boolean))].sort();
+    // *** CORREÇÃO: Usa minúsculas (codfilial, funcao) ***
+    const filiais = [...new Set(data.map(c => c.codfilial).filter(Boolean))].sort();
+    const funcoes = [...new Set(data.map(c => c.funcao).filter(Boolean))].sort();
     
     filialSelect.innerHTML = '<option value="">Todas as filiais</option>';
     funcaoSelect.innerHTML = '<option value="">Todas as funções</option>';
@@ -516,19 +514,19 @@ function renderMeuTimeTable(data) {
     data.forEach(item => {
         const tr = document.createElement('tr');
         
-        // *** CORREÇÃO: Usa MAIÚSCULAS (DT_ADMISSAO, STATUS, NOME, MATRICULA, etc.) ***
-        const dtAdmissao = item.DT_ADMISSAO ? new Date(item.DT_ADMISSAO).toLocaleDateString('pt-BR') : '-';
-        const status = item.STATUS || 'ativo';
+        // *** CORREÇÃO: Usa minúsculas (data_admissao, status, nome, matricula, etc.) ***
+        const dtAdmissao = item.data_admissao ? new Date(item.data_admissao).toLocaleDateString('pt-BR') : '-';
+        const status = item.status || 'ativo';
         let statusClass = 'status-ativo';
         if (status === 'inativo') statusClass = 'status-inativo';
         if (status === 'novato') statusClass = 'status-aviso'; // Reutilizando a cor 'aviso'
 
         tr.innerHTML = `
-            <td>${item.NOME || '-'}</td>
-            <td>${item.MATRICULA || '-'}</td>
-            <td>${item.FUNCAO || '-'}</td>
-            <td>${item.SECAO || '-'}</td>
-            <td>${item.CODFILIAL || '-'}</td>
+            <td>${item.nome || '-'}</td>
+            <td>${item.matricula || '-'}</td>
+            <td>${item.funcao || '-'}</td>
+            <td>${item.secao || '-'}</td>
+            <td>${item.codfilial || '-'}</td>
             <td>${dtAdmissao}</td>
             <td><span class="status-badge ${statusClass}">${status}</span></td>
             <td class="actions">
@@ -556,14 +554,14 @@ function applyFilters() {
     const statusFiltro = document.getElementById('filterStatus').value;
     
     const filteredData = state.meuTime.filter(item => {
-        // *** CORREÇÃO: Usa MAIÚSCULAS (NOME, MATRICULA, CODFILIAL, FUNCAO, STATUS) ***
+        // *** CORREÇÃO: Usa minúsculas (nome, matricula, codfilial, funcao, status) ***
         const nomeChapaMatch = nomeFiltro === '' || 
-            (item.NOME && item.NOME.toLowerCase().includes(nomeFiltro)) ||
-            (item.MATRICULA && item.MATRICULA.toLowerCase().includes(nomeFiltro));
+            (item.nome && item.nome.toLowerCase().includes(nomeFiltro)) ||
+            (item.matricula && item.matricula.toLowerCase().includes(nomeFiltro));
         
-        const filialMatch = filialFiltro === '' || item.CODFILIAL === filialFiltro;
-        const funcaoMatch = funcaoFiltro === '' || item.FUNCAO === funcaoFiltro;
-        const statusMatch = statusFiltro === '' || (item.STATUS || 'ativo') === statusFiltro;
+        const filialMatch = filialFiltro === '' || item.codfilial === filialFiltro;
+        const funcaoMatch = funcaoFiltro === '' || item.funcao === funcaoFiltro;
+        const statusMatch = statusFiltro === '' || (item.status || 'ativo') === statusFiltro;
         
         return nomeChapaMatch && filialMatch && funcaoMatch && statusMatch;
     });
@@ -584,8 +582,7 @@ function renderGestorConfigTable(data) {
         return;
     }
 
-    // (Assumindo que tabela_gestores_config usa MAIÚSCULAS, conforme lógica de salvar)
-    // *** CORREÇÃO: Tabela de config também usa lowercase ***
+    // (tabela_gestores_config usa minúsculas, está correto)
     data.sort((a, b) => a.nivel_hierarquia - b.nivel_hierarquia);
 
     data.forEach(item => {
@@ -623,9 +620,9 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
     // (Correto: gestorConfig.funcao é minúscula)
     const funcoesConfiguradas = new Set(gestorConfig.map(c => c.funcao));
     
-    // Filtra 'todasAsFuncoes' (que vêm de colaboradores.FUNCAO, MAIÚSCULA)
+    // Filtra 'todasAsFuncoes' (que vêm de colaboradores.funcao, minúscula)
     // para mostrar apenas as que não estão no Set
-    // *** CORREÇÃO: Compara a FUNCAO (maiúscula) com as chaves do mapa (minúsculas) ***
+    // *** CORREÇÃO: Compara a funcao (minúscula) com as chaves do mapa (minúsculas) ***
     const funcoesDisponiveis = todasAsFuncoes.filter(f => !funcoesConfiguradas.has(f.toLowerCase()));
     
     select.innerHTML = ''; // Limpa
@@ -637,7 +634,7 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
     
     select.innerHTML = '<option value="">Selecione uma função...</option>';
     funcoesDisponiveis.forEach(funcao => {
-        // O valor salvo no dropdown é o MAIÚSCULO (original)
+        // O valor salvo no dropdown é o minúsculo (original)
         select.innerHTML += `<option value="${funcao}">${funcao}</option>`;
     });
 }
@@ -646,7 +643,7 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
  * Salva a nova regra de gestão no banco de dados.
  */
 async function handleSalvarConfig() {
-    const funcao = document.getElementById('configFuncaoSelect').value; // (vem MAIÚSCULA)
+    const funcao = document.getElementById('configFuncaoSelect').value; // (vem minúscula)
     const nivel = document.getElementById('configNivel').value;
     const podeGestor = document.getElementById('configPodeSerGestor').value === 'true';
 
@@ -663,6 +660,46 @@ async function handleSalvarConfig() {
     };
     
     showLoading(true, 'Salvando regra...');
+    
+    try {
+        // (Correto: tabela_gestores_config usa minúsculas)
+        const [resultado] = await supabaseRequest('tabela_gestores_config', 'POST', payload, {
+            'Prefer': 'return=representation,resolution=merge-duplicates'
+        });
+
+        if (!resultado) {
+            throw new Error("A API não retornou dados após salvar.");
+        }
+
+        // Atualiza o estado local
+        // Remove a antiga, se existir (caso de 'merge-duplicates')
+        state.gestorConfig = state.gestorConfig.filter(item => item.funcao !== resultado.funcao);
+        // Adiciona a nova/atualizada
+        state.gestorConfig.push(resultado);
+
+        // Re-renderiza a UI
+        renderGestorConfigTable(state.gestorConfig);
+        populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig); // Atualiza o dropdown de adicionar
+        document.getElementById('formConfigGestor').reset(); // Limpa o formulário
+
+        mostrarNotificacao('Regra de gestão salva com sucesso!', 'success');
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao salvar regra: ${err.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/**
+ * Exclui uma regra de gestão.
+ */
+async function handleExcluirConfig(funcao) {
+    if (!funcao || !confirm(`Tem certeza que deseja excluir a regra para a função "${funcao}"?`)) {
+        return;
+    }
+    
+    showLoading(true, 'Excluindo regra...');
     
     try {
         // Usa 'funcao' (minúscula) como a chave para exclusão
@@ -745,11 +782,11 @@ async function initializeApp() {
         // *** INÍCIO DA CORREÇÃO (Hierarquia) ***
         // 4. Buscar a função do gestor logado
         if (state.userMatricula) {
-            // *** CORREÇÃO: Colunas em MAIÚSCULAS ***
-            const gestorData = await supabaseRequest(`colaboradores?select=FUNCAO&MATRICULA=eq.${state.userMatricula}&limit=1`, 'GET');
+            // *** CORREÇÃO: Colunas em minúsculas ***
+            const gestorData = await supabaseRequest(`colaboradores?select=funcao&matricula=eq.${state.userMatricula}&limit=1`, 'GET');
             if (gestorData && gestorData[0]) {
-                // *** CORREÇÃO: Coluna em MAIÚSCULA ***
-                state.userFuncao = gestorData[0].FUNCAO; // Armazena a função
+                // *** CORREÇÃO: Coluna em minúscula ***
+                state.userFuncao = gestorData[0].funcao; // Armazena a função
             }
         }
         // *** FIM DA CORREÇÃO ***
@@ -760,7 +797,7 @@ async function initializeApp() {
         // *** INÍCIO DA CORREÇÃO (Hierarquia) ***
         // 6. Encontrar o nível do gestor (agora que o config foi carregado)
         if (state.userFuncao && state.gestorConfig.length > 0) {
-            // *** CORREÇÃO: Compara a FUNCAO (maiúscula) com as chaves do mapa (minúsculas) ***
+            // *** CORREÇÃO: Compara a funcao (minúscula) com as chaves do mapa (minúsculas) ***
             const gestorRegra = state.gestorConfig.find(r => r.funcao === state.userFuncao.toLowerCase());
             if (gestorRegra) {
                 state.userNivel = gestorRegra.nivel_hierarquia; // Armazena o nível
