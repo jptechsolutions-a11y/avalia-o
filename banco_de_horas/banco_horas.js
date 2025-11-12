@@ -273,11 +273,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FUNÇÕES ---
 
-    function showLoading(show, text = 'Processando...') {
-        ui.loadingText.textContent = text;
-        ui.loading.style.display = show ? 'flex' : 'none';
+   function showLoading(show, text = 'Processando...') {
+        if (ui.loadingText) {
+            ui.loadingText.textContent = text;
+        }
+        if (ui.loading) {
+            ui.loading.style.display = show ? 'flex' : 'none';
+        }
     }
-
     function showImportError(message) {
         ui.importErrorMessage.textContent = message;
         ui.importError.classList.remove('hidden');
