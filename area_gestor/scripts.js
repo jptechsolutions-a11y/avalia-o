@@ -20,6 +20,7 @@ const state = {
     userNome: 'Usuário',
     // Cache de dados do módulo
     meuTime: [],
+    disponiveis: [], // NOVO: Cache para colaboradores disponíveis
     gestorConfig: []
 };
 
@@ -157,10 +158,10 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
     }
 }
 
-// --- Funções de Lógica do Módulo (NOVAS) ---
+// --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
 
 /**
- * Carrega os dados essenciais do módulo (config e time do gestor)
+ * Carrega os dados essenciais do módulo (config, time e disponíveis)
  * Chamado uma vez durante a inicialização.
  */
 async function loadModuleData() {
@@ -173,12 +174,14 @@ async function loadModuleData() {
     showLoading(true, 'Carregando dados do time...');
     
     try {
-        const [configRes, timeRes] = await Promise.allSettled([
+        // ATUALIZADO: Carrega o time E os disponíveis em paralelo
+        const [configRes, timeRes, disponiveisRes] = await Promise.allSettled([
             // 1. Busca a tabela de configuração (para admins)
             supabaseRequest('tabela_gestores_config?select=*', 'GET'),
-            // 2. Busca o time direto do gestor (Plano de Teste Passo 3)
-            // NOTA: A hierarquia em cascata (Gerente > Coordenador > Supervisor) é mais complexa e será implementada depois.
-            supabaseRequest(`colaboradores?select=*&GESTOR_CHAPA=eq.${state.userMatricula}`, 'GET')
+            // 2. Busca o time direto do gestor
+            supabaseRequest(`colaboradores?select=*&GESTOR_CHAPA=eq.${state.userMatricula}`, 'GET'),
+            // 3. Busca colaboradores "novatos" ou "sem gestor"
+            supabaseRequest(`colaboradores?select=CHAPA,NOME,FUNCAO&or=(GESTOR_CHAPA.is.null,STATUS.eq.novato)`, 'GET')
         ]);
 
         if (configRes.status === 'fulfilled' && configRes.value) {
@@ -193,12 +196,139 @@ async function loadModuleData() {
             console.error("Erro ao carregar time:", timeRes.reason);
         }
         
+        // NOVO: Armazena os disponíveis
+        if (disponiveisRes.status === 'fulfilled' && disponiveisRes.value) {
+            state.disponiveis = disponiveisRes.value;
+        } else {
+            console.error("Erro ao carregar disponíveis:", disponiveisRes.reason);
+        }
+        
     } catch (err) {
         mostrarNotificacao(`Erro ao carregar dados: ${err.message}`, 'error');
     } finally {
         showLoading(false);
     }
 }
+
+/**
+ * Mostra a view de setup pela primeira vez.
+ */
+function iniciarDefinicaoDeTime() {
+    console.log("Iniciando definição de time...");
+    // Esconde todas as views
+    document.querySelectorAll('.view-content').forEach(view => {
+        view.classList.remove('active');
+        view.classList.add('hidden'); // Garante que todas sumam
+    });
+    
+    // Mostra a view de setup
+    const setupView = document.getElementById('primeiroAcessoView');
+    setupView.classList.remove('hidden');
+    setupView.classList.add('active'); // Torna ativa
+    
+    // Trava a sidebar para forçar o setup
+    const sidebar = document.querySelector('.sidebar');
+    sidebar.style.pointerEvents = 'none';
+    sidebar.style.opacity = '0.7';
+
+    // Popula as listas
+    // O time inicial (state.meuTime) estará vazio
+    renderListasTimes(state.disponiveis, state.meuTime);
+    
+    feather.replace();
+}
+
+/**
+ * Renderiza as duas listas (Disponíveis e Meu Time)
+ */
+function renderListasTimes(disponiveis, meuTime) {
+    const listaDisponiveisEl = document.getElementById('listaDisponiveis');
+    const listaMeuTimeEl = document.getElementById('listaMeuTime');
+    
+    listaDisponiveisEl.innerHTML = '';
+    listaMeuTimeEl.innerHTML = '';
+    
+    // Filtra disponíveis para não mostrar quem JÁ ESTÁ no meu time (caso de 'novato' que já foi pego)
+    const chapasMeuTime = new Set(meuTime.map(c => c.CHAPA));
+    const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.CHAPA));
+
+    disponiveisFiltrados.forEach(c => {
+        listaDisponiveisEl.innerHTML += `<option value="${c.CHAPA}">${c.NOME} (${c.CHAPA}) - ${c.FUNCAO || 'N/A'}</option>`;
+    });
+    
+    meuTime.forEach(c => {
+        listaMeuTimeEl.innerHTML += `<option value="${c.CHAPA}">${c.NOME} (${c.CHAPA}) - ${c.FUNCAO || 'N/A'}</option>`;
+    });
+}
+
+/**
+ * Move itens selecionados de uma lista para outra
+ */
+function moverColaboradores(origemEl, destinoEl) {
+    const selecionados = Array.from(origemEl.selectedOptions);
+    selecionados.forEach(option => {
+        destinoEl.appendChild(option);
+    });
+}
+
+/**
+ * Filtra a lista de disponíveis baseado no input de busca
+ */
+function filtrarDisponiveis() {
+    const filtro = document.getElementById('searchDisponiveis').value.toLowerCase();
+    const listaDisponiveisEl = document.getElementById('listaDisponiveis');
+    
+    Array.from(listaDisponiveisEl.options).forEach(option => {
+        const texto = option.textContent.toLowerCase();
+        if (texto.includes(filtro)) {
+            option.style.display = '';
+        } else {
+            option.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Salva o time no banco de dados (Passo 3 da funcionalidade)
+ */
+async function handleSalvarTime() {
+    showLoading(true, 'Salvando seu time...');
+    const listaMeuTimeEl = document.getElementById('listaMeuTime');
+    const chapasSelecionadas = Array.from(listaMeuTimeEl.options).map(opt => opt.value);
+    
+    if (chapasSelecionadas.length === 0) {
+        mostrarNotificacao('Selecione pelo menos um colaborador para o seu time.', 'warning');
+        showLoading(false);
+        return;
+    }
+
+    try {
+        // Cria um array de Promises, uma para cada colaborador a ser atualizado
+        const promessas = chapasSelecionadas.map(chapa => {
+            const payload = {
+                GESTOR_CHAPA: state.userMatricula,
+                STATUS: 'ativo' // Tira do status 'novato'
+            };
+            // Usamos o CHAPA como chave de update
+            return supabaseRequest(`colaboradores?CHAPA=eq.${chapa}`, 'PATCH', payload);
+        });
+
+        // Executa todas as atualizações em paralelo
+        await Promise.all(promessas);
+
+        mostrarNotificacao('Time salvo com sucesso! Recarregando o sistema...', 'success');
+        
+        // Recarrega a página para o initializeApp rodar novamente com o time definido
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao salvar: ${err.message}`, 'error');
+        showLoading(false);
+    }
+}
+
 
 /**
  * Atualiza os 4 cards do dashboard com base nos dados do time.
@@ -413,13 +543,20 @@ async function initializeApp() {
             document.getElementById('adminUpdateLink').style.display = 'block';
         }
         
-        // NOVO: Carregar dados ANTES de mostrar a view
+        // Carrega TODOS os dados (time e disponíveis)
         await loadModuleData();
         
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
         
-        handleHashChange(); // Carregar a view correta (agora com dados)
+        // ATUALIZADO: Decide qual view mostrar
+        if (state.meuTime.length === 0 && !state.isAdmin) {
+            // Se o time está vazio E não é admin, força o setup
+            iniciarDefinicaoDeTime();
+        } else {
+            // Se o time já existe (ou é admin), carrega a view do hash
+            handleHashChange();
+        }
 
     } catch (err) {
         console.error("Erro na inicialização:", err);
@@ -443,6 +580,14 @@ function handleHashChange() {
     const newNavElement = document.querySelector(`a[href="${hash}"]`);
 
     if (document.getElementById(newViewId)) {
+        // *** NOVO CHECK ***
+        // Se o time está vazio, não deixa navegar para "Meu Time"
+        if (newViewId === 'meuTimeView' && state.meuTime.length === 0 && !state.isAdmin) {
+            console.warn("Time vazio, forçando setup.");
+            iniciarDefinicaoDeTime();
+            return; // Impede a navegação
+        }
+
         // Verificar permissão de admin para views restritas
         if ((newViewId === 'atualizarQLPView' || newViewId === 'configuracoesView') && !state.isAdmin) {
             console.warn("Acesso negado a view de admin.");
@@ -521,11 +666,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // NOVO: Listeners para os filtros
+    // Listeners para os filtros
     document.getElementById('filterNome').addEventListener('input', applyFilters);
     document.getElementById('filterFilial').addEventListener('change', applyFilters);
     document.getElementById('filterFuncao').addEventListener('change', applyFilters);
     document.getElementById('filterStatus').addEventListener('change', applyFilters);
+
+    // NOVO: Listeners para a tela de Setup
+    document.getElementById('searchDisponiveis').addEventListener('input', filtrarDisponiveis);
+    document.getElementById('btnAdicionar').addEventListener('click', () => {
+        moverColaboradores(document.getElementById('listaDisponiveis'), document.getElementById('listaMeuTime'));
+    });
+    document.getElementById('btnRemover').addEventListener('click', () => {
+        moverColaboradores(document.getElementById('listaMeuTime'), document.getElementById('listaDisponiveis'));
+    });
+    document.getElementById('btnSalvarTime').addEventListener('click', handleSalvarTime);
 
     feather.replace();
 });
