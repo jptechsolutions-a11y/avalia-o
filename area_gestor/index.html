@@ -8,23 +8,86 @@
     
     <!-- Scripts de Estilo e Ícones (Padrão do App) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Link para o CSS principal (idêntico aos outros módulos) -->
-    <link rel="stylesheet" href="../style.css?v=5"> 
+    <link rel="stylesheet" href="../style.css?v=2">
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <!-- Chart.js para dashboards -->
+    <!-- Chart.js para os gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
+    <!-- ESTILO PARA A NOVA TELA DE SETUP DE TIME -->
+    <style>
+        .team-setup-container {
+            display: grid;
+            grid-template-columns: 1fr 100px 1fr;
+            gap: 1.5rem;
+            align-items: center;
+        }
+        .team-list-box {
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+        .team-list-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #d1d5db;
+            font-weight: 600;
+        }
+        .team-list-search {
+            padding: 0.75rem;
+            border-bottom: 1px solid #d1d5db;
+        }
+        .team-list-search input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+        }
+        .team-list-content {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .team-list-content select {
+            width: 100%;
+            height: 100%;
+            border: none;
+            padding: 0.5rem;
+        }
+        .team-list-content select:focus {
+            outline: none;
+        }
+        .team-list-content option {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+        .team-list-content option:hover {
+            background-color: #f3f4f6;
+        }
+        .team-list-content option:checked {
+            background-color: var(--accent);
+            color: white;
+        }
+        .team-transfer-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .team-transfer-buttons .btn {
+            width: 100%;
+            padding: 0.75rem;
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
 
     <div id="appShell" class="h-screen flex flex-col" style="display: none;">
 
-        <!-- Header (Layout idêntico aos outros módulos) -->
+        <!-- Header (Copiado do banco_horas.html e adaptado) -->
         <header id="topBar" class="flex-shrink-0">
             <div class="flex items-center gap-4">
                 <button id="sidebarToggle" class="btn-icon">
@@ -38,7 +101,9 @@
                 </div>
             </div>
             
-            <div class="flex-1"></div>
+            <div class="flex-1 flex justify-center px-8">
+                <!-- Espaço vazio central -->
+            </div>
             
             <div class="flex items-center gap-4">
                 <div id="profileDropdown" class="relative">
@@ -65,25 +130,38 @@
             </div>
         </header>
 
-        <!-- Main System (Layout idêntico) -->
+        <!-- Main System (Copiado do banco_horas.html) -->
         <div id="mainSystem" class="flex flex-1 overflow-hidden">
 
-            <!-- Sidebar (Adaptada para a nova área) -->
+            <!-- Sidebar (Copiado do banco_horas.html e adaptado) -->
             <aside class="sidebar collapsed">
                 <nav class="p-2 pt-4">
+                    <!-- Label do Gestor (Nome + Chapa) -->
+                    <div class="px-3 py-2 mb-2 text-center">
+                        <span class="text-xs text-gray-400 block" id="gestorNameLabel">Carregando gestor...</span>
+                    </div>
+
                     <a href="#meuTime" class="nav-item active" title="Meu Time">
                         <i data-feather="users" class="h-5 w-5 mr-3"></i> <span class="nav-text">Meu Time</span>
                     </a>
                     <a href="#transferir" class="nav-item" title="Transferir Colaborador">
                         <i data-feather="repeat" class="h-5 w-5 mr-3"></i> <span class="nav-text">Transferir</span>
                     </a>
-                    <a href="#configuracoes" id="configLink" class="nav-item" title="Configurações (Admin)" style="display: none;">
-                        <i data-feather="settings" class="h-5 w-5 mr-3"></i> <span class="nav-text">Configurações</span>
-                    </a>
-                    <a href="#atualizarQLP" id="adminUpdateLink" class="nav-item" title="Atualizar Banco (QLP)" style="display: none;">
-                        <i data-feather="upload-cloud" class="h-5 w-5 mr-3"></i> <span class="nav-text">Atualizar Banco (QLP)</span>
-                    </a>
-                    <a href="#" id="logoutLink" class="nav-item" title="Sair">
+                    
+                    <!-- Links de Admin -->
+                    <div id="adminLinks" class="hidden">
+                        <div class="mt-4 border-t border-gray-700 pt-2">
+                            <span class="p-3 text-xs font-semibold text-gray-500 uppercase nav-text">Administração</span>
+                        </div>
+                        <a href="#atualizarQLP" id="adminUpdateLink" class="nav-item" title="Atualizar Banco (QLP)">
+                            <i data-feather="upload-cloud" class="h-5 w-5 mr-3"></i> <span class="nav-text">Atualizar QLP</span>
+                        </a>
+                        <a href="#configuracoes" id="adminConfigLink" class="nav-item" title="Configurações">
+                            <i data-feather="settings" class="h-5 w-5 mr-3"></i> <span class="nav-text">Configurações</span>
+                        </a>
+                    </div>
+                    
+                     <a href="#" id="logoutLink" class="nav-item" title="Sair">
                         <i data-feather="log-out" class="h-5 w-5 mr-3 text-red-400"></i> <span class="nav-text text-red-400">Sair</span>
                     </a>
                 </nav>
@@ -91,79 +169,94 @@
             
             <div id="sidebarOverlay"></div>
 
-            <!-- Conteúdo Principal (Novo) -->
+            <!-- Main Content (Wrapper) -->
             <main class="main-content">
                 <div class="container mx-auto px-6 py-8">
                 
                     <!-- View: Meu Time (Padrão) -->
                     <div id="meuTimeView" class="view-content active">
                         <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
-                            <h1><i data-feather="users" class="h-7 w-7 text-accent"></i> Meu Time</h1>
+                            <h1><i data-feather="users" class="h-7 w-7 text-accent"></i> Dashboard Meu Time</h1>
                             <div class="text-sm text-gray-600">
                                 <strong>Gestor:</strong>
-                                <span id="gestorNameLabel" class="font-medium" style="color: var(--accent);">Carregando...</span>
+                                <span id="dashGestorName" class="font-medium" style="color: var(--accent);">Buscando...</span>
                             </div>
                         </div>
 
-                        <!-- Cards de Indicadores (Dashboard) -->
+                        <!-- Cards de Estatísticas -->
                         <div class="stats-grid">
-                            <div class="stat-card-dash">
-                                <div class="stat-number" id="statTotalColab">0</div>
-                                <div class="stat-label">Colaboradores (Total)</div>
+                            <div class="stat-card-dash flex items-start gap-4">
+                                <div class="p-3 rounded-lg bg-blue-100 text-blue-600">
+                                    <i data-feather="users" class="h-6 w-6"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="stat-number" id="statTotalTime">0</div>
+                                    <div class="stat-label">Total no Time</div>
+                                </div>
                             </div>
-                            <div class="stat-card-dash">
-                                <div class="stat-number" id="statAtivos">0</div>
-                                <div class="stat-label">Status: Ativos</div>
+                            <div class="stat-card-dash flex items-start gap-4">
+                                <div class="p-3 rounded-lg bg-green-100 text-green-600">
+                                    <i data-feather="user-check" class="h-6 w-6"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="stat-number" id="statAtivos">0</div>
+                                    <div class="stat-label">Ativos</div>
+                                </div>
                             </div>
-                            <div class="stat-card-dash">
-                                <div class="stat-number" id="statNovatos">0</div>
-                                <div class="stat-label">Status: Novatos</div>
+                            <div class="stat-card-dash flex items-start gap-4">
+                                <div class="p-3 rounded-lg bg-yellow-100 text-yellow-600">
+                                    <i data-feather="user-plus" class="h-6 w-6"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="stat-number" id="statNovatos">0</div>
+                                    <div class="stat-label">Novatos</div>
+                                </div>
                             </div>
-                            <div class="stat-card-dash">
-                                <div class="stat-number" id="statInativos">0</div>
-                                <div class="stat-label">Status: Inativos</div>
-                            </div>
-                        </div>
-
-                        <!-- Filtros da Tabela -->
-                        <div class="filter-bar">
-                            <div class="form-group">
-                                <label for="filterNome">Filtrar por Nome/Chapa</label>
-                                <input type="text" id="filterNome" placeholder="Digite o nome ou chapa...">
-                            </div>
-                            <div class="form-group">
-                                <label for="filterFilial">Filtrar por Filial</label>
-                                <select id="filterFilial">
-                                    <option value="">Todas as filiais</option>
-                                    <!-- Populado via JS -->
-                                </select>
-                            </div>
-                             <div class="form-group">
-                                <label for="filterFuncao">Filtrar por Função</label>
-                                <select id="filterFuncao">
-                                    <option value="">Todas as funções</option>
-                                    <!-- Populado via JS -->
-                                </select>
-                            </div>
-                             <div class="form-group">
-                                <label for="filterStatus">Filtrar por Status</label>
-                                <select id="filterStatus">
-                                    <option value="">Todos</option>
-                                    <option value="ativo">Ativo</option>
-                                    <option value="inativo">Inativo</option>
-                                    <option value="novato">Novato</option>
-                                </select>
+                             <div class="stat-card-dash flex items-start gap-4">
+                                <div class="p-3 rounded-lg bg-red-100 text-red-600">
+                                    <i data-feather="user-x" class="h-6 w-6"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="stat-number" id="statInativos">0</div>
+                                    <div class="stat-label">Inativos</div>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- Tabela do Time -->
+                        
+                        <!-- Acompanhamento do Time -->
                         <div class="info-card">
-                            <h3><i data-feather="list" class="h-5 w-5 mr-2"></i> Membros do Time</h3>
-                            <div class="flex justify-end mb-4">
-                                <button class="btn btn-primary" onclick="window.location.hash='#transferir'">
-                                    <i data-feather="repeat" class="h-4 w-4 mr-2"></i>Transferir Colaborador
-                                </button>
+                            <h3 class="!mb-4"><i data-feather="list" class="h-5 w-5 mr-2"></i> Acompanhamento do Time</h3>
+                            
+                            <!-- Filtros -->
+                            <div class="filter-bar">
+                                <div class="form-group">
+                                    <label for="filterNome">Filtrar por Nome/Chapa</label>
+                                    <input type="text" id="filterNome" placeholder="Digite nome ou chapa...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="filterFilial">Filtrar por Filial</label>
+                                    <select id="filterFilial">
+                                        <option value="">Todas as filiais</option>
+                                    </select>
+                                </div>
+                                 <div class="form-group">
+                                    <label for="filterFuncao">Filtrar por Função</label>
+                                    <select id="filterFuncao">
+                                        <option value="">Todas as funções</option>
+                                    </select>
+                                </div>
+                                 <div class="form-group">
+                                    <label for="filterStatus">Filtrar por Status</label>
+                                    <select id="filterStatus">
+                                        <option value="">Todos os status</option>
+                                        <option value="ativo">Ativo</option>
+                                        <option value="inativo">Inativo</option>
+                                        <option value="novato">Novato</option>
+                                    </select>
+                                </div>
                             </div>
+
+                            <!-- Tabela -->
                             <div id="tableContainer" class="table-container mt-6">
                                 <table class="tabela">
                                     <thead>
@@ -172,19 +265,18 @@
                                             <th>Chapa</th>
                                             <th>Função</th>
                                             <th>Seção</th>
-                                            <th>Admissão</th>
                                             <th>Filial</th>
+                                            <th>Admissão</th>
                                             <th>Status</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="tableBodyMeuTime">
-                                        <!-- Placeholder -->
-                                        <tr><td colspan="8" class="text-center py-10 text-gray-500">Carregando dados do time...</td></tr>
+                                        <tr><td colspan="8" class="text-center py-10 text-gray-500">Carregando dados...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
-                            <p id="tableMessageMeuTime" class="hidden text-center py-5 text-gray-500">Nenhum colaborador encontrado.</p>
+                            <p id="tableMessageMeuTime" class="hidden text-center py-10 text-gray-500">Nenhum dado encontrado.</p>
                         </div>
                     </div>
 
@@ -192,21 +284,24 @@
                     <div id="transferirView" class="view-content">
                         <h1><i data-feather="repeat" class="h-7 w-7 text-accent"></i> Transferir Colaborador</h1>
                         <div class="info-card">
-                            <h3>Realizar Transferência entre Times</h3>
-                            <p class="text-gray-600">Selecione um colaborador do seu time (ou um "novato" sem gestor) e atribua-o a um novo gestor elegível.</p>
-                            <!-- Placeholder do formulário -->
-                            <div class="form-row mt-6">
-                                <div class="form-group">
-                                    <label for="transferColab">Colaborador (Chapa)</label>
-                                    <input type="text" id="transferColab" placeholder="Digite a chapa de quem sai...">
-                                    <input type="text" id="transferColabNome" readonly class="mt-2" placeholder="Nome do Colaborador">
-                                </div>
-                                <div class="form-group">
-                                    <label for="transferGestor">Novo Gestor (Chapa)</label>
-                                    <input type="text" id="transferGestor" placeholder="Digite a chapa de quem recebe...">
-                                    <input type="text" id="transferGestorNome" readonly class="mt-2" placeholder="Nome do Novo Gestor">
-                                </div>
+                            <p class="text-gray-600 mb-4">Selecione o colaborador que deseja mover e escolha o novo gestor de destino.</p>
+                            
+                            <div class="form-group">
+                                <label for="selectColaboradorTransfer">Colaborador (do seu time)</label>
+                                <select id="selectColaboradorTransfer">
+                                    <option value="">Selecione um colaborador...</option>
+                                    <!-- Populado via JS -->
+                                </select>
                             </div>
+                            
+                            <div class="form-group">
+                                <label for="selectNovoGestor">Novo Gestor (Destino)</label>
+                                <select id="selectNovoGestor">
+                                    <option value="">Selecione um gestor de destino...</option>
+                                    <!-- Populado via JS (com base na tabela_gestores_config) -->
+                                </select>
+                            </div>
+                            
                             <button id="btnConfirmTransfer" class="btn btn-success" disabled>Confirmar Transferência</button>
                         </div>
                     </div>
@@ -214,58 +309,82 @@
                     <!-- View: Atualizar QLP (Admin) -->
                     <div id="atualizarQLPView" class="view-content">
                          <h1><i data-feather="upload-cloud" class="h-7 w-7 text-accent"></i> Atualizar Banco (QLP)</h1>
-                        <div class="info-card">
-                            <h3>Importação de Dados (QLP)</h3>
-                            <p class="text-gray-600 mb-4">Cole os dados do QLP. O sistema irá atualizar os colaboradores existentes (sem apagar o GESTOR_CHAPA) e marcará como 'novato' quem entrar ou 'inativo' quem sair.</p>
+                        <div id="adminPanel" class="info-card mb-6">
+                            <h3><i data-feather="upload" class="h-5 w-5 mr-2"></i> Importar Colaboradores</h3>
+                            <p class="text-gray-600 mb-4">Cole os dados brutos (CSV ou Tabulado) da sua planilha QLP. O sistema irá atualizar os colaboradores existentes e adicionar os novos, preservando os vínculos de gestor.</p>
                             
-                            <div id="importErrorQLP" class="hidden alert alert-error mb-4"></div>
-
-                            <div class="form-group mt-6">
-                                <label for="qlpInput">Dados para importação (QLP):</label>
-                                <textarea id="qlpInput" class="w-full h-48" placeholder="Cole os dados do QLP aqui..."></textarea>
+                            <div id="importError" class="hidden alert alert-error mb-4" role="alert">
+                                <strong class="font-bold">Erro na Importação:</strong>
+                                <span class="block sm:inline" id="importErrorMessage"></span>
                             </div>
-                            <button id="btnPreviewQLP" class="btn btn-info mr-2">Pré-visualizar</button>
-                            <button id="btnImportQLP" class="btn btn-danger">Importar QLP</button>
 
-                            <div id="previewContainerQLP" class="mt-6" style="display: none;">
-                                <h4 class="text-lg font-semibold text-gray-800 mb-2">Pré-visualização da Importação</h4>
-                                <div id="previewTableContainerQLP" class="table-container">
+                            <div class="form-group">
+                                <label for="dataInput">Dados para importação (QLP):</label>
+                                <textarea id="dataInput" class="w-full h-48" placeholder="Cole os dados aqui..."></textarea>
+                            </div>
+                            
+                            <div class="flex items-center gap-4 mt-4">
+                                <button id="previewButton" class="btn btn-info flex items-center gap-2">
+                                    <i data-feather="search" class="h-5 w-5"></i>
+                                    Pré-visualizar 15 Linhas
+                                </button>
+                                <button id="importButton" class="btn btn-success flex items-center gap-2">
+                                    <i data-feather="upload" class="h-5 w-5"></i>
+                                    Importar e Atualizar Dados
+                                </button>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2"><strong>Atenção:</strong> Novos colaboradores serão marcados como 'novato'. Colaboradores que não vierem no arquivo serão marcados como 'inativo'. Vínculos de gestão (`GESTOR_CHAPA`) existentes **serão mantidos**.</p>
+                        
+                            <div id="previewContainer" class="mt-6" style="display: none;">
+                                <h4 class="text-lg font-semibold text-gray-800 mb-2">Pré-visualização</h4>
+                                <div id="previewTableContainer" class="table-container">
                                     <!-- A tabela de preview será injetada aqui -->
                                 </div>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- View: Configurações (Admin) -->
+                    <!-- View: Configurações (Admin) - ATUALIZADA -->
                     <div id="configuracoesView" class="view-content">
                          <h1><i data-feather="settings" class="h-7 w-7 text-accent"></i> Configurações</h1>
+                        
+                        <!-- Card para Adicionar/Editar -->
                         <div class="info-card">
-                            <h3>Definir Funções de Gestão</h3>
-                            <p class="text-gray-600">Configure quais funções podem ser gestores e seus níveis hierárquicos.</p>
+                            <h3>Adicionar Nova Regra de Gestão</h3>
+                            <p class="text-gray-600 mb-4">Selecione uma função (puxada da tabela de colaboradores) e defina seu nível hierárquico.</p>
                             
-                            <form id="formAddGestorConfig" class="form-row mt-4 p-4 bg-gray-50 rounded-lg border">
-                                <input type="hidden" id="configFuncaoEdit">
+                            <!-- Formulário ATUALIZADO -->
+                            <form id="formConfigGestor" class="form-row">
                                 <div class="form-group">
-                                    <label for="configFuncao">Nome da Função</label>
-                                    <input type="text" id="configFuncao" placeholder="Ex: SUPERVISOR DE LOJA" required>
+                                    <label for="configFuncaoSelect">Função (Puxada da tabela 'colaboradores')</label>
+                                    <select id="configFuncaoSelect" required>
+                                        <option value="">Carregando funções...</option>
+                                    </select>
                                 </div>
                                 <div class="form-group">
                                     <label for="configNivel">Nível Hierárquico</label>
-                                    <input type="number" id="configNivel" placeholder="1 (mais baixo) a 5 (mais alto)" required min="1" max="10">
+                                    <input type="number" id="configNivel" placeholder="Ex: 1 (Supervisor), 2 (Coord)..." required min="1">
                                 </div>
                                 <div class="form-group">
                                     <label for="configPodeSerGestor">Pode ser Gestor?</label>
-                                    <select id="configPodeSerGestor">
+                                    <select id="configPodeSerGestor" required>
                                         <option value="true">Sim</option>
                                         <option value="false">Não</option>
                                     </select>
                                 </div>
-                                <div class="form-group flex items-end">
-                                    <button type="submit" class="btn btn-success w-full">Salvar</button>
+                                <div class="form-group" style="align-self: flex-end;">
+                                    <!-- ID ATUALIZADO -->
+                                    <button type="button" id="btnSalvarConfig" class="btn btn-success w-full">
+                                        <i data-feather="plus" class="h-4 w-4 mr-2"></i> Adicionar Regra
+                                    </button>
                                 </div>
                             </form>
-                            
-                            <div class="table-container mt-4">
+                        </div>
+                        
+                        <!-- Card da Tabela (Existente) -->
+                        <div class="info-card">
+                            <h3><i data-feather="list" class="h-5 w-5 mr-2"></i> Regras de Gestão Atuais</h3>
+                            <div id="tableConfigContainer" class="table-container mt-4">
                                 <table class="tabela">
                                     <thead>
                                         <tr>
@@ -283,6 +402,56 @@
                         </div>
                     </div>
 
+                    <!-- NOVA VIEW: Primeiro Acesso / Definição de Time -->
+                    <div id="primeiroAcessoView" class="view-content hidden">
+                         <h1><i data-feather="users" class="h-7 w-7 text-accent"></i> Bem-vindo, Gestor!</h1>
+                        <div class="info-card">
+                            <h3>Defina seu Time</h3>
+                            <p class="text-gray-600 mb-6">Percebemos que este é seu primeiro acesso ou seu time ainda não foi definido. Por favor, selecione os colaboradores que fazem parte da sua equipe na lista de "Disponíveis" e mova-os para "Meu Time".</p>
+                            
+                            <div class="team-setup-container">
+                                <!-- Coluna Disponíveis -->
+                                <div class="team-list-box">
+                                    <div class="team-list-header">Colaboradores Disponíveis (Sem Gestor)</div>
+                                    <div class="team-list-search">
+                                        <input type="text" id="searchDisponiveis" placeholder="Filtrar por nome ou chapa...">
+                                    </div>
+                                    <div class="team-list-content">
+                                        <select id="listaDisponiveis" multiple>
+                                            <!-- Populado via JS -->
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Botões -->
+                                <div class="team-transfer-buttons">
+                                    <button id="btnAdicionar" class="btn btn-primary" title="Adicionar ao Meu Time">
+                                        <i data-feather="chevron-right" class="h-5 w-5"></i>
+                                    </button>
+                                    <button id="btnRemover" class="btn btn-secondary" title="Remover do Meu Time">
+                                        <i data-feather="chevron-left" class="h-5 w-5"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Coluna Meu Time -->
+                                <div class="team-list-box">
+                                    <div class="team-list-header">Meu Time</div>
+                                    <div class="team-list-content">
+                                        <select id="listaMeuTime" multiple>
+                                            <!-- Populado via JS -->
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end mt-6">
+                                <button id="btnSalvarTime" class="btn btn-success">
+                                    <i data-feather="save" class="h-4 w-4 mr-2"></i>Salvar Meu Time e Continuar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </main>
         </div>
@@ -291,26 +460,13 @@
     <!-- Container de Notificações (Padrão) -->
     <div id="notificationContainer"></div>
 
-    <!-- Modal (Padrão) -->
-    <div id="detailsModal" class="modal">
-        <div class="modal-content">
-            <span id="modalClose" class="modal-close">&times;</span>
-            <h3 id="modalTitle">Detalhes do Colaborador</h3>
-            <div id="modalBody" class="space-y-4 mt-4">
-                <!-- Conteúdo do modal será preenchido via JS -->
-            </div>
-        </div>
-    </div>
-
     <!-- Loading Overlay (Padrão) -->
     <div id="loading" class="loading">
         <div class="spinner"></div>
         <p id="loadingText">Processando...</p>
     </div>
 
-    <!-- 
-      Link para o JAVASCRIPT EXTERNO
-    -->
-    <script src="scripts.js" defer></script>
+    <!-- JS DO SISTEMA -->
+    <script src="scripts.js"></script>
 </body>
 </html>
