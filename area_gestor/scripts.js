@@ -20,6 +20,8 @@ const state = {
     permissoes_filiais: null,
     userMatricula: null,
     userNome: 'Usuário',
+    userFuncao: null, // <-- NOVO
+    userNivel: null,  // <-- NOVO
     // Cache de dados do módulo
     meuTime: [],
     disponiveis: [],
@@ -211,19 +213,35 @@ async function loadModuleData() {
     showLoading(true, 'Carregando dados do time...');
     
     try {
+        // *** INÍCIO DA CORREÇÃO (Filtro de Filial) ***
+        // 1. Monta a query de disponíveis dinamicamente
+        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,codfilial'; // Pega a filial
+        
+        // Filtro base (sem gestor ou novato)
+        disponiveisQuery += '&or=(gestor_chapa.is.null,status.eq.novato)';
+
+        // Filtro de Filial: Aplica se usuário NÃO for admin e TIVER permissões
+        if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            // Formata para a query: codfilial.in.("753","754")
+            const filiaisFilter = `codfilial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+            disponiveisQuery += `&${filiaisFilter}`;
+            console.log("Aplicando filtro de filial:", filiaisFilter);
+        }
+        // *** FIM DA CORREÇÃO ***
+
         // ATUALIZADO: Carrega o time, disponíveis, config E todas as funções
         // *** CORREÇÃO: Todas as colunas da tabela 'colaboradores' (CHAPA, GESTOR_CHAPA, FUNCAO, STATUS) foram convertidas para minúsculas. ***
         const [configRes, timeRes, disponiveisRes, funcoesRes] = await Promise.allSettled([
             // 1. Busca a tabela de configuração (para admins)
-            // (Esta tabela parece usar maiúsculas, mantido como está)
-            supabaseRequest('tabela_gestores_config?select=*', 'GET'),
+            // *** CORREÇÃO: Busca colunas minúsculas ***
+            supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
             
             // 2. Busca o time direto do gestor
             supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET'), // <-- CORRIGIDO para lowercase
             
             // 3. Busca colaboradores "novatos" ou "sem gestor"
             // *** CORREÇÃO: Trocado 'chapa' por 'matricula' ***
-            supabaseRequest(`colaboradores?select=matricula,nome,funcao&or=(gestor_chapa.is.null,status.eq.novato)`, 'GET'), // <-- CORRIGIDO para lowercase e matricula
+            supabaseRequest(disponiveisQuery, 'GET'), // <-- USA A QUERY DINÂMICA
             
             // 4. CORREÇÃO: Busca todas as funções únicas (substituindo a RPC que falhou)
             supabaseRequest('colaboradores?select=funcao', 'GET') // <-- CORRIGIDO para lowercase
@@ -285,9 +303,48 @@ function iniciarDefinicaoDeTime() {
     sidebar.style.pointerEvents = 'none';
     sidebar.style.opacity = '0.7';
 
+    // *** INÍCIO DA CORREÇÃO (Filtro de Hierarquia) ***
+    let listaDisponiveisFiltrada = state.disponiveis;
+    
+    // Só aplica o filtro de hierarquia se o gestor tiver um nível definido
+    // (state.userNivel é definido no initializeApp)
+    if (state.userNivel !== null && state.userNivel !== undefined) {
+        
+        // 1. Criar um mapa de Níveis (funcao -> nivel) para consulta rápida
+        const mapaNiveis = state.gestorConfig.reduce((acc, regra) => {
+            acc[regra.funcao] = regra.nivel_hierarquia;
+            return acc;
+        }, {});
+
+        // 2. Filtrar a lista
+        listaDisponiveisFiltrada = state.disponiveis.filter(colaborador => {
+            const colaboradorFuncao = colaborador.funcao;
+            
+            // Se o colaborador não tem função, permite
+            if (!colaboradorFuncao) {
+                return true; 
+            }
+            
+            // Verifica o nível do colaborador
+            const colaboradorNivel = mapaNiveis[colaboradorFuncao];
+            
+            // Regra 1: Colaborador não está na tabela de config (sem hierarquia) -> Permite
+            if (colaboradorNivel === undefined || colaboradorNivel === null) {
+                return true;
+            }
+            
+            // Regra 2: Colaborador tem nível MAIOR (inferior) que o gestor -> Permite
+            // Ex: Gestor(3) só vê Nível > 3 (4, 5...)
+            return colaboradorNivel > state.userNivel;
+        });
+
+        console.log(`Filtro de Hierarquia: Gestor Nível ${state.userNivel}. Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
+    }
+    // *** FIM DA CORREÇÃO ***
+
     // Popula as listas
     // O time inicial (state.meuTime) estará vazio
-    renderListasTimes(state.disponiveis, state.meuTime);
+    renderListasTimes(listaDisponiveisFiltrada, state.meuTime); // <-- USA A LISTA FILTRADA
     
     feather.replace();
 }
@@ -307,14 +364,14 @@ function renderListasTimes(disponiveis, meuTime) {
     const chapasMeuTime = new Set(meuTime.map(c => c.matricula));
     const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.matricula));
 
-    // *** CORREÇÃO: Usa lowercase (matricula, nome, funcao) ***
+    // *** CORREÇÃO: Usa lowercase (matricula, nome, funcao) E ADICIONA FILIAL ***
     disponiveisFiltrados.forEach(c => {
-        listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) - ${c.funcao || 'N/A'}</option>`;
+        listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.codfilial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
     
-    // *** CORREÇÃO: Usa lowercase (matricula, nome, funcao) ***
+    // *** CORREÇÃO: Usa lowercase (matricula, nome, funcao) E ADICIONA FILIAL ***
     meuTime.forEach(c => {
-        listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) - ${c.funcao || 'N/A'}</option>`;
+        listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.codfilial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
 }
 
@@ -593,8 +650,8 @@ async function handleSalvarConfig() {
     // *** CORREÇÃO: A tabela 'tabela_gestores_config' também espera 'funcao' em minúsculo ***
     const payload = {
         funcao: funcao, // <-- CORRIGIDO de FUNCAO: funcao.toUpperCase()
-        pode_ser_gestor: podeGestor,
-        nivel_hierarquia: parseInt(nivel)
+        pode_ser_gestor: podeGestor, // <-- CORRIGIDO (era PODE_SER_GESTOR)
+        nivel_hierarquia: parseInt(nivel) // <-- CORRIGIDO (era NIVEL_HIERARQUIA)
     };
     
     showLoading(true, 'Salvando regra...');
@@ -717,8 +774,29 @@ async function initializeApp() {
             document.getElementById('adminUpdateLink').style.display = 'block';
         }
         
-        // Carrega TODOS os dados (time, disponíveis, config, funções)
+        // *** INÍCIO DA CORREÇÃO (Hierarquia) ***
+        // 4. Buscar a função do gestor logado
+        if (state.userMatricula) {
+            const gestorData = await supabaseRequest(`colaboradores?select=funcao&matricula=eq.${state.userMatricula}&limit=1`, 'GET');
+            if (gestorData && gestorData[0]) {
+                state.userFuncao = gestorData[0].funcao; // Armazena a função
+            }
+        }
+        // *** FIM DA CORREÇÃO ***
+        
+        // 5. Carrega TODOS os dados (time, disponíveis, config, funções)
         await loadModuleData();
+        
+        // *** INÍCIO DA CORREÇÃO (Hierarquia) ***
+        // 6. Encontrar o nível do gestor (agora que o config foi carregado)
+        if (state.userFuncao && state.gestorConfig.length > 0) {
+            const gestorRegra = state.gestorConfig.find(r => r.funcao === state.userFuncao);
+            if (gestorRegra) {
+                state.userNivel = gestorRegra.nivel_hierarquia; // Armazena o nível
+            }
+        }
+        console.log(`Gestor: ${state.userNome}, Funcao: ${state.userFuncao}, Nivel: ${state.userNivel}`);
+        // *** FIM DA CORREÇÃO ***
         
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
