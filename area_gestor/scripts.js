@@ -22,6 +22,7 @@ const state = {
     userNome: 'Usuário',
     userFuncao: null, // <-- NOVO
     userNivel: null,  // <-- NOVO
+    userFilial: null, // <-- CORREÇÃO 2: Adicionado para filtro de filial
     // Cache de dados do módulo
     meuTime: [],
     disponiveis: [],
@@ -293,10 +294,22 @@ async function loadModuleData() {
         let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; // Pega mais colunas para o filtro
         let filters = []; 
 
-        // Adiciona filtro de filial (se não for admin)
-        if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`); // ASSUME lowercase
+        // --- INÍCIO DA CORREÇÃO 1 (Filtro de Filial) ---
+        // NOVO: Lógica de filtro de filial
+        if (!state.isAdmin) {
+            if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+                // Se 'permissoes_filiais' (do app 'usuarios') está preenchido, ele manda.
+                filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`);
+            } else if (state.userFilial) {
+                // Senão, usa a filial do próprio gestor (da tabela 'colaboradores')
+                filters.push(`filial=eq.${state.userFilial}`);
+            } else {
+                // Se não tem nem um nem outro, filtra por uma filial "impossível" para não vazar dados
+                console.warn("Gestor não-admin sem 'permissoes_filiais' ou 'filial' cadastrada. Nenhum colaborador 'disponível' será mostrado.");
+                filters.push('filial=eq.IMPOSSIVEL_FILIAL_FILTER');
+            }
         }
+        // --- FIM DA CORREÇÃO 1 ---
         
         // Adiciona filtro para não incluir o próprio gestor
         if (state.userMatricula) {
@@ -463,6 +476,9 @@ function filtrarDisponiveis() {
 }
 
 /**
+ * --- CORREÇÃO 2: Lógica de Cascata ---
+ * Salva o time E TAMBÉM busca a cascata de subordinados dos
+ * gestores selecionados, sem recarregar a página.
  */
 async function handleSalvarTime() {
     showLoading(true, 'Salvando seu time...');
@@ -476,30 +492,91 @@ async function handleSalvarTime() {
     }
 
     try {
-        // Cria um array de Promises, uma para cada colaborador a ser atualizado
+        // --- ETAPA 1: Salvar os gestores diretos ---
         const promessas = chapasSelecionadas.map(chapa => {
-            // ASSUME lowercase
             const payload = {
                 gestor_chapa: state.userMatricula,
                 status: 'ativo' // Tira do status 'novato'
             };
-            // Usamos o matricula como chave de update (ASSUME lowercase)
             return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
         });
 
-        // Executa todas as atualizações em paralelo
         await Promise.all(promessas);
-
-        mostrarNotificacao('Time salvo com sucesso! Recarregando o sistema...', 'success');
+        mostrarNotificacao('Gestores diretos salvos! Buscando sub-times (cascata)...', 'success');
         
-        // Recarrega a página para o initializeApp rodar novamente com o time definido
+        // --- ETAPA 2: Buscar a "Cascata" (a correção) ---
+        showLoading(true, 'Buscando times dos gestores selecionados...');
+
+        // 2a. Pegar o mapa de configuração de gestores (quem é gestor?)
+        const configMap = state.gestorConfig.reduce((acc, regra) => {
+            if (regra.pode_ser_gestor) {
+                acc[regra.funcao.toLowerCase()] = true; 
+            }
+            return acc;
+        }, {});
+
+        // 2b. Buscar a cascata para CADA gestor selecionado
+        const subTeamPromises = chapasSelecionadas.map(chapa => 
+            loadRecursiveTeam(chapa, configMap)
+        );
+        const subTeamsResults = await Promise.allSettled(subTeamPromises);
+
+        // 2c. Juntar os resultados
+        let timeCompleto = [];
+        let chapasTimeCompleto = new Set(chapasSelecionadas); // Adiciona os gestores diretos
+
+        // Adiciona os gestores diretos (objetos completos)
+        chapasSelecionadas.forEach(chapa => {
+            // Busca o objeto completo do gestor salvo (seja da lista de disponíveis ou do 'meuTime' se ele estava removendo/readicionando)
+            let colab = state.disponiveis.find(c => c.matricula === chapa) || state.meuTime.find(c => c.matricula === chapa);
+            if (colab) {
+                colab.gestor_chapa = state.userMatricula; // Atualiza localmente
+                colab.status = 'ativo';
+                timeCompleto.push(colab);
+            }
+        });
+
+        // Adiciona as cascatas (sub-times)
+        subTeamsResults.forEach(result => {
+            if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+                result.value.forEach(subordinado => {
+                    // Evita duplicatas se um sub-gestor também foi selecionado
+                    if (!chapasTimeCompleto.has(subordinado.matricula)) {
+                        timeCompleto.push(subordinado);
+                        chapasTimeCompleto.add(subordinado.matricula);
+                    }
+                });
+            }
+        });
+
+        // --- ETAPA 3: Atualizar Estado e Navegar ---
+        
+        // 1. Atualiza o estado global
+        state.meuTime = timeCompleto;
+        
+        // 2. Remove os movidos da lista de disponíveis
+        state.disponiveis = state.disponiveis.filter(c => !chapasTimeCompleto.has(c.matricula));
+        
+        // 3. Libera a sidebar
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.style.pointerEvents = 'auto';
+        sidebar.style.opacity = '1';
+
+        // 4. Navega para a view principal (SEM RELOAD)
+        window.location.hash = '#meuTime'; 
+        // Chama o showView diretamente para carregar a tabela
+        showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
+
+        /* REMOVIDO O RELOAD
         setTimeout(() => {
             window.location.reload();
         }, 1500);
+        */
 
     } catch (err) {
         mostrarNotificacao(`Erro ao salvar: ${err.message}`, 'error');
-        showLoading(false);
+    } finally {
+        showLoading(false); // Esconde o loading
     }
 }
 
@@ -726,10 +803,19 @@ async function loadTransferViewData() {
         ];
 
         // 2. Adiciona o filtro de FILIAL (se não for admin)
-        if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`; // ASSUME lowercase
-            queryParts.push(filialFilter);
-            console.log("Aplicando filtro de filial na transferência:", filialFilter);
+        // CORREÇÃO 1: Usa a mesma lógica de filtro do loadModuleData
+        if (!state.isAdmin) {
+            if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+                const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+                queryParts.push(filialFilter);
+                console.log("Aplicando filtro de filial (permissoes_filiais) na transferência:", filialFilter);
+            } else if (state.userFilial) {
+                 const filialFilter = `filial=eq.${state.userFilial}`;
+                 queryParts.push(filialFilter);
+                 console.log("Aplicando filtro de filial (userFilial) na transferência:", filialFilter);
+            } else {
+                 queryParts.push('filial=eq.IMPOSSIVEL_FILIAL_FILTER');
+            }
         }
         
         // 3. Monta a query final (ASSUME lowercase)
@@ -995,12 +1081,13 @@ async function initializeApp() {
             document.getElementById('adminUpdateLink').style.display = 'block';
         }
         
-        // 4. Buscar a função do gestor logado
+        // 4. Buscar a função e FILIAL do gestor logado (CORREÇÃO 1)
         if (state.userMatricula) {
             // (Tabela 'colaboradores' usa lowercase)
-            const gestorData = await supabaseRequest(`colaboradores?select=funcao&matricula=eq.${state.userMatricula}&limit=1`, 'GET');
+            const gestorData = await supabaseRequest(`colaboradores?select=funcao,filial&matricula=eq.${state.userMatricula}&limit=1`, 'GET');
             if (gestorData && gestorData[0]) {
                 state.userFuncao = gestorData[0].funcao; // Armazena a função (que é UPPERCASE)
+                state.userFilial = gestorData[0].filial; // Armazena a filial (CORREÇÃO 1)
             }
         }
         
@@ -1015,7 +1102,7 @@ async function initializeApp() {
                 state.userNivel = gestorRegra.nivel_hierarquia; // Armazena o nível
             }
         }
-        console.log(`Gestor: ${state.userNome}, Funcao: ${state.userFuncao}, Nivel: ${state.userNivel}`);
+        console.log(`Gestor: ${state.userNome}, Funcao: ${state.userFuncao}, Nivel: ${state.userNivel}, Filial: ${state.userFilial}`);
         
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
