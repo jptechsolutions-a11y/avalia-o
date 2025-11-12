@@ -216,7 +216,7 @@ async function loadModuleData() {
         // *** INÍCIO DA CORREÇÃO (Filtro de Filial) ***
         // 1. Monta a query de disponíveis dinamicamente
         // *** CORREÇÃO: Colunas em minúsculas ***
-        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,codfilial'; // Pega a filial
+        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial'; // Pega a filial
         
         // Filtro base (sem gestor ou novato)
         // *** CORREÇÃO: Colunas em minúsculas ***
@@ -224,9 +224,9 @@ async function loadModuleData() {
 
         // Filtro de Filial: Aplica se usuário NÃO for admin e TIVER permissões
         if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            // Formata para a query: codfilial.in.("753","754")
+            // Formata para a query: filial.in.("753","754")
             // *** CORREÇÃO: Coluna em minúscula ***
-            const filiaisFilter = `codfilial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+            const filiaisFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
             disponiveisQuery += `&${filiaisFilter}`;
             console.log("Aplicando filtro de filial:", filiaisFilter);
         }
@@ -372,14 +372,14 @@ function renderListasTimes(disponiveis, meuTime) {
     const chapasMeuTime = new Set(meuTime.map(c => c.matricula));
     const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.matricula));
 
-    // *** CORREÇÃO: Usa minúsculas (matricula, nome, codfilial, funcao) ***
+    // *** CORREÇÃO: Usa minúsculas (matricula, nome, filial, funcao) ***
     disponiveisFiltrados.forEach(c => {
-        listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.codfilial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
+        listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
     
-    // *** CORREÇÃO: Usa minúsculas (matricula, nome, codfilial, funcao) ***
+    // *** CORREÇÃO: Usa minúsculas (matricula, nome, filial, funcao) ***
     meuTime.forEach(c => {
-        listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.codfilial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
+        listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
 }
 
@@ -479,8 +479,8 @@ function populateFilters(data) {
     const filialSelect = document.getElementById('filterFilial');
     const funcaoSelect = document.getElementById('filterFuncao');
     
-    // *** CORREÇÃO: Usa minúsculas (codfilial, funcao) ***
-    const filiais = [...new Set(data.map(c => c.codfilial).filter(Boolean))].sort();
+    // *** CORREÇÃO: Usa minúsculas (filial, funcao) ***
+    const filiais = [...new Set(data.map(c => c.filial).filter(Boolean))].sort();
     const funcoes = [...new Set(data.map(c => c.funcao).filter(Boolean))].sort();
     
     filialSelect.innerHTML = '<option value="">Todas as filiais</option>';
@@ -526,7 +526,7 @@ function renderMeuTimeTable(data) {
             <td>${item.matricula || '-'}</td>
             <td>${item.funcao || '-'}</td>
             <td>${item.secao || '-'}</td>
-            <td>${item.codfilial || '-'}</td>
+            <td>${item.filial || '-'}</td>
             <td>${dtAdmissao}</td>
             <td><span class="status-badge ${statusClass}">${status}</span></td>
             <td class="actions">
@@ -554,12 +554,12 @@ function applyFilters() {
     const statusFiltro = document.getElementById('filterStatus').value;
     
     const filteredData = state.meuTime.filter(item => {
-        // *** CORREÇÃO: Usa minúsculas (nome, matricula, codfilial, funcao, status) ***
+        // *** CORREÇÃO: Usa minúsculas (nome, matricula, filial, funcao, status) ***
         const nomeChapaMatch = nomeFiltro === '' || 
             (item.nome && item.nome.toLowerCase().includes(nomeFiltro)) ||
             (item.matricula && item.matricula.toLowerCase().includes(nomeFiltro));
         
-        const filialMatch = filialFiltro === '' || item.codfilial === filialFiltro;
+        const filialMatch = filialFiltro === '' || item.filial === filialFiltro;
         const funcaoMatch = funcaoFiltro === '' || item.funcao === funcaoFiltro;
         const statusMatch = statusFiltro === '' || (item.status || 'ativo') === statusFiltro;
         
