@@ -1250,8 +1250,14 @@ abrirModalEdicaoUsuario(id) {
     // -----------------------------------------------------------------
 
     renderizarTabelaColaboradoresGestores() {
-        const tbody = document.querySelector('#tabela-colaboradores-gestores tbody');
+        const tabela = document.querySelector('#tabela-colaboradores-gestores'); // Pega a tabela inteira
+        const tbody = tabela.querySelector('tbody');
         if (!tbody) return;
+        
+        // Remove tfoot antigo se existir
+        const oldTfoot = tabela.querySelector('tfoot');
+        if (oldTfoot) oldTfoot.remove();
+        
         tbody.innerHTML = '';
         
         const colabs = Object.values(this.dados.colaboradores).map(c => ({...c, tipo: 'Colaborador'}));
@@ -1264,6 +1270,9 @@ abrirModalEdicaoUsuario(id) {
         const filtroFilial = document.getElementById('filtroPessoalFilial').value;
         const filtroTipo = document.getElementById('filtroPessoalTipo').value;
         const filtroStatus = document.getElementById('filtroPessoalStatus').value;
+
+        // --- INÍCIO DA LÓGICA DE FILTRO E PAGINAÇÃO ---
+        const isFiltering = filtroNome || filtroFilial || filtroTipo || filtroStatus;
 
         if (filtroNome) {
             pessoal = pessoal.filter(p => 
@@ -1283,12 +1292,30 @@ abrirModalEdicaoUsuario(id) {
 
         pessoal.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
         
-        if (pessoal.length === 0) {
+        const totalResultados = pessoal.length;
+        let dadosParaRenderizar = [];
+        let mensagemFooter = '';
+
+        if (totalResultados === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Nenhum colaborador ou gestor encontrado para os filtros.</td></tr>';
             return;
         }
+
+        if (isFiltering) {
+            dadosParaRenderizar = pessoal; // Mostra todos os resultados da pesquisa
+            if (totalResultados > 100) { // Informa se a pesquisa ainda for muito grande
+                 mensagemFooter = `Exibindo todos os ${totalResultados} resultados da sua pesquisa.`;
+            }
+        } else {
+            // Sem filtros, mostra apenas os 100 primeiros
+            dadosParaRenderizar = pessoal.slice(0, 100);
+            if (totalResultados > 100) {
+                mensagemFooter = `Exibindo os 100 primeiros de ${totalResultados} registros. Use a pesquisa para encontrar um item específico.`;
+            }
+        }
+        // --- FIM DA LÓGICA DE FILTRO E PAGINAÇÃO ---
         
-        pessoal.forEach(p => {
+        dadosParaRenderizar.forEach(p => {
             const status = p.status || 'ativo'; 
             let statusClass = '';
             switch(status) {
@@ -1313,6 +1340,14 @@ abrirModalEdicaoUsuario(id) {
                 </td>
             </tr>`;
         });
+        
+        // Adiciona o footer com a mensagem, se houver
+        if (mensagemFooter) {
+            const tfoot = document.createElement('tfoot');
+            tfoot.innerHTML = `<tr><td colspan="7" style="text-align:center; font-size: 0.85rem; color: #6b7280; padding: 10px;">${mensagemFooter}</td></tr>`;
+            tabela.appendChild(tfoot);
+        }
+        
         feather.replace();
     },
 
