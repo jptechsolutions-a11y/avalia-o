@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Área do Gestor | G&G</title>
+    <link rel="icon" href="../icon.png" type="image/png">
+    
+    <!-- Scripts de Estilo e Ícones (Padrão do App) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Link para o CSS principal (idêntico aos outros módulos) -->
+    <link rel="stylesheet" href="../style.css?v=5"> 
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Chart.js para dashboards -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+</head>
+<body class="bg-gray-100">
+
+    <div id="appShell" class="h-screen flex flex-col" style="display: none;">
+
+        <!-- Header (Layout idêntico aos outros módulos) -->
+        <header id="topBar" class="flex-shrink-0">
+            <div class="flex items-center gap-4">
+                <button id="sidebarToggle" class="btn-icon">
+                    <i data-feather="menu" class="h-5 w-5"></i>
+                </button>
+                <img src="../icon.png" class="h-8 w-auto" alt="Logo G&G">
+                <div class="separator"></div>
+                <div class="flex flex-col">
+                    <span class="text-sm font-semibold text-white" id="topBarProjectName">Sistema G&G</span>
+                    <span class="text-xs text-gray-400" id="topBarOrgName">Área do Gestor</span>
+                </div>
+            </div>
+            
+            <div class="flex-1"></div>
+            
+            <div class="flex items-center gap-4">
+                <div id="profileDropdown" class="relative">
+                    <button id="profileDropdownButton" class="flex items-center gap-2 rounded-full hover:bg-gray-700 p-1">
+                        <img id="topBarUserAvatar" src="https://i.imgur.com/80SsE11.png" class="w-8 h-8 rounded-full object-cover bg-gray-600">
+                        <span id="topBarUserName" class="text-sm font-medium text-white hidden md:block">Usuário</span>
+                        <i data-feather="chevron-down" class="h-4 w-4 text-gray-400 hidden md:block"></i>
+                    </button>
+                    <div id="profileDropdownMenu" class="dropdown-menu">
+                         <div class="px-4 py-3 border-b border-gray-600">
+                            <span class="block text-sm font-medium text-white" id="dropdownUserName">...</span>
+                            <span class="block text-xs text-gray-400" id="dropdownUserEmail">...</span>
+                        </div>
+                        <a href="../home.html" class="dropdown-item">
+                            <i data-feather="home" class="h-4 w-4 mr-2"></i> Voltar (Home G&G)
+                        </a>
+                        <div class="border-t border-gray-600">
+                            <a href="#" class="dropdown-item text-red-400" id="logoutButton">
+                                <i data-feather="log-out" class="h-4 w-4 mr-2"></i> Sair
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main System (Layout idêntico) -->
+        <div id="mainSystem" class="flex flex-1 overflow-hidden">
+
+            <!-- Sidebar (Adaptada para a nova área) -->
+            <aside class="sidebar collapsed">
+                <nav class="p-2 pt-4">
+                    <a href="#meuTime" class="nav-item active" title="Meu Time">
+                        <i data-feather="users" class="h-5 w-5 mr-3"></i> <span class="nav-text">Meu Time</span>
+                    </a>
+                    <a href="#transferir" class="nav-item" title="Transferir Colaborador">
+                        <i data-feather="repeat" class="h-5 w-5 mr-3"></i> <span class="nav-text">Transferir</span>
+                    </a>
+                    <a href="#configuracoes" id="configLink" class="nav-item" title="Configurações (Admin)" style="display: none;">
+                        <i data-feather="settings" class="h-5 w-5 mr-3"></i> <span class="nav-text">Configurações</span>
+                    </a>
+                    <a href="#atualizarQLP" id="adminUpdateLink" class="nav-item" title="Atualizar Banco (QLP)" style="display: none;">
+                        <i data-feather="upload-cloud" class="h-5 w-5 mr-3"></i> <span class="nav-text">Atualizar Banco (QLP)</span>
+                    </a>
+                    <a href="#" id="logoutLink" class="nav-item" title="Sair">
+                        <i data-feather="log-out" class="h-5 w-5 mr-3 text-red-400"></i> <span class="nav-text text-red-400">Sair</span>
+                    </a>
+                </nav>
+            </aside>
+            
+            <div id="sidebarOverlay"></div>
+
+            <!-- Conteúdo Principal (Novo) -->
+            <main class="main-content">
+                <div class="container mx-auto px-6 py-8">
+                
+                    <!-- View: Meu Time (Padrão) -->
+                    <div id="meuTimeView" class="view-content active">
+                        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                            <h1><i data-feather="users" class="h-7 w-7 text-accent"></i> Meu Time</h1>
+                            <div class="text-sm text-gray-600">
+                                <strong>Gestor:</strong>
+                                <span id="gestorNameLabel" class="font-medium" style="color: var(--accent);">Carregando...</span>
+                            </div>
+                        </div>
+
+                        <!-- Cards de Indicadores (Dashboard) -->
+                        <div class="stats-grid">
+                            <div class="stat-card-dash">
+                                <div class="stat-number" id="statTotalColab">0</div>
+                                <div class="stat-label">Colaboradores (Total)</div>
+                            </div>
+                            <div class="stat-card-dash">
+                                <div class="stat-number" id="statAtivos">0</div>
+                                <div class="stat-label">Status: Ativos</div>
+                            </div>
+                            <div class="stat-card-dash">
+                                <div class="stat-number" id="statNovatos">0</div>
+                                <div class="stat-label">Status: Novatos</div>
+                            </div>
+                            <div class="stat-card-dash">
+                                <div class="stat-number" id="statInativos">0</div>
+                                <div class="stat-label">Status: Inativos</div>
+                            </div>
+                        </div>
+
+                        <!-- Filtros da Tabela -->
+                        <div class="filter-bar">
+                            <div class="form-group">
+                                <label for="filterNome">Filtrar por Nome/Chapa</label>
+                                <input type="text" id="filterNome" placeholder="Digite o nome ou chapa...">
+                            </div>
+                            <div class="form-group">
+                                <label for="filterFilial">Filtrar por Filial</label>
+                                <select id="filterFilial">
+                                    <option value="">Todas as filiais</option>
+                                    <!-- Populado via JS -->
+                                </select>
+                            </div>
+                             <div class="form-group">
+                                <label for="filterFuncao">Filtrar por Função</label>
+                                <select id="filterFuncao">
+                                    <option value="">Todas as funções</option>
+                                    <!-- Populado via JS -->
+                                </select>
+                            </div>
+                             <div class="form-group">
+                                <label for="filterStatus">Filtrar por Status</label>
+                                <select id="filterStatus">
+                                    <option value="">Todos</option>
+                                    <option value="ativo">Ativo</option>
+                                    <option value="inativo">Inativo</option>
+                                    <option value="novato">Novato</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Tabela do Time -->
+                        <div class="info-card">
+                            <h3><i data-feather="list" class="h-5 w-5 mr-2"></i> Membros do Time</h3>
+                            <div class="flex justify-end mb-4">
+                                <button class="btn btn-primary" onclick="window.location.hash='#transferir'">
+                                    <i data-feather="repeat" class="h-4 w-4 mr-2"></i>Transferir Colaborador
+                                </button>
+                            </div>
+                            <div id="tableContainer" class="table-container mt-6">
+                                <table class="tabela">
+                                    <thead>
+                                        <tr>
+                                            <th>Nome</th>
+                                            <th>Chapa</th>
+                                            <th>Função</th>
+                                            <th>Seção</th>
+                                            <th>Admissão</th>
+                                            <th>Filial</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tableBodyMeuTime">
+                                        <!-- Placeholder -->
+                                        <tr><td colspan="8" class="text-center py-10 text-gray-500">Carregando dados do time...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p id="tableMessageMeuTime" class="hidden text-center py-5 text-gray-500">Nenhum colaborador encontrado.</p>
+                        </div>
+                    </div>
+
+                    <!-- View: Transferir -->
+                    <div id="transferirView" class="view-content">
+                        <h1><i data-feather="repeat" class="h-7 w-7 text-accent"></i> Transferir Colaborador</h1>
+                        <div class="info-card">
+                            <h3>Realizar Transferência entre Times</h3>
+                            <p class="text-gray-600">Selecione um colaborador do seu time (ou um "novato" sem gestor) e atribua-o a um novo gestor elegível.</p>
+                            <!-- Placeholder do formulário -->
+                            <div class="form-row mt-6">
+                                <div class="form-group">
+                                    <label for="transferColab">Colaborador (Chapa)</label>
+                                    <input type="text" id="transferColab" placeholder="Digite a chapa de quem sai...">
+                                    <input type="text" id="transferColabNome" readonly class="mt-2" placeholder="Nome do Colaborador">
+                                </div>
+                                <div class="form-group">
+                                    <label for="transferGestor">Novo Gestor (Chapa)</label>
+                                    <input type="text" id="transferGestor" placeholder="Digite a chapa de quem recebe...">
+                                    <input type="text" id="transferGestorNome" readonly class="mt-2" placeholder="Nome do Novo Gestor">
+                                </div>
+                            </div>
+                            <button id="btnConfirmTransfer" class="btn btn-success" disabled>Confirmar Transferência</button>
+                        </div>
+                    </div>
+
+                    <!-- View: Atualizar QLP (Admin) -->
+                    <div id="atualizarQLPView" class="view-content">
+                         <h1><i data-feather="upload-cloud" class="h-7 w-7 text-accent"></i> Atualizar Banco (QLP)</h1>
+                        <div class="info-card">
+                            <h3>Importação de Dados (QLP)</h3>
+                            <p class="text-gray-600 mb-4">Cole os dados do QLP. O sistema irá atualizar os colaboradores existentes (sem apagar o GESTOR_CHAPA) e marcará como 'novato' quem entrar ou 'inativo' quem sair.</p>
+                            
+                            <div id="importErrorQLP" class="hidden alert alert-error mb-4"></div>
+
+                            <div class="form-group mt-6">
+                                <label for="qlpInput">Dados para importação (QLP):</label>
+                                <textarea id="qlpInput" class="w-full h-48" placeholder="Cole os dados do QLP aqui..."></textarea>
+                            </div>
+                            <button id="btnPreviewQLP" class="btn btn-info mr-2">Pré-visualizar</button>
+                            <button id="btnImportQLP" class="btn btn-danger">Importar QLP</button>
+
+                            <div id="previewContainerQLP" class="mt-6" style="display: none;">
+                                <h4 class="text-lg font-semibold text-gray-800 mb-2">Pré-visualização da Importação</h4>
+                                <div id="previewTableContainerQLP" class="table-container">
+                                    <!-- A tabela de preview será injetada aqui -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- View: Configurações (Admin) -->
+                    <div id="configuracoesView" class="view-content">
+                         <h1><i data-feather="settings" class="h-7 w-7 text-accent"></i> Configurações</h1>
+                        <div class="info-card">
+                            <h3>Definir Funções de Gestão</h3>
+                            <p class="text-gray-600">Configure quais funções podem ser gestores e seus níveis hierárquicos.</p>
+                            
+                            <form id="formAddGestorConfig" class="form-row mt-4 p-4 bg-gray-50 rounded-lg border">
+                                <input type="hidden" id="configFuncaoEdit">
+                                <div class="form-group">
+                                    <label for="configFuncao">Nome da Função</label>
+                                    <input type="text" id="configFuncao" placeholder="Ex: SUPERVISOR DE LOJA" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="configNivel">Nível Hierárquico</label>
+                                    <input type="number" id="configNivel" placeholder="1 (mais baixo) a 5 (mais alto)" required min="1" max="10">
+                                </div>
+                                <div class="form-group">
+                                    <label for="configPodeSerGestor">Pode ser Gestor?</label>
+                                    <select id="configPodeSerGestor">
+                                        <option value="true">Sim</option>
+                                        <option value="false">Não</option>
+                                    </select>
+                                </div>
+                                <div class="form-group flex items-end">
+                                    <button type="submit" class="btn btn-success w-full">Salvar</button>
+                                </div>
+                            </form>
+                            
+                            <div class="table-container mt-4">
+                                <table class="tabela">
+                                    <thead>
+                                        <tr>
+                                            <th>Função</th>
+                                            <th>Pode ser Gestor?</th>
+                                            <th>Nível Hierárquico</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tableBodyGestorConfig">
+                                        <!-- Populado via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Container de Notificações (Padrão) -->
+    <div id="notificationContainer"></div>
+
+    <!-- Modal (Padrão) -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content">
+            <span id="modalClose" class="modal-close">&times;</span>
+            <h3 id="modalTitle">Detalhes do Colaborador</h3>
+            <div id="modalBody" class="space-y-4 mt-4">
+                <!-- Conteúdo do modal será preenchido via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay (Padrão) -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p id="loadingText">Processando...</p>
+    </div>
+
+    <!-- 
+      Link para o JAVASCRIPT EXTERNO
+    -->
+    <script src="scripts.js" defer></script>
+</body>
+</html>
