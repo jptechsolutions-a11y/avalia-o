@@ -661,17 +661,36 @@ async function loadTransferViewData() {
             throw new Error("Nenhum gestor de nível igual/inferior configurado.");
         }
 
-        // Busca todos os colaboradores que SÃO gestores, EXCETO o usuário atual
-        const query = `colaboradores?select=nome,matricula,funcao&funcao=in.(${funcoesGestor.join(',')})&matricula=neq.${state.userMatricula}`;
+        // *** INÍCIO DA MODIFICAÇÃO ***
+        
+        // 1. Define os filtros base
+        let queryParts = [
+            `funcao=in.(${funcoesGestor.join(',')})`, // Filtro de Função/Nível
+            `matricula=neq.${state.userMatricula}`      // Excluir a si mesmo
+        ];
+
+        // 2. Adiciona o filtro de FILIAL (se não for admin)
+        if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+            queryParts.push(filialFilter);
+            console.log("Aplicando filtro de filial na transferência:", filialFilter);
+        }
+
+        // 3. Monta a query final (selecionando a filial para exibir no dropdown)
+        const query = `colaboradores?select=nome,matricula,funcao,filial&${queryParts.join('&')}`;
+        
+        // *** FIM DA MODIFICAÇÃO ***
+        
         const gestores = await supabaseRequest(query, 'GET');
 
         if (!gestores || gestores.length === 0) {
-            throw new Error("Nenhum outro gestor encontrado para transferência.");
+            throw new Error("Nenhum outro gestor (na sua filial) encontrado para transferência.");
         }
 
         selectGestor.innerHTML = '<option value="">Selecione um gestor de destino...</option>';
         gestores.sort((a,b) => a.nome.localeCompare(b.nome)).forEach(g => {
-            selectGestor.innerHTML += `<option value="${g.matricula}">${g.nome} (${g.funcao})</option>`;
+            // Adiciona a filial no texto para clareza
+            selectGestor.innerHTML += `<option value="${g.matricula}">${g.nome} [${g.filial || 'S/F'}] (${g.funcao})</option>`;
         });
         selectGestor.disabled = false;
 
