@@ -222,7 +222,8 @@ async function loadModuleData() {
             supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET'), // <-- CORRIGIDO para lowercase
             
             // 3. Busca colaboradores "novatos" ou "sem gestor"
-            supabaseRequest(`colaboradores?select=chapa,nome,funcao&or=(gestor_chapa.is.null,status.eq.novato)`, 'GET'), // <-- CORRIGIDO para lowercase
+            // *** CORREÇÃO: Trocado 'chapa' por 'matricula' ***
+            supabaseRequest(`colaboradores?select=matricula,nome,funcao&or=(gestor_chapa.is.null,status.eq.novato)`, 'GET'), // <-- CORRIGIDO para lowercase e matricula
             
             // 4. CORREÇÃO: Busca todas as funções únicas (substituindo a RPC que falhou)
             supabaseRequest('colaboradores?select=funcao', 'GET') // <-- CORRIGIDO para lowercase
@@ -301,19 +302,19 @@ function renderListasTimes(disponiveis, meuTime) {
     listaDisponiveisEl.innerHTML = '';
     listaMeuTimeEl.innerHTML = '';
     
-    // *** CORREÇÃO: Usa lowercase (chapa) ***
+    // *** CORREÇÃO: Usa lowercase (matricula) ***
     // Filtra disponíveis para não mostrar quem JÁ ESTÁ no meu time (caso de 'novato' que já foi pego)
-    const chapasMeuTime = new Set(meuTime.map(c => c.chapa));
-    const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.chapa));
+    const chapasMeuTime = new Set(meuTime.map(c => c.matricula));
+    const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.matricula));
 
-    // *** CORREÇÃO: Usa lowercase (chapa, nome, funcao) ***
+    // *** CORREÇÃO: Usa lowercase (matricula, nome, funcao) ***
     disponiveisFiltrados.forEach(c => {
-        listaDisponiveisEl.innerHTML += `<option value="${c.chapa}">${c.nome} (${c.chapa}) - ${c.funcao || 'N/A'}</option>`;
+        listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) - ${c.funcao || 'N/A'}</option>`;
     });
     
-    // *** CORREÇÃO: Usa lowercase (chapa, nome, funcao) ***
+    // *** CORREÇÃO: Usa lowercase (matricula, nome, funcao) ***
     meuTime.forEach(c => {
-        listaMeuTimeEl.innerHTML += `<option value="${c.chapa}">${c.nome} (${c.chapa}) - ${c.funcao || 'N/A'}</option>`;
+        listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) - ${c.funcao || 'N/A'}</option>`;
     });
 }
 
@@ -366,9 +367,9 @@ async function handleSalvarTime() {
                 gestor_chapa: state.userMatricula,
                 status: 'ativo' // Tira do status 'novato'
             };
-            // *** CORREÇÃO: Usa lowercase (chapa) no filtro ***
-            // Usamos o chapa como chave de update
-            return supabaseRequest(`colaboradores?chapa=eq.${chapa}`, 'PATCH', payload);
+            // *** CORREÇÃO: Usa lowercase (matricula) no filtro ***
+            // Usamos o matricula como chave de update
+            return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
         });
 
         // Executa todas as atualizações em paralelo
@@ -448,7 +449,7 @@ function renderMeuTimeTable(data) {
     data.forEach(item => {
         const tr = document.createElement('tr');
         
-        // *** CORREÇÃO: Usa lowercase (dt_admissao, status, nome, chapa, etc.) ***
+        // *** CORREÇÃO: Usa lowercase (dt_admissao, status, nome, matricula, etc.) ***
         const dtAdmissao = item.dt_admissao ? new Date(item.dt_admissao).toLocaleDateString('pt-BR') : '-';
         const status = item.status || 'ativo';
         let statusClass = 'status-ativo';
@@ -457,7 +458,7 @@ function renderMeuTimeTable(data) {
 
         tr.innerHTML = `
             <td>${item.nome || '-'}</td>
-            <td>${item.chapa || '-'}</td>
+            <td>${item.matricula || '-'}</td>
             <td>${item.funcao || '-'}</td>
             <td>${item.secao || '-'}</td>
             <td>${item.codfilial || '-'}</td>
@@ -488,10 +489,10 @@ function applyFilters() {
     const statusFiltro = document.getElementById('filterStatus').value;
     
     const filteredData = state.meuTime.filter(item => {
-        // *** CORREÇÃO: Usa lowercase (nome, chapa, codfilial, funcao, status) ***
+        // *** CORREÇÃO: Usa lowercase (nome, matricula, codfilial, funcao, status) ***
         const nomeChapaMatch = nomeFiltro === '' || 
             (item.nome && item.nome.toLowerCase().includes(nomeFiltro)) ||
-            (item.chapa && item.chapa.toLowerCase().includes(nomeFiltro));
+            (item.matricula && item.matricula.toLowerCase().includes(nomeFiltro));
         
         const filialMatch = filialFiltro === '' || item.codfilial === filialFiltro;
         const funcaoMatch = funcaoFiltro === '' || item.funcao === funcaoFiltro;
@@ -517,17 +518,18 @@ function renderGestorConfigTable(data) {
     }
 
     // (Assumindo que tabela_gestores_config usa MAIÚSCULAS, conforme lógica de salvar)
-    data.sort((a, b) => a.NIVEL_HIERARQUIA - b.NIVEL_HIERARQUIA);
+    // *** CORREÇÃO: Tabela de config também usa lowercase ***
+    data.sort((a, b) => a.nivel_hierarquia - b.nivel_hierarquia);
 
     data.forEach(item => {
         const tr = document.createElement('tr');
-        const podeGestorText = item.PODE_SER_GESTOR ? 'Sim' : 'Não';
-        const podeGestorClass = item.PODE_SER_GESTOR ? 'status-ativo' : 'status-inativo';
+        const podeGestorText = item.pode_ser_gestor ? 'Sim' : 'Não';
+        const podeGestorClass = item.pode_ser_gestor ? 'status-ativo' : 'status-inativo';
 
         tr.innerHTML = `
-            <td>${item.FUNCAO}</td>
+            <td>${item.funcao}</td>
             <td><span class="status-badge ${podeGestorClass}">${podeGestorText}</span></td>
-            <td>${item.NIVEL_HIERARQUIA}</td>
+            <td>${item.nivel_hierarquia}</td>
             <td class="actions">
                 <button class="btn btn-sm btn-danger" title="Excluir Regra (em breve)">
                     <i data-feather="trash-2" class="h-4 w-4"></i>
@@ -552,12 +554,13 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
     if (!select) return;
 
     // (Assumindo que gestorConfig.FUNCAO é MAIÚSCULA)
-    const funcoesConfiguradas = new Set(gestorConfig.map(c => c.FUNCAO));
+    // *** CORREÇÃO: Tabela de config usa lowercase ***
+    const funcoesConfiguradas = new Set(gestorConfig.map(c => c.funcao));
     
     // Filtra 'todasAsFuncoes' (que vêm de colaboradores.funcao, minúsculas)
     // para mostrar apenas as que não estão no Set
-    // *** CORREÇÃO: Compara lowercase (de todasAsFuncoes) com uppercase (de funcoesConfiguradas) ***
-    const funcoesDisponiveis = todasAsFuncoes.filter(f => !funcoesConfiguradas.has(f.toUpperCase()));
+    // *** CORREÇÃO: Compara lowercase (de todasAsFuncoes) com lowercase (de funcoesConfiguradas) ***
+    const funcoesDisponiveis = todasAsFuncoes.filter(f => !funcoesConfiguradas.has(f));
     
     select.innerHTML = ''; // Limpa
     
@@ -590,8 +593,8 @@ async function handleSalvarConfig() {
     // *** CORREÇÃO: A tabela 'tabela_gestores_config' também espera 'funcao' em minúsculo ***
     const payload = {
         funcao: funcao, // <-- CORRIGIDO de FUNCAO: funcao.toUpperCase()
-        PODE_SER_GESTOR: podeGestor,
-        NIVEL_HIERARQUIA: parseInt(nivel)
+        pode_ser_gestor: podeGestor,
+        nivel_hierarquia: parseInt(nivel)
     };
     
     showLoading(true, 'Salvando regra...');
