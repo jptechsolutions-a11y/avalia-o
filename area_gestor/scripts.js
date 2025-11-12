@@ -587,8 +587,9 @@ async function handleSalvarConfig() {
     }
     
     // (Salva a FUNCAO em MAIÚSCULAS no banco de config, para manter o padrão dessa tabela)
+    // *** CORREÇÃO: A tabela 'tabela_gestores_config' também espera 'funcao' em minúsculo ***
     const payload = {
-        FUNCAO: funcao.toUpperCase(),
+        funcao: funcao, // <-- CORRIGIDO de FUNCAO: funcao.toUpperCase()
         PODE_SER_GESTOR: podeGestor,
         NIVEL_HIERARQUIA: parseInt(nivel)
     };
