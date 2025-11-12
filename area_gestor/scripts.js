@@ -645,10 +645,20 @@ async function loadTransferViewData() {
         // Pega funções que podem ser gestor (do cache)
         const funcoesGestor = state.gestorConfig
             .filter(r => r.pode_ser_gestor)
-            .map(r => `"${r.funcao}"`); // Adiciona aspas para a query
+            // *** CORREÇÃO: Adiciona filtro de hierarquia E converte para UPPERCASE ***
+            .filter(r => {
+                // Se o usuário não tiver nível (ex: admin), permite todos
+                if (state.userNivel === null || state.userNivel === undefined) {
+                    return true;
+                }
+                // Permite apenas gestores de nível IGUAL ou MAIOR (inferior)
+                return r.nivel_hierarquia >= state.userNivel;
+            })
+            .map(r => `"${r.funcao.toUpperCase()}"`); // <-- CORREÇÃO: Converter para UPPERCASE
         
         if (funcoesGestor.length === 0) {
-            throw new Error("Nenhuma função de gestor configurada.");
+            // (pode ser "Nenhum gestor de nível inferior encontrado")
+            throw new Error("Nenhum gestor de nível igual/inferior configurado.");
         }
 
         // Busca todos os colaboradores que SÃO gestores, EXCETO o usuário atual
