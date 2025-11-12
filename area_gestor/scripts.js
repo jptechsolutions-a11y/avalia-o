@@ -289,15 +289,22 @@ async function loadModuleData() {
         
         // Query de Disponíveis (idêntica à anterior)
         let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial';
-        const availableFilter = 'or(gestor_chapa.is.null,status.eq.novato)';
-        let filialFilter = null;
+        // const availableFilter = 'or(gestor_chapa.is.null,status.eq.novato)'; // <-- REMOVIDO
+        let filters = []; // <-- NOVO
+
+        // Adiciona filtro de filial (se não for admin)
         if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+            filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`); // <-- NOVO
         }
-        if (filialFilter) {
-            disponiveisQuery += `&and=(${availableFilter},${filialFilter})`;
-        } else {
-            disponiveisQuery += `&${availableFilter}`;
+        
+        // Adiciona filtro para não incluir o próprio gestor
+        if (state.userMatricula) {
+            filters.push(`matricula=neq.${state.userMatricula}`); // <-- NOVO
+        }
+
+        // Combina os filtros
+        if (filters.length > 0) {
+            disponiveisQuery += `&${filters.join('&')}`; // <-- NOVO
         }
         
         // Executa a busca recursiva e a busca de disponíveis
