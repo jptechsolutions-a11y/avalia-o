@@ -382,7 +382,8 @@ function iniciarDefinicaoDeTime() {
             
             // Regra 2: Colaborador tem nível MAIOR (inferior) que o gestor -> Permite
             // Ex: Gestor(3) só vê Nível > 3 (4, 5...)
-            return colaboradorNivel > state.userNivel;
+            // *** CORREÇÃO: Lógica invertida. O gestor Nível 2 deve ver o Nível 1.
+            return colaboradorNivel < state.userNivel;
         });
 
         console.log(`Filtro de Hierarquia: Gestor Nível ${state.userNivel}. Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
@@ -704,7 +705,8 @@ async function loadTransferViewData() {
                 }
                 // Permite apenas gestores de nível IGUAL ou MAIOR (inferior)
                 // CORREÇÃO: A lógica deve ser (nível do destino > nível do gestor)
-                return r.nivel_hierarquia > state.userNivel;
+                // *** CORREÇÃO: Lógica invertida. O gestor Nível 2 deve ver o Nível 1.
+                return r.nivel_hierarquia < state.userNivel;
             })
             .map(r => `"${r.funcao.toUpperCase()}"`); // <-- CORREÇÃO: Converter para UPPERCASE
         
