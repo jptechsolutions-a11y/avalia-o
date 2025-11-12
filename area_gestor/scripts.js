@@ -201,8 +201,51 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 // --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
 
 /**
+ * ** NOVO: Função Recursiva para Carregar Time em Cascata **
+ * Busca todos os colaboradores abaixo de um gestor, incluindo sub-gestores.
+ */
+async function loadRecursiveTeam(gestorChapa, configMap) {
+    let team = [];
+    
+    // 1. Busca subordinados diretos
+    const reports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${gestorChapa}`, 'GET');
+    
+    if (!reports || reports.length === 0) {
+        return []; // Condição de parada: gestor sem time
+    }
+
+    // 2. Adiciona os subordinados diretos ao time
+    team = team.concat(reports);
+
+    // 3. Identifica quais desses subordinados são também gestores
+    const subManagerChapas = reports
+        .filter(r => {
+            const func = r.funcao ? r.funcao.toLowerCase() : null;
+            return func && configMap[func]; // Verifica se a função (minúscula) pode ser gestor
+        })
+        .map(r => r.matricula);
+
+    if (subManagerChapas.length === 0) {
+        return team; // Condição de parada: sem sub-gestores
+    }
+
+    // 4. Busca recursivamente o time de cada sub-gestor
+    const subTeamPromises = subManagerChapas.map(chapa => loadRecursiveTeam(chapa, configMap));
+    const subTeams = await Promise.all(subTeamPromises);
+
+    // 5. Adiciona os times dos sub-gestores ao time principal
+    subTeams.forEach(subTeam => {
+        team = team.concat(subTeam);
+    });
+
+    return team;
+}
+
+
+/**
  * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
  * Chamado uma vez durante a inicialização.
+ * ** ATUALIZADO para usar a função recursiva **
  */
 async function loadModuleData() {
     // Se não tiver matrícula, não pode ser gestor, pula o carregamento
@@ -214,49 +257,10 @@ async function loadModuleData() {
     showLoading(true, 'Carregando dados do time...');
     
     try {
-        // *** INÍCIO DA CORREÇÃO (Filtro de Filial) ***
-        // 1. Monta a query de disponíveis dinamicamente
-        // *** CORREÇÃO: Colunas em minúsculas ***
-        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial'; // Pega a filial
-        
-        // 1. Define o filtro base de disponibilidade (Sem Gestor OU Novato)
-        const availableFilter = 'or(gestor_chapa.is.null,status.eq.novato)';
-        
-        // 2. Define o filtro de filial (se não for admin)
-        let filialFilter = null;
-        if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            // Formata para a query: filial.in.("753","754")
-            filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
-            console.log("Aplicando filtro de filial:", filialFilter);
-        }
-
-        // 3. Combina os filtros
-        if (filialFilter) {
-            // Combina os dois: (Disponível) E (Na minha filial)
-            disponiveisQuery += `&and=(${availableFilter},${filialFilter})`;
-        } else {
-            // Se não tiver filtro de filial (ex: admin), usa só o filtro de disponibilidade
-            disponiveisQuery += `&${availableFilter}`;
-        }
-        // *** FIM DA CORREÇÃO ***
-
-        // ATUALIZADO: Carrega o time, disponíveis, config E todas as funções
-        // *** CORREÇÃO: Todas as colunas da tabela 'colaboradores' (chapa, gestor_chapa, funcao, status) foram convertidas para minúsculas. ***
-        const [configRes, timeRes, disponiveisRes, funcoesRes] = await Promise.allSettled([
-            // 1. Busca a tabela de configuração (para admins)
-            // (tabela_gestores_config usa minúsculas, está correto)
+        // --- ETAPA 1: Carregar Configurações e Funções (Necessário para a cascata) ---
+        const [configRes, funcoesRes] = await Promise.allSettled([
             supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
-            
-            // 2. Busca o time direto do gestor
-            // *** CORREÇÃO: Coluna em minúscula ***
-            supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET'), // <-- CORRIGIDO para minúscula
-            
-            // 3. Busca colaboradores "novatos" ou "sem gestor"
-            supabaseRequest(disponiveisQuery, 'GET'), // <-- USA A QUERY DINÂMICA
-            
-            // 4. CORREÇÃO: Busca todas as funções únicas (substituindo a RPC que falhou)
-            // *** CORREÇÃO: Coluna em minúscula ***
-            supabaseRequest('colaboradores?select=funcao', 'GET') // <-- CORRIGIDO para minúscula
+            supabaseRequest('colaboradores?select=funcao', 'GET')
         ]);
 
         if (configRes.status === 'fulfilled' && configRes.value) {
@@ -264,28 +268,55 @@ async function loadModuleData() {
         } else {
             console.error("Erro ao carregar config:", configRes.reason);
         }
+        
+        if (funcoesRes.status === 'fulfilled' && funcoesRes.value) {
+            const funcoesSet = new Set(funcoesRes.value.map(f => f.funcao));
+            state.todasAsFuncoes = [...funcoesSet].filter(Boolean);
+        } else {
+            console.error("Erro ao carregar funções:", funcoesRes.reason);
+        }
 
+        // --- ETAPA 2: Preparar Mapa de Configuração ---
+        // Cria um mapa (ex: {'supervisor': true, 'coordenador': true})
+        const configMap = state.gestorConfig.reduce((acc, regra) => {
+            if (regra.pode_ser_gestor) {
+                acc[regra.funcao.toLowerCase()] = true;
+            }
+            return acc;
+        }, {});
+
+        // --- ETAPA 3: Carregar Time (Recursivo) e Disponíveis (Paralelo) ---
+        
+        // Query de Disponíveis (idêntica à anterior)
+        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial';
+        const availableFilter = 'or(gestor_chapa.is.null,status.eq.novato)';
+        let filialFilter = null;
+        if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+        }
+        if (filialFilter) {
+            disponiveisQuery += `&and=(${availableFilter},${filialFilter})`;
+        } else {
+            disponiveisQuery += `&${availableFilter}`;
+        }
+        
+        // Executa a busca recursiva e a busca de disponíveis
+        const [timeRes, disponiveisRes] = await Promise.allSettled([
+            loadRecursiveTeam(state.userMatricula, configMap), // <-- NOVO
+            supabaseRequest(disponiveisQuery, 'GET')
+        ]);
+        
         if (timeRes.status === 'fulfilled' && timeRes.value) {
             state.meuTime = timeRes.value;
+            console.log(`Carregamento em cascata concluído. Total: ${state.meuTime.length} colaboradores.`);
         } else {
-            console.error("Erro ao carregar time:", timeRes.reason);
+            console.error("Erro ao carregar time (recursivo):", timeRes.reason);
         }
         
         if (disponiveisRes.status === 'fulfilled' && disponiveisRes.value) {
             state.disponiveis = disponiveisRes.value;
         } else {
             console.error("Erro ao carregar disponíveis:", disponiveisRes.reason);
-        }
-        
-        // NOVO: Armazena todas as funções
-        if (funcoesRes.status === 'fulfilled' && funcoesRes.value) {
-            // *** CORREÇÃO: Processa a nova consulta direta (substituindo a RPC) ***
-            // A consulta retorna [{funcao: 'A'}, {funcao: 'B'}, {funcao: 'A'}]
-            // *** CORREÇÃO: Coluna em minúscula ***
-            const funcoesSet = new Set(funcoesRes.value.map(f => f.funcao)); // <-- CORRIGIDO para f.funcao (minúscula)
-            state.todasAsFuncoes = [...funcoesSet].filter(Boolean); // Filtra nulos/vazios
-        } else {
-            console.error("Erro ao carregar funções:", funcoesRes.reason);
         }
         
     } catch (err) {
@@ -326,7 +357,7 @@ function iniciarDefinicaoDeTime() {
         // 1. Criar um mapa de Níveis (funcao -> nivel) para consulta rápida
         // (Correto: gestorConfig usa minúsculas)
         const mapaNiveis = state.gestorConfig.reduce((acc, regra) => {
-            acc[regra.funcao] = regra.nivel_hierarquia;
+            acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia;
             return acc;
         }, {});
 
@@ -381,12 +412,12 @@ function renderListasTimes(disponiveis, meuTime) {
     const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.matricula));
 
     // *** CORREÇÃO: Usa minúsculas (matricula, nome, filial, funcao) ***
-    disponiveisFiltrados.forEach(c => {
+    disponiveisFiltrados.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
         listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
     
     // *** CORREÇÃO: Usa minúsculas (matricula, nome, filial, funcao) ***
-    meuTime.forEach(c => {
+    meuTime.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
         listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
 }
@@ -399,6 +430,11 @@ function moverColaboradores(origemEl, destinoEl) {
     selecionados.forEach(option => {
         destinoEl.appendChild(option);
     });
+    // Re-ordena a lista de destino
+    const options = Array.from(destinoEl.options);
+    options.sort((a, b) => a.text.localeCompare(b.text));
+    destinoEl.innerHTML = '';
+    options.forEach(opt => destinoEl.appendChild(opt));
 }
 
 /**
@@ -421,6 +457,7 @@ function filtrarDisponiveis() {
 /**
 // ... (Funções de Lógica do Módulo - sem alterações) ...
 // ...
+ */
 async function handleSalvarTime() {
     showLoading(true, 'Salvando seu time...');
     const listaMeuTimeEl = document.getElementById('listaMeuTime');
@@ -519,11 +556,25 @@ function renderMeuTimeTable(data) {
     message.classList.add('hidden');
 
     const fragment = document.createDocumentFragment();
-    data.forEach(item => {
+    data.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(item => {
         const tr = document.createElement('tr');
         
         // *** CORREÇÃO: Usa minúsculas (data_admissao, status, nome, matricula, etc.) ***
-        const dtAdmissao = item.data_admissao ? new Date(item.data_admissao).toLocaleDateString('pt-BR') : '-';
+        let dtAdmissao = '-';
+        if (item.data_admissao) {
+             try {
+                // Tenta formatar a data, seja qual for o formato (ISO ou DD/MM/YYYY)
+                const dateParts = item.data_admissao.split('-'); // Tenta formato ISO
+                if (dateParts.length === 3) {
+                     dtAdmissao = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+                } else {
+                     dtAdmissao = item.data_admissao; // Mantém o original se não for ISO
+                }
+             } catch(e) {
+                 dtAdmissao = item.data_admissao; // Fallback
+             }
+        }
+        
         const status = item.status || 'ativo';
         let statusClass = 'status-ativo';
         if (status === 'inativo') statusClass = 'status-inativo';
@@ -538,10 +589,10 @@ function renderMeuTimeTable(data) {
             <td>${dtAdmissao}</td>
             <td><span class="status-badge ${statusClass}">${status}</span></td>
             <td class="actions">
-                <button class="btn btn-sm btn-info" title="Visualizar Perfil (em breve)">
+                <button class="btn btn-sm btn-info" title="Visualizar Perfil (em breve)" disabled>
                     <i data-feather="eye" class="h-4 w-4"></i>
                 </button>
-                <button class="btn btn-sm btn-warning" title="Transferir (em breve)">
+                <button class="btn btn-sm btn-warning" title="Transferir Colaborador" onclick="window.location.hash='#transferir'">
                     <i data-feather="repeat" class="h-4 w-4"></i>
                 </button>
             </td>
@@ -630,9 +681,9 @@ async function loadTransferViewData() {
         return;
     }
 
-    // 1. Popula colaboradores do time atual
+    // 1. Popula colaboradores do time atual (AGORA COM A CASCATA COMPLETA)
     selectColaborador.innerHTML = '<option value="">Selecione um colaborador...</option>';
-    state.meuTime.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(c => {
+    state.meuTime.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
         selectColaborador.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula})</option>`;
     });
 
@@ -652,13 +703,13 @@ async function loadTransferViewData() {
                     return true;
                 }
                 // Permite apenas gestores de nível IGUAL ou MAIOR (inferior)
-                return r.nivel_hierarquia >= state.userNivel;
+                // CORREÇÃO: A lógica deve ser (nível do destino > nível do gestor)
+                return r.nivel_hierarquia > state.userNivel;
             })
             .map(r => `"${r.funcao.toUpperCase()}"`); // <-- CORREÇÃO: Converter para UPPERCASE
         
         if (funcoesGestor.length === 0) {
-            // (pode ser "Nenhum gestor de nível inferior encontrado")
-            throw new Error("Nenhum gestor de nível igual/inferior configurado.");
+            throw new Error("Nenhum gestor de nível hierárquico inferior encontrado.");
         }
 
         // *** INÍCIO DA MODIFICAÇÃO ***
@@ -684,11 +735,11 @@ async function loadTransferViewData() {
         const gestores = await supabaseRequest(query, 'GET');
 
         if (!gestores || gestores.length === 0) {
-            throw new Error("Nenhum outro gestor (na sua filial) encontrado para transferência.");
+            throw new Error("Nenhum outro gestor (na sua filial e nível) encontrado.");
         }
 
         selectGestor.innerHTML = '<option value="">Selecione um gestor de destino...</option>';
-        gestores.sort((a,b) => a.nome.localeCompare(b.nome)).forEach(g => {
+        gestores.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(g => {
             // Adiciona a filial no texto para clareza
             selectGestor.innerHTML += `<option value="${g.matricula}">${g.nome} [${g.filial || 'S/F'}] (${g.funcao})</option>`;
         });
@@ -785,7 +836,7 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
     if (!select) return;
 
     // (Correto: gestorConfig.funcao é minúscula)
-    const funcoesConfiguradas = new Set(gestorConfig.map(c => c.funcao));
+    const funcoesConfiguradas = new Set(gestorConfig.map(c => c.funcao.toLowerCase()));
     
     // Filtra 'todasAsFuncoes' (que vêm de colaboradores.funcao, minúscula)
     // para mostrar apenas as que não estão no Set
@@ -800,7 +851,7 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
     }
     
     select.innerHTML = '<option value="">Selecione uma função...</option>';
-    funcoesDisponiveis.forEach(funcao => {
+    funcoesDisponiveis.sort().forEach(funcao => {
         // O valor salvo no dropdown é o minúsculo (original)
         select.innerHTML += `<option value="${funcao}">${funcao}</option>`;
     });
