@@ -1,1720 +1,1179 @@
-// Mapeamento de Cabeçalhos
-const COLUMN_MAP_ORIGINAL = { // Manter o original para o parse e preview
-    'CHAPA': 'Chapa', 'NOME': 'Nome', 'REGIONAL': 'Regional', 'BANDEIRA': 'Bandeira',
-    'CODFILIAL': 'Cód. Filial', 'FUNCAO': 'Função', 'SECAO': 'Seção', 
-    'TOTAL_EM_HORA': 'Total (Hora)', 'TOTAL_NEGATIVO': 'Total Negativo',
-    'VAL_PGTO_BHS': 'Valor Pgto. BH', 'SITUACAO': 'Situação', 'Total Geral': 'Total Geral'
-};
-const COLUMN_ORDER_ORIGINAL = [
-    'CHAPA', 'NOME', 'REGIONAL', 'BANDEIRA', 'CODFILIAL', 'FUNCAO', 'SECAO', 
-    'TOTAL_EM_HORA', 'TOTAL_NEGATIVO', 'VAL_PGTO_BHS', 'SITUACAO', 'Total Geral'
-];
+// Configuração do Supabase (baseado nos seus outros módulos)
+const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+const SUPABASE_PROXY_URL = '/api/proxy'; // Usando o proxy
 
-// NOVAS CONSTANTES PARA EXIBIÇÃO (SOLICITAÇÃO DO JP)
-const COLUMN_MAP = {
-    'CODFILIAL': 'Filial',
-    'CHAPA': 'Matrícula',
-    'NOME': 'Nome',
-    'FUNCAO': 'Função',
-    'HORA_ANTERIOR': 'Hora Ant.', // NOVO
-    'TOTAL_EM_HORA': 'Hora Atual', // Renomeado
-    'TENDENCIA': 'Tendência', // NOVO
-    'VAL_PGTO_BHS': 'Valor'
-};
-const COLUMN_ORDER = [
-    'CODFILIAL',
-    'CHAPA',
-    'NOME',
-    'FUNCAO',
-    'HORA_ANTERIOR', // NOVO
-    'TOTAL_EM_HORA', // Renomeado
-    'TENDENCIA', // NOVO
-    'VAL_PGTO_BHS'
-];
-
-
-// ADICIONADO: URL do Proxy
-const SUPABASE_PROXY_URL = '/api/proxy';
-
-let supabaseClient = null;
+// Define o adaptador para sessionStorage
 const sessionStorageAdapter = {
   getItem: (key) => sessionStorage.getItem(key),
   setItem: (key, value) => sessionStorage.setItem(key, value),
   removeItem: (key) => sessionStorage.removeItem(key),
 };
 
-// --- O estado global permanece o mesmo ---
+let supabaseClient = null;
+
+// Estado global básico
 const state = {
     auth: null,
     userId: null,
     isAdmin: false,
-    permissoes_filiais: null, // NOVO: Para permissão
-    userMatricula: null, // <-- ADICIONADO
-    allData: [], // <-- MUDANÇA: Cache global com TUDO
-    viewData: [], // <-- O que está sendo exibido na tabela de acompanhamento
-    previousData: {}, // NOVO: Cache para dados anteriores
-    setupCompleto: false, // <-- NOVA FLAG
-    
-    // NOVO: Estado do Dashboard
-    charts: { 
-        resumoSecao: null, 
-        resumoFuncao: null,
-        chartComparativoRegional: null // NOVO
-    },
-    dashboardData: [],
-    dashboardHistory: [],
-    // Listas únicas para filtros do dashboard
-    listasFiltros: {
-        regional: [],
-        codfilial: [],
-        secao: [],
-        funcao: []
-    }
+    permissoes_filiais: null,
+    userMatricula: null,
+    userNome: 'Usuário',
+    userFuncao: null, // <-- NOVO
+    userNivel: null,  // <-- NOVO
+    userFilial: null, // <-- NOVO (CORREÇÃO 2)
+    // Cache de dados do módulo
+    meuTime: [],
+    disponiveis: [],
+    gestorConfig: [],
+    todasAsFuncoes: [] // NOVO: Cache para todas as funções
 };
 
+// --- Funções de UI (Idênticas aos outros módulos) ---
 
-document.addEventListener('DOMContentLoaded', () => {
+function showLoading(show, text = 'Processando...') {
+    const loading = document.getElementById('loading');
+    const loadingText = document.getElementById('loadingText');
+    if (loading && loadingText) {
+        loadingText.textContent = text;
+        loading.style.display = show ? 'flex' : 'none';
+    }
+}
+
+function mostrarNotificacao(message, type = 'info', timeout = 4000) {
+    const container = document.getElementById('notificationContainer');
+    if (!container) {
+        console.warn("Notification container not found, using alert().");
+        return;
+    }
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    let icon = type === 'success' ? 'check-circle' : (type === 'error' ? 'x-circle' : 'info');
+    if (type === 'warning') icon = 'alert-triangle';
     
-    // As variáveis de configuração ficam aqui dentro
-    const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+    notification.innerHTML = `
+        <div class="notification-header">
+            <i data-feather="${icon}" class="h-5 w-5 mr-2"></i>
+            <span>${type === 'success' ? 'Sucesso!' : (type === 'error' ? 'Erro!' : (type === 'warning' ? 'Atenção!' : 'Aviso'))}</span>
+        </div>
+        <div class="notification-body">${message}</div>`;
+    container.appendChild(notification);
+    feather.replace();
+    setTimeout(() => {
+        notification.classList.add('hide');
+        notification.addEventListener('animationend', () => notification.remove());
+    }, timeout);
+}
 
-    // NOVO: Registrar plugin de datalabels
-    Chart.register(ChartDataLabels);
+function logout() {
+    localStorage.removeItem('auth_token');
+    
+    if (supabaseClient) {
+        supabaseClient.auth.signOut().then(() => {
+            window.location.href = '../home.html';
+        }).catch((error) => {
+            console.error("Erro ao sair:", error);
+            window.location.href = '../home.html';
+        });
+    } else {
+        window.location.href = '../home.html';
+    }
+}
 
-    // Elementos da UI
-    const ui = {
-        appShell: document.getElementById('appShell'),
-        userName: document.getElementById('topBarUserName'),
-        dropdownUserName: document.getElementById('dropdownUserName'),
-        dropdownUserEmail: document.getElementById('dropdownUserEmail'),
-        userAvatar: document.getElementById('topBarUserAvatar'),
-        adminPanel: document.getElementById('adminPanel'),
-        importButton: document.getElementById('importButton'),
-        dataInput: document.getElementById('dataInput'),
-        importError: document.getElementById('importError'),
-        importErrorMessage: document.getElementById('importErrorMessage'),
-        previewButton: document.getElementById('previewButton'), // NOVO
-        previewContainer: document.getElementById('previewContainer'), // NOVO
-        previewTableContainer: document.getElementById('previewTableContainer'), // NOVO
-        lastUpdated: document.getElementById('lastUpdated'),
-        tableHead: document.getElementById('tableHead'),
-        tableBody: document.getElementById('tableBody'),
-        tableMessage: document.getElementById('tableMessage'),
-        filterChapa: document.getElementById('filterChapa'),
-        filterNome: document.getElementById('filterNome'),
-        filterRegional: document.getElementById('filterRegional'),
-        filterCodFilial: document.getElementById('filterCodFilial'),
-        modal: document.getElementById('detailsModal'),
-        modalClose: document.getElementById('modalClose'),
-        modalTitle: document.getElementById('modalTitle'),
-        modalBody: document.getElementById('modalBody'),
-        modalNome: document.getElementById('modalNome'),
-        modalChapa: document.getElementById('modalChapa'),
-        modalComparison: document.getElementById('modalComparison'),
-        modalNoHistory: document.getElementById('modalNoHistory'),
-        loading: document.getElementById('loading'),
-        loadingText: document.getElementById('loadingText'),
-        logoutButton: document.getElementById('logoutButton'),
-        logoutLink: document.getElementById('logoutLink'),
-        profileDropdown: document.getElementById('profileDropdown'),
-        profileDropdownButton: document.getElementById('profileDropdownButton'),
-        configLink: document.getElementById('configLink'),
-        
-        // Views
-        acompanhamentoView: document.getElementById('acompanhamentoView'),
-        configuracoesView: document.getElementById('configuracoesView'),
-        dashboardView: document.getElementById('dashboardView'),
-        
-        // Elementos do Dashboard
-        lastUpdatedDash: document.getElementById('lastUpdatedDash'),
-        filterRegionalDash: document.getElementById('filterRegionalDash'),
-        filterCodFilialDash: document.getElementById('filterCodFilialDash'),
-        filterSecaoDash: document.getElementById('filterSecaoDash'),
-        filterFuncaoDash: document.getElementById('filterFuncaoDash'),
-        statTotalColab: document.getElementById('statTotalColab'),
-        statTotalHoras: document.getElementById('statTotalHoras'),
-        statTotalValor: document.getElementById('statTotalValor'),
-        statChangeColab: document.getElementById('statChangeColab'),
-        statChangeHoras: document.getElementById('statChangeHoras'),
-        statChangeValor: document.getElementById('statChangeValor'),
-        canvasResumoSecao: document.getElementById('chartResumoSecao'),
-        canvasResumoFuncao: document.getElementById('chartResumoFuncao'),
-        canvasComparativoRegional: document.getElementById('chartComparativoRegional'), // NOVO
-        tableRankingFilialBody: document.querySelector('#tableRankingFilial tbody'),
+// --- Função de Navegação (Atualizada com lógica) ---
+function showView(viewId, element) {
+    document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
+    const viewEl = document.getElementById(viewId);
+    if(viewEl) viewEl.classList.add('active');
+
+    document.querySelectorAll('.sidebar nav .nav-item').forEach(item => item.classList.remove('active'));
+    if (element) {
+        element.classList.add('active');
+    }
+
+    const newHash = '#' + viewId.replace('View', '');
+    if (window.location.hash !== newHash) {
+        history.pushState(null, '', newHash);
+    }
+    
+    // Fecha o dropdown de perfil se estiver aberto
+    const profileDropdown = document.getElementById('profileDropdown');
+    if (profileDropdown) profileDropdown.classList.remove('open');
+    
+    // Lógica específica da view
+    try {
+        switch (viewId) {
+            case 'meuTimeView':
+                // Funções que usam os dados carregados no state
+                updateDashboardStats(state.meuTime);
+                populateFilters(state.meuTime);
+                applyFilters(); // Renderiza a tabela inicial
+                break;
+            case 'transferirView':
+                // (Ainda a implementar)
+                loadTransferViewData();
+                break;
+            case 'atualizarQLPView':
+                // (Ainda a implementar)
+                break;
+            case 'configuracoesView':
+                // Renderiza a tabela de config
+                renderGestorConfigTable(state.gestorConfig);
+                // NOVO: Popula o dropdown
+                populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig);
+                break;
+        }
+    } catch(e) {
+        console.error(`Erro ao carregar view ${viewId}:`, e);
+    }
+    
+    feather.replace();
+}
+
+// --- Função de Requisição (Proxy) ---
+async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
+    const authToken = localStorage.getItem('auth_token'); 
+    
+    if (!authToken) {
+        console.error("Token JWT não encontrado no localStorage, deslogando.");
+        logout();
+        throw new Error("Sessão expirada. Faça login novamente.");
+    }
+    
+    const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
+    
+    const config = {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`, 
+            ...headers 
+        }
     };
 
-    // --- FUNÇÕES ---
-
-    // ****** BLOCO DE FUNÇÕES MOVIDO PARA DENTRO DO DOMContentLoaded ******
-
-    // --- FUNÇÃO DE REQUISIÇÃO CORRIGIDA (Baseada no script.js) ---
-    async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
-        // *** CORREÇÃO APLICADA AQUI ***
-        // Trocado de 'state.auth.access_token' para 'localStorage.getItem'
-        const authToken = localStorage.getItem('auth_token'); 
-        
-        if (!authToken) {
-            console.error("Token JWT não encontrado no localStorage, deslogando.");
-            logout(); // A função logout será definida mais abaixo
-            throw new Error("Sessão expirada. Faça login novamente.");
-        }
-        
-        const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
-        
-        const config = {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`, 
-                ...headers 
-            }
-        };
-
-        if (!config.headers['Prefer']) {
-            config.headers['Prefer'] = 'return=representation';
-        }
-
-        if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
-            config.body = JSON.stringify(body);
-        }
-
-        try {
-            const response = await fetch(url, config);
-
-            if (!response.ok) {
-                let errorData = { message: `Erro ${response.status}: ${response.statusText}` };
-                try { 
-                    errorData = await response.json(); 
-                } catch(e) {
-                    // Resposta não-JSON
-                }
-                
-                console.error("Erro Supabase (via Proxy):", errorData);
-                const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
-                
-                if (response.status === 401) {
-                    throw new Error("Não autorizado. Sua sessão pode ter expirado.");
-                }
-                throw new Error(detailedError);
-            }
-
-            if (config.headers['Prefer'] === 'count=exact') {
-                const countRange = response.headers.get('content-range'); 
-                const count = countRange ? countRange.split('/')[1] : '0';
-                return { count: parseInt(count || '0', 10) };
-            }
-
-            if (response.status === 204 || response.headers.get('content-length') === '0' ) {
-                return null; 
-            }
-
-            return await response.json(); 
-
-        } catch (error) {
-            console.error("Erro na função supabaseRequest:", error.message);
-            if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
-                if(typeof logout === 'function') logout(); 
-            }
-            throw error; 
-        }
+    if (!config.headers['Prefer']) {
+        config.headers['Prefer'] = 'return=representation';
     }
-    // --- FIM DA FUNÇÃO CORRIGIDA ---
 
+    if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+        config.body = JSON.stringify(body);
+    }
 
-    // ****** NOVA FUNÇÃO (BASEADA NO 'pendencias.js') ******
-    // Carrega TODOS os dados do banco de horas, usando paginação.
-    async function loadInitialData() {
-        showLoading(true, 'Carregando todos os dados do banco de horas...');
-        const DATA_TABLE = 'banco_horas_data'; // Tabela correta
-        
-        try {
-            const pageSize = 1000;
-            let currentPage = 0;
-            let hasMoreData = true;
-            let allRecords = [];
+    try {
+        const response = await fetch(url, config);
 
-            // 1. Paginação para buscar TODOS os dados
-            while (hasMoreData) {
-                const offset = currentPage * pageSize;
-                const range = `&offset=${offset}&limit=${pageSize}`;
-
-                // Busca todas as colunas
-                const query = `${DATA_TABLE}?select=*${range}`; 
-                
-                const dataRes = await supabaseRequest(query, 'GET', null, { 
-                    'Prefer': `return=representation,count=exact`
-                });
-
-                if (dataRes && Array.isArray(dataRes)) {
-                    allRecords = allRecords.concat(dataRes);
-                    
-                    if (dataRes.length < pageSize) {
-                        hasMoreData = false;
-                    } else {
-                        currentPage++;
-                        showLoading(true, `Carregando dados... ${allRecords.length} registros...`);
-                    }
-                } else {
-                    hasMoreData = false; 
-                }
-            }
+        if (!response.ok) {
+            let errorData = { message: `Erro ${response.status}: ${response.statusText}` };
+            try { 
+                errorData = await response.json(); 
+            } catch(e) {}
             
-            // Armazena todos os dados no estado global
-            state.allData = allRecords; 
-            console.log(`Carregamento concluído. Total de ${state.allData.length} registros no 'state.allData'.`);
-
-        } catch (e) {
-            console.error("Falha ao carregar dados iniciais:", e);
-            mostrarNotificacao(`Falha ao carregar dados: ${e.message}`, 'error');
-            state.allData = []; // Garante que esteja vazio em caso de falha
-        } finally {
-            showLoading(false);
-        }
-    }
-    // ****** FIM DA NOVA FUNÇÃO ******
-
-    // ****** FIM DO BLOCO MOVIDO ******
-
-
-    function showLoading(show, text = 'Processando...') {
-        if (ui.loadingText) {
-            ui.loadingText.textContent = text;
-        }
-        if (ui.loading) {
-            ui.loading.style.display = show ? 'flex' : 'none';
-        }
-    }
-    function showImportError(message) {
-        ui.importErrorMessage.textContent = message;
-        ui.importError.classList.remove('hidden');
-    }
-
-    function formatTimestamp(isoString) {
-        if (!isoString) return 'N/A';
-        return new Date(isoString).toLocaleString('pt-BR', {
-            day: '2-digit', month: '2-digit', year: 'numeric',
-            hour: '2-digit', minute: '2-digit'
-        });
-    }
-
-    async function initializeSupabase() {
-        try {
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-                auth: {
-                    storage: sessionStorageAdapter,
-                    persistSession: true,
-                    autoRefreshToken: true
-                }
-            });
+            console.error("Erro Supabase (via Proxy):", errorData);
+            const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
             
-            const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-            if (sessionError || !session) {
-                console.error("Sem sessão, redirecionando para login.", sessionError);
-                window.location.href = '../home.html'; // ATUALIZADO: Caminho do link
-                return;
+            if (response.status === 401) {
+                throw new Error("Não autorizado. Sua sessão pode ter expirada.");
             }
-
-            state.auth = session;
-            state.userId = session.user.id;
-            
-            // *** CORREÇÃO APLICADA AQUI ***
-            // Adicionado o 'localStorage.setItem' para igualar ao 'script.js'
-            localStorage.setItem('auth_token', session.access_token);
-
-
-            // --- ATUALIZAÇÃO: Usando o Proxy e buscando permissões ---
-            // CORREÇÃO: Removido 'filial' do select, pois a coluna não existe (conforme erro)
-            // ADICIONADO: 'matricula' ao select
-            const endpoint = `usuarios?auth_user_id=eq.${state.userId}&select=nome,role,profile_picture_url,permissoes_filiais,matricula`;
-            let profile = null;
-            let profileError = null;
-
-            try {
-                const profileResponse = await supabaseRequest(endpoint, 'GET');
-                if (profileResponse && profileResponse.length > 0) {
-                    profile = profileResponse[0];
-                } else {
-                    profileError = { message: "Perfil não encontrado ou resposta vazia do proxy." };
-                }
-            } catch (err) {
-                profileError = err;
-            }
-            // --- FIM DA ATUALIZAÇÃO ---
-
-            if (profileError) {
-                console.warn("Erro ao buscar perfil (via proxy):", profileError.message);
-                const emailName = session.user.email.split('@')[0];
-                ui.userName.textContent = emailName;
-                ui.dropdownUserName.textContent = emailName;
-                ui.dropdownUserEmail.textContent = session.user.email;
-            } else {
-                const nome = profile.nome || session.user.email.split('@')[0];
-                ui.userName.textContent = nome;
-                ui.dropdownUserName.textContent = nome;
-                ui.dropdownUserEmail.textContent = session.user.email;
-                if (profile.profile_picture_url) {
-                    ui.userAvatar.src = profile.profile_picture_url;
-                }
-                // *** NOVO: Armazena permissões no state ***
-                state.isAdmin = (profile.role === 'admin');
-                state.userMatricula = profile.matricula || null; // <-- ADICIONADO
-                state.permissoes_filiais = profile.permissoes_filiais || null; // Vem como array do Supabase
-            }
-            
-            // Mostra/oculta painel admin e exibe o app
-            ui.configLink.style.display = state.isAdmin ? 'block' : 'none'; // Mostra/Oculta o LINK
-            ui.appShell.style.display = 'flex';
-            document.body.classList.add('system-active');
-
-
-        } catch (err) {
-            console.error("Erro na inicialização do Supabase:", err);
-            throw err; // Lança o erro para a função 'main' tratar
+            throw new Error(detailedError);
         }
+
+        if (config.headers['Prefer'] === 'count=exact') {
+            const countRange = response.headers.get('content-range'); 
+            const count = countRange ? countRange.split('/')[1] : '0';
+            return { count: parseInt(count || '0', 10) };
+        }
+
+        if (response.status === 204 || response.headers.get('content-length') === '0' ) {
+            return null; 
+        }
+
+        return await response.json(); 
+
+    } catch (error) {
+        console.error("Erro na função supabaseRequest:", error.message);
+        if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
+            if(typeof logout === 'function') logout(); 
+        }
+        throw error; 
+    }
+}
+
+// --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
+
+/**
+ * ** NOVO: Função Recursiva para Carregar Time em Cascata **
+ * Busca todos os colaboradores abaixo de um gestor, incluindo sub-gestores.
+ * ** ATUALIZADO: para usar colunas minúsculas **
+ */
+async function loadRecursiveTeam(gestorChapa, configMap) {
+    let team = [];
+    
+    // 1. Busca subordinados diretos (ASSUMINDO COLUNAS minúsculas)
+    const reports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${gestorChapa}`, 'GET');
+    
+    if (!reports || reports.length === 0) {
+        return []; // Condição de parada: gestor sem time
     }
 
-    function logout() {
-        // *** CORREÇÃO APLICADA AQUI ***
-        localStorage.removeItem('auth_token'); // Limpa o token
-        
-        if (supabaseClient) {
-            supabaseClient.auth.signOut().then(() => {
-                window.location.href = '../home.html'; // ATUALIZADO: Caminho do link
-            }).catch((error) => {
-                console.error("Erro ao sair:", error);
-                window.location.href = '../home.html'; // ATUALIZADO: Caminho do link
-            });
+    // 2. Adiciona os subordinados diretos ao time
+    team = team.concat(reports);
+
+    // 3. Identifica quais desses subordinados são também gestores (ASSUMINDO COLUNAS minúsculas)
+    const subManagerChapas = reports
+        .filter(r => {
+            const func = r.funcao ? r.funcao.toLowerCase() : null; // Pega funcao (upper) e converte
+            return func && configMap[func]; // Compara com o configMap (lower)
+        })
+        .map(r => r.matricula); // Pega matricula (lower)
+
+    if (subManagerChapas.length === 0) {
+        return team; // Condição de parada: sem sub-gestores
+    }
+
+    // 4. Busca recursivamente o time de cada sub-gestor
+    const subTeamPromises = subManagerChapas.map(chapa => loadRecursiveTeam(chapa, configMap));
+    const subTeams = await Promise.all(subTeamPromises);
+
+    // 5. Adiciona os times dos sub-gestores ao time principal
+    subTeams.forEach(subTeam => {
+        team = team.concat(subTeam);
+    });
+
+    return team;
+}
+
+
+/**
+ * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
+ * Chamado uma vez durante a inicialização.
+ * ** ATUALIZADO para usar a função recursiva e colunas minúsculas **
+ */
+async function loadModuleData() {
+    // Se não tiver matrícula, não pode ser gestor, pula o carregamento
+    if (!state.userMatricula && !state.isAdmin) {
+        console.warn("Usuário sem matrícula, não pode carregar dados de gestor.");
+        return;
+    }
+    
+    showLoading(true, 'Carregando dados do time...');
+    
+    try {
+        // --- ETAPA 1: Carregar Configurações e Funções (Necessário para a cascata) ---
+        const [configRes, funcoesRes] = await Promise.allSettled([
+            supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
+            supabaseRequest('colaboradores?select=funcao', 'GET') // ASSUME lowercase
+        ]);
+
+        if (configRes.status === 'fulfilled' && configRes.value) {
+            state.gestorConfig = configRes.value;
         } else {
-            window.location.href = '../home.html'; // ATUALIZADO: Caminho do link
+            console.error("Erro ao carregar config:", configRes.reason);
         }
-    }
+        
+        if (funcoesRes.status === 'fulfilled' && funcoesRes.value) {
+            const funcoesSet = new Set(funcoesRes.value.map(f => f.funcao)); // ASSUME lowercase
+            state.todasAsFuncoes = [...funcoesSet].filter(Boolean);
+        } else {
+            console.error("Erro ao carregar funções:", funcoesRes.reason);
+        }
 
-    async function listenToMetadata() {
-        // ATUALIZADO: Usando supabaseRequest
-        try {
-            const data = await supabaseRequest('banco_horas_meta?id=eq.1&select=lastUpdatedAt&limit=1', 'GET');
-            
-            if (data && data.length > 0) {
-                const timestamp = formatTimestamp(data[0].lastUpdatedAt);
-                ui.lastUpdated.textContent = timestamp;
-                ui.lastUpdatedDash.textContent = timestamp; // NOVO: Atualiza o dashboard também
+        // --- ETAPA 2: Preparar Mapa de Configuração ---
+        // Cria um mapa (ex: {'supervisor': true, 'coordenador': true})
+        const configMap = state.gestorConfig.reduce((acc, regra) => {
+            if (regra.pode_ser_gestor) {
+                // A chave no mapa é minúscula (vem da tabela config, que é minúscula)
+                acc[regra.funcao.toLowerCase()] = true; 
+            }
+            return acc;
+        }, {});
+
+        // --- ETAPA 3: Carregar Time (Recursivo) e Disponíveis (Paralelo) ---
+        
+        // Query de Disponíveis (ASSUME lowercase)
+        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; // Pega mais colunas para o filtro
+        let filters = []; 
+
+        // --- INÍCIO DA CORREÇÃO (Problema 2) ---
+        // NOVO: Lógica de filtro de filial
+        if (!state.isAdmin) {
+            if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+                // Se 'permissoes_filiais' (do app 'usuarios') está preenchido, ele manda.
+                filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`);
+            } else if (state.userFilial) {
+                // Senão, usa a filial do próprio gestor (da tabela 'colaboradores')
+                filters.push(`filial=eq.${state.userFilial}`);
             } else {
-                ui.lastUpdated.textContent = 'Nenhuma atualização registrada.';
-                ui.lastUpdatedDash.textContent = 'Nenhuma atualização registrada.'; // NOVO
+                // Se não tem nem um nem outro, filtra por uma filial "impossível" para não vazar dados
+                console.warn("Gestor não-admin sem 'permissoes_filiais' ou 'filial' cadastrada. Nenhum colaborador 'disponível' será mostrado.");
+                filters.push('filial=eq.IMPOSSIVEL_FILIAL_FILTER');
             }
-        } catch (error) {
-             ui.lastUpdated.textContent = 'Erro ao buscar.';
-             ui.lastUpdatedDash.textContent = 'Erro ao buscar.'; // NOVO
-             console.warn("Erro ao buscar metadados:", error);
         }
+        // --- FIM DA CORREÇÃO ---
+        
+        // Adiciona filtro para não incluir o próprio gestor
+        if (state.userMatricula) {
+            filters.push(`matricula=neq.${state.userMatricula}`); // ASSUME lowercase
+        }
+
+        // Combina os filtros
+        if (filters.length > 0) {
+            disponiveisQuery += `&${filters.join('&')}`;
+        }
+        
+        // Executa a busca recursiva e a busca de disponíveis
+        const [timeRes, disponiveisRes] = await Promise.allSettled([
+            loadRecursiveTeam(state.userMatricula, configMap), // <-- NOVO
+            supabaseRequest(disponiveisQuery, 'GET')
+        ]);
+        
+        if (timeRes.status === 'fulfilled' && timeRes.value) {
+            state.meuTime = timeRes.value;
+            console.log(`Carregamento em cascata concluído. Total: ${state.meuTime.length} colaboradores.`);
+        } else {
+            console.error("Erro ao carregar time (recursivo):", timeRes.reason);
+        }
+        
+        if (disponiveisRes.status === 'fulfilled' && disponiveisRes.value) {
+            state.disponiveis = disponiveisRes.value;
+        } else {
+            console.error("Erro ao carregar disponíveis:", disponiveisRes.reason);
+        }
+        
+    } catch (err) {
+        console.error("Erro fatal no loadModuleData:", err);
+    } finally {
+        showLoading(false);
     }
+}
 
-    // --- Nova Função: showView ---
-    // ****** FUNÇÃO MODIFICADA (Remove 'if state.allData.length === 0') ******
-    function showView(viewId, element) {
-        document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
-        const viewEl = document.getElementById(viewId);
-        if(viewEl) viewEl.classList.add('active');
+/**
+ * Mostra a view de setup pela primeira vez.
+ */
+function iniciarDefinicaoDeTime() {
+    console.log("Iniciando definição de time...");
+    // Esconde todas as views
+    document.querySelectorAll('.view-content').forEach(view => {
+        view.classList.remove('active');
+        view.classList.add('hidden'); // Garante que todas sumam
+    });
+    
+    // Mostra a view de setup
+    const setupView = document.getElementById('primeiroAcessoView');
+    setupView.classList.remove('hidden');
+    setupView.classList.add('active'); // Torna ativa
+    
+    // Trava a sidebar para forçar o setup
+    const sidebar = document.querySelector('.sidebar');
+    sidebar.style.pointerEvents = 'none';
+    sidebar.style.opacity = '0.7';
 
-        document.querySelectorAll('.sidebar nav .nav-item').forEach(item => item.classList.remove('active'));
-        if (element) {
-            element.classList.add('active');
-        }
+    let listaDisponiveisFiltrada = state.disponiveis;
+    
+    // Só aplica o filtro de hierarquia se o gestor tiver um nível definido
+    if (state.userNivel !== null && state.userNivel !== undefined) {
+        
+        // 1. Criar um mapa de Níveis (funcao -> nivel) para consulta rápida
+        const mapaNiveis = state.gestorConfig.reduce((acc, regra) => {
+            acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia; // Chave minúscula
+            return acc;
+        }, {});
 
-        const newHash = '#' + viewId.replace('View', '');
-        if (window.location.hash !== newHash) {
-            history.pushState(null, '', newHash);
-        }
+        // 2. Filtrar a lista
+        listaDisponiveisFiltrada = state.disponiveis.filter(colaborador => {
+            // ASSUME lowercase
+            const colaboradorFuncao = colaborador.funcao;
+            const colaboradorStatus = colaborador.status;
+            const colaboradorGestor = colaborador.gestor_chapa;
 
-        // Fecha o dropdown de perfil se estiver aberto
-        if (ui.profileDropdown) ui.profileDropdown.classList.remove('open');
-        
-        
-        // **** NOVO: Bloco de setup único ****
-        // Roda a configuração inicial (filtros, histórico) APENAS UMA VEZ
-        // Isso agora depende de 'state.allData' ter sido carregado
-        if (!state.setupCompleto && state.auth && state.allData.length > 0) {
-            console.log("Executando setup de inicialização único...");
-            // Essas funções carregam dados essenciais na primeira vez
-            listenToMetadata(); // Data da última atualização
-            renderTableHeader(); // Cabeçalho da tabela de acompanhamento
-            populateFilterDatalists(); // Listas de filtros (para ambas as views)
-            loadHistoryData(); // Cache de histórico (para modais e dashboard)
-            
-            state.setupCompleto = true; // Marca como feito para não repetir
-        }
-        // **** FIM DO BLOCO ****
-        
-        
-        // Carrega dados específicos da view
-        try {
-            switch (viewId) {
-                case 'dashboardView':
-                    initializeDashboard(); // Chama a função do dashboard
-                    break;
-                case 'acompanhamentoView':
-                    // O setup já foi feito, agora só aplica os filtros da tabela
-                    applyFilters(); 
-                    break;
-                case 'configuracoesView':
-                    // Nenhuma carga de dados necessária ao apenas *mostrar*
-                    break;
+            // Regra 1: É "Disponível" (Sem Gestor ou Novato)
+            if (colaboradorGestor === null || colaboradorStatus === 'novato') {
+                return true;
+            }
+
+            // Regra 2: É Líder de Nível Inferior (Hierarquia)
+            if (colaboradorFuncao) {
+                // Compara a funcao (que é UPPERCASE) com o mapa (que é lowercase)
+                const colaboradorNivel = mapaNiveis[colaboradorFuncao.toLowerCase()];
                 
-                // Adicionar outros casos se houverem mais views
+                if (colaboradorNivel !== undefined && colaboradorNivel !== null) {
+                    // Gestor Nível 2 (Fabio) vê Nível 1 (Marcelo)
+                    // 1 < 2 = true
+                    if (colaboradorNivel < state.userNivel) {
+                        return true; // É de nível inferior, permite
+                    }
+                }
             }
-        } catch(e) {
-            console.error(`Erro ao carregar view ${viewId}:`, e);
-        }
-        
-        feather.replace();
-    }
-    // ****** FIM DA MODIFICAÇÃO ******
+            
+            // Se não passou em nenhum, filtra fora
+            return false;
+        });
 
-
-    // --- Nova Função: handleHashChange ---
-    function handleHashChange() {
-        if (!state.auth) return; // Não faz nada se não estiver logado
-        
-        const hash = window.location.hash || '#dashboard'; // NOVO: Dashboard é o padrão
-        let viewId = 'dashboardView'; // NOVO: Dashboard é o padrão
-        let navElement = document.querySelector('a[href="#dashboard"]');
-
-        if (hash === '#acompanhamento') {
-            viewId = 'acompanhamentoView';
-            navElement = document.querySelector('a[href="#acompanhamento"]');
-        } else if (hash === '#configuracoes' && state.isAdmin) {
-            viewId = 'configuracoesView';
-            navElement = document.querySelector('a[href="#configuracoes"]');
-        }
-        
-        const currentActive = document.querySelector('.view-content.active');
-        if (!currentActive || currentActive.id !== viewId) {
-            showView(viewId, navElement);
-        }
+        console.log(`Filtro de Hierarquia/Disponível: Gestor Nível ${state.userNivel}. Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
     }
 
+    // Popula as listas
+    renderListasTimes(listaDisponiveisFiltrada, state.meuTime); // <-- USA A LISTA FILTRADA
+    
+    feather.replace();
+}
 
-    function renderTableHeader() {
+/**
+ * Renderiza as duas listas (Disponíveis e Meu Time)
+ */
+function renderListasTimes(disponiveis, meuTime) {
+    const listaDisponiveisEl = document.getElementById('listaDisponiveis');
+    const listaMeuTimeEl = document.getElementById('listaMeuTime');
+    
+    listaDisponiveisEl.innerHTML = '';
+    listaMeuTimeEl.innerHTML = '';
+    
+    // Filtra disponíveis para não mostrar quem JÁ ESTÁ no meu time (ASSUME lowercase)
+    const chapasMeuTime = new Set(meuTime.map(c => c.matricula));
+    const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.matricula));
+
+    // ASSUME lowercase
+    disponiveisFiltrados.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
+        listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
+    });
+    
+    // ASSUME lowercase
+    meuTime.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
+        listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
+    });
+}
+
+/**
+ * Move itens selecionados de uma lista para outra
+ */
+function moverColaboradores(origemEl, destinoEl) {
+    const selecionados = Array.from(origemEl.selectedOptions);
+    selecionados.forEach(option => {
+        destinoEl.appendChild(option);
+    });
+    // Re-ordena a lista de destino
+    const options = Array.from(destinoEl.options);
+    options.sort((a, b) => a.text.localeCompare(b.text));
+    destinoEl.innerHTML = '';
+    options.forEach(opt => destinoEl.appendChild(opt));
+}
+
+/**
+ * Filtra a lista de disponíveis baseado no input de busca
+ */
+function filtrarDisponiveis() {
+    const filtro = document.getElementById('searchDisponiveis').value.toLowerCase();
+    const listaDisponiveisEl = document.getElementById('listaDisponiveis');
+    
+    Array.from(listaDisponiveisEl.options).forEach(option => {
+        const texto = option.textContent.toLowerCase();
+        if (texto.includes(filtro)) {
+            option.style.display = '';
+        } else {
+            option.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * --- CORREÇÃO 1: Loop no Setup ---
+ * Salva o time e, em vez de recarregar a página, atualiza o estado local
+ * e navega para a view principal.
+ */
+async function handleSalvarTime() {
+    showLoading(true, 'Salvando seu time...');
+    const listaMeuTimeEl = document.getElementById('listaMeuTime');
+    const chapasSelecionadas = Array.from(listaMeuTimeEl.options).map(opt => opt.value);
+    
+    if (chapasSelecionadas.length === 0) {
+        mostrarNotificacao('Selecione pelo menos um colaborador para o seu time.', 'warning');
+        showLoading(false);
+        return;
+    }
+
+    try {
+        // Cria um array de Promises, uma para cada colaborador a ser atualizado
+        const promessas = chapasSelecionadas.map(chapa => {
+            // ASSUME lowercase
+            const payload = {
+                gestor_chapa: state.userMatricula,
+                status: 'ativo' // Tira do status 'novato'
+            };
+            // Usamos o matricula como chave de update (ASSUME lowercase)
+            return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
+        });
+
+        // Executa todas as atualizações em paralelo
+        await Promise.all(promessas);
+
+        mostrarNotificacao('Time salvo com sucesso!', 'success');
+        
+        // --- INÍCIO DA CORREÇÃO (Problema 1) ---
+        // NÃO recarregamos mais a página para evitar race conditions.
+        // Atualizamos o estado local e navegamos manualmente.
+        
+        // 1. Encontra os objetos completos dos colaboradores selecionados
+        const timeCompleto = chapasSelecionadas.map(chapa => {
+            let colab = state.disponiveis.find(c => c.matricula === chapa);
+            if (colab) {
+                // Atualiza o gestor localmente
+                colab.gestor_chapa = state.userMatricula;
+                colab.status = 'ativo';
+                return colab;
+            }
+            // Fallback (se já estava no 'meuTime' de alguma forma)
+            let colabTime = state.meuTime.find(c => c.matricula === chapa);
+            if(colabTime) return colabTime;
+            
+            // Fallback final
+            return { matricula: chapa, gestor_chapa: state.userMatricula, status: 'ativo', nome: 'Colaborador Salvo' };
+        });
+
+        // 2. Atualiza o estado global
+        state.meuTime = timeCompleto;
+        
+        // 3. Remove os movidos da lista de disponíveis
+        state.disponiveis = state.disponiveis.filter(c => !chapasSelecionadas.includes(c.matricula));
+        
+        // 4. Libera a sidebar
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.style.pointerEvents = 'auto';
+        sidebar.style.opacity = '1';
+
+        // 5. Navega para a view principal
+        // Define o hash ANTES de chamar showView para que a navegação seja "permanente"
+        window.location.hash = '#meuTime'; 
+        showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
+        // --- FIM DA CORREÇÃO ---
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao salvar: ${err.message}`, 'error');
+    } finally {
+        showLoading(false); // Esconde o loading
+    }
+}
+
+
+/**
+ * Atualiza os 4 cards do dashboard com base nos dados do time.
+ */
+function updateDashboardStats(data) {
+    if (!data) data = [];
+    const total = data.length;
+    // ASSUME lowercase
+    const ativos = data.filter(c => c.status === 'ativo').length;
+    const inativos = data.filter(c => c.status === 'inativo').length;
+    const novatos = data.filter(c => c.status === 'novato').length;
+    
+    document.getElementById('statTotalTime').textContent = total;
+    document.getElementById('statAtivos').textContent = ativos;
+    document.getElementById('statInativos').textContent = inativos;
+    document.getElementById('statNovatos').textContent = novatos;
+}
+
+/**
+ * Preenche os <select> de filtro com base nos dados do time.
+ */
+function populateFilters(data) {
+    if (!data) data = [];
+    const filialSelect = document.getElementById('filterFilial');
+    const funcaoSelect = document.getElementById('filterFuncao');
+    
+    // ASSUME lowercase
+    const filiais = [...new Set(data.map(c => c.filial).filter(Boolean))].sort();
+    const funcoes = [...new Set(data.map(c => c.funcao).filter(Boolean))].sort();
+    
+    filialSelect.innerHTML = '<option value="">Todas as filiais</option>';
+    funcaoSelect.innerHTML = '<option value="">Todas as funções</option>';
+    
+    filiais.forEach(f => filialSelect.innerHTML += `<option value="${f}">${f}</option>`);
+    funcoes.forEach(f => funcaoSelect.innerHTML += `<option value="${f}">${f}</option>`);
+}
+
+/**
+ * Renderiza a tabela principal de "Meu Time"
+ */
+function renderMeuTimeTable(data) {
+    const tbody = document.getElementById('tableBodyMeuTime');
+    const message = document.getElementById('tableMessageMeuTime');
+    tbody.innerHTML = '';
+
+    if (data.length === 0) {
+        message.classList.remove('hidden');
+        if (state.meuTime.length === 0) { // Se o cache original está vazio
+             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Seu time ainda não possui colaboradores vinculados.</td></tr>';
+        } else { // Se o cache tem dados, mas o filtro limpou
+             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Nenhum colaborador encontrado para os filtros aplicados.</td></tr>';
+        }
+        return;
+    }
+    
+    message.classList.add('hidden');
+
+    const fragment = document.createDocumentFragment();
+    data.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(item => {
         const tr = document.createElement('tr');
-        COLUMN_ORDER.forEach(key => {
-            const th = document.createElement('th');
-            th.textContent = COLUMN_MAP[key] || key;
-            tr.appendChild(th);
-        });
-        const thAction = document.createElement('th');
-        thAction.textContent = 'Ações';
-        tr.appendChild(thAction);
-        ui.tableHead.innerHTML = '';
-        ui.tableHead.appendChild(tr);
-    }
-
-    // ****** NOVA FUNÇÃO ******
-    // Carrega SÓ o histórico para os modais.
-    async function loadHistoryData() {
-        try {
-            // Pega o último registro de histórico
-            const historyRes = await supabaseRequest('banco_horas_history?select=data&order=timestamp.desc&limit=1', 'GET');
-            if (historyRes && historyRes.length > 0) {
-                const oldDataArray = historyRes[0].data;
-                // Salva o array bruto
-                state.dashboardHistory = oldDataArray; 
-                // Salva o mapa por CHAPA (para a tabela e modal)
-                state.previousData = oldDataArray.reduce((acc, item) => {
-                    if (item.CHAPA) acc[item.CHAPA] = item;
-                    return acc;
-                }, {});
-                console.log("Dados de histórico (previousData e dashboardHistory) carregados.");
-            } else {
-                console.warn("Nenhum dado de histórico encontrado.");
-                state.previousData = {};
-                state.dashboardHistory = [];
-            }
-        } catch (e) {
-            console.error("Falha ao carregar histórico:", e.message);
-        }
-    }
-    
-    // ****** FUNÇÃO MODIFICADA (PARA USAR state.allData) ******
-    function populateFilterDatalists() { 
-        // Filtros da Tabela
-        const regionalList = document.getElementById('regionalList');
-        const filialList = document.getElementById('filialList');
         
-        // Filtros do Dashboard (agora são <select>)
-        // (ui.filterRegionalDash, ui.filterCodFilialDash, etc.)
-
-        console.log("Populando filtros a partir do state.allData...");
-        try {
-            // ADICIONADO: Lê do estado global
-            const allData = state.allData;
-            
-            const filiaisSet = new Set();
-            const regionaisSet = new Set();
-            const secoesSet = new Set();
-            const funcoesSet = new Set();
-
-            allData.forEach(item => {
-                if (item.CODFILIAL) filiaisSet.add(item.CODFILIAL);
-                if (item.REGIONAL) regionaisSet.add(item.REGIONAL);
-                if (item.SECAO) secoesSet.add(item.SECAO);
-                if (item.FUNCAO) funcoesSet.add(item.FUNCAO);
-            });
-
-            // Processa Filiais
-            state.listasFiltros.codfilial = [...filiaisSet].sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
-            const filialOptions = state.listasFiltros.codfilial.map(f => `<option value="${f}">${f}</option>`).join('');
-            if(filialList) filialList.innerHTML = state.listasFiltros.codfilial.map(f => `<option value="${f}"></option>`).join(''); // Mantém datalist na tabela
-            if(ui.filterCodFilialDash) ui.filterCodFilialDash.innerHTML = '<option value="">Todas as filiais</option>' + filialOptions; // Popula select
-
-            // Processa Regionais
-            state.listasFiltros.regional = [...regionaisSet].sort();
-            const regionalOptions = state.listasFiltros.regional.map(r => `<option value="${r}">${r}</option>`).join('');
-            if(regionalList) regionalList.innerHTML = state.listasFiltros.regional.map(r => `<option value="${r}"></option>`).join(''); // Mantém datalist
-            if(ui.filterRegionalDash) ui.filterRegionalDash.innerHTML = '<option value="">Todas as regionais</option>' + regionalOptions; // Popula select
-            
-            // Processa Seções (só dashboard)
-            state.listasFiltros.secao = [...secoesSet].sort();
-            if(ui.filterSecaoDash) ui.filterSecaoDash.innerHTML = '<option value="">Todas as seções</option>' + state.listasFiltros.secao.map(s => `<option value="${s}">${s}</option>`).join('');
-            
-            // Processa Funções (só dashboard)
-            state.listasFiltros.funcao = [...funcoesSet].sort();
-            if(ui.filterFuncaoDash) ui.filterFuncaoDash.innerHTML = '<option value="">Todas as funções</option>' + state.listasFiltros.funcao.map(f => `<option value="${f}">${f}</option>`).join('');
-            
-            console.log("Filtros populados:", state.listasFiltros);
-    
-        } catch (e) {
-            console.error("Falha ao popular datalists:", e);
-            mostrarNotificacao("Erro ao processar filtros.", "error", 10000);
-        }
-    }
-    // ****** FIM DA FUNÇÃO MODIFICADA ******
-
-
-    // NOVA FUNÇÃO: Helper para converter horas em minutos para ordenação/comparação
-    function parseHorasParaMinutos(horaString) {
-        if (!horaString || typeof horaString !== 'string' || horaString === '-') {
-            return 0;
-        }
-        
-        let isNegative = horaString.startsWith('-');
-        if (isNegative) {
-            horaString = horaString.substring(1);
-        }
-        
-        const parts = horaString.split(':');
-        let totalMinutos = 0;
-        
-        if (parts.length === 2) {
-            const hours = parseInt(parts[0], 10) || 0;
-            const minutes = parseInt(parts[1], 10) || 0;
-            totalMinutos = (hours * 60) + minutes;
-        } else if (!isNaN(parseFloat(horaString.replace(',', '.')))) {
-             totalMinutos = parseFloat(horaString.replace(',', '.')) * 60; // Assume hora decimal
-        }
-
-        return isNegative ? -totalMinutos : totalMinutos;
-    }
-    
-    // NOVA FUNÇÃO: Helper para converter valor string (Ex: "1.461,60")
-    function parseValor(valorString) {
-        if (!valorString || typeof valorString !== 'string') {
-            return 0;
-        }
-        // Remove 'R$ ', pontos de milhar, e substitui vírgula por ponto
-        const cleanString = String(valorString)
-            .replace('R$', '')
-            .replace(/\./g, '')
-            .replace(',', '.')
-            .trim();
-        
-        const valor = parseFloat(cleanString);
-        return isNaN(valor) ? 0 : valor;
-    }
-
-
-    // ****** FUNÇÃO MODIFICADA (AGORA É SINCRONA E USA state.allData) ******
-    function applyFilters() {
-        const filterChapa = ui.filterChapa.value.toLowerCase().trim();
-        const filterNome = ui.filterNome.value.toLowerCase().trim();
-        const filterRegional = ui.filterRegional.value.toLowerCase().trim();
-        const filterCodFilial = ui.filterCodFilial.value.toLowerCase().trim();
-
-        showLoading(true, 'Filtrando dados...');
-        
-        try {
-            // 1. Pega os dados do state.allData
-            let filteredData = state.allData;
-
-            // 2. Aplica filtros de permissão
-            if (!state.isAdmin) {
-                if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-                    filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.CODFILIAL));
-                } else if (state.userMatricula) {
-                    filteredData = filteredData.filter(item => item.CHAPA === state.userMatricula);
+        // ASSUME lowercase
+        let dtAdmissao = '-';
+        if (item.data_admissao) {
+             try {
+                // Tenta formatar a data, seja qual for o formato (ISO ou DD/MM/YYYY)
+                let dateStr = item.data_admissao.split(' ')[0]; // Remove timestamp se houver
+                const dateParts = dateStr.split('-'); // Tenta formato ISO
+                if (dateParts.length === 3) {
+                     dtAdmissao = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
                 } else {
-                    filteredData = []; // Não-admin sem permissão não vê nada
+                     dtAdmissao = item.data_admissao; // Mantém o original se não for ISO
                 }
-            }
-            
-            const hasFilters = filterChapa || filterNome || filterRegional || filterCodFilial;
-            
-            // 3. Aplica filtros da UI
-            if (filterChapa) {
-                filteredData = filteredData.filter(item => item.CHAPA && item.CHAPA.toLowerCase().startsWith(filterChapa));
-            }
-            if (filterNome) {
-                // "começa com" (case-insensitive) - mais rápido
-                filteredData = filteredData.filter(item => item.NOME && item.NOME.toLowerCase().startsWith(filterNome));
-            }
-            if (filterRegional) {
-                filteredData = filteredData.filter(item => item.REGIONAL === filterRegional);
-            }
-            if (filterCodFilial) {
-                filteredData = filteredData.filter(item => item.CODFILIAL === filterCodFilial);
-            }
-
-            // 4. Processa os dados (ordenar em JS)
-            const dataComMinutos = filteredData.map(item => ({
-                ...item,
-                _minutos: parseHorasParaMinutos(item.TOTAL_EM_HORA)
-            }));
-
-            // Ordena os resultados
-            dataComMinutos.sort((a, b) => b._minutos - a._minutos); // Ordena (desc)
-            
-            // 5. Aplica a lógica de "Top 200 / 500"
-            let dadosParaRenderizar;
-            const totalResultados = dataComMinutos.length;
-
-            if (hasFilters) {
-                dadosParaRenderizar = dataComMinutos.slice(0, 500); // Mostra no MÁXIMO 500 resultados filtrados
-                if (totalResultados > 500) {
-                     ui.tableMessage.innerHTML = `Exibindo os 500 principais resultados para sua busca (de ${totalResultados} encontrados).`;
-                     ui.tableMessage.classList.remove('hidden');
-                } else {
-                     ui.tableMessage.classList.add('hidden');
-                }
-            } else {
-                dadosParaRenderizar = dataComMinutos.slice(0, 200); // Mostra SÓ o TOP 200
-                if (totalResultados > 200) {
-                     ui.tableMessage.innerHTML = `Exibindo os 200 maiores saldos (de ${totalResultados} totais). Use os filtros para buscar.`;
-                     ui.tableMessage.classList.remove('hidden');
-                } else {
-                     ui.tableMessage.classList.add('hidden');
-                }
-            }
-            
-            if (totalResultados === 0) {
-                ui.tableMessage.innerHTML = 'Nenhum dado encontrado para os filtros aplicados.';
-                ui.tableMessage.classList.remove('hidden');
-            }
-            
-            state.viewData = dadosParaRenderizar; // Salva SÓ O QUE VAI RENDERIZAR
-            renderTableBody(state.viewData); // Renderiza a lista final
-
-        } catch (err) {
-            console.error("Erro ao aplicar filtros:", err);
-            mostrarNotificacao(`Erro ao filtrar dados: ${err.message}`, 'error');
-            ui.tableMessage.innerHTML = `Erro ao filtrar dados: ${err.message}.`;
-            ui.tableMessage.classList.remove('hidden');
-        } finally {
-            showLoading(false);
-        }
-    }
-
-    function renderTableBody(data) {
-        ui.tableBody.innerHTML = '';
-        
-        // A mensagem de "nenhum dado" é tratada pelo applyFilters
-        if (data.length === 0) {
-            // Não faz nada, applyFilters cuida da mensagem
-            return;
-        }
-
-        const fragment = document.createDocumentFragment();
-
-        data.forEach(item => {
-            const tr = document.createElement('tr');
-            
-            // *** NOVO: CÁLCULO DA TENDÊNCIA E HORA ANTERIOR ***
-            const oldItem = state.previousData[item.CHAPA];
-            const horaAnterior = oldItem ? (oldItem.TOTAL_EM_HORA || '-') : '-';
-            
-            const minutosAtuais = item._minutos; // USA O VALOR JÁ CALCULADO
-            const minutosAnteriores = parseHorasParaMinutos(horaAnterior);
-            
-            // ****** MUDANÇA (Cores, Ícone de Tendência E Centralização) ******
-            let tendenciaIcon = '<span style="color: #6b7280;">-</span>'; // Cinza (neutro) - Default
-            
-            if (horaAnterior !== '-') { // Só calcula se tiver histórico
-                if (minutosAtuais > minutosAnteriores) {
-                    // Piorou (aumentou o saldo)
-                    // Adicionado wrapper div para centralizar
-                    tendenciaIcon = '<div class="flex justify-center items-center"><i data-feather="arrow-up-right" style="color: #dc2626;"></i></div>'; // Vermelho
-                } else if (minutosAtuais < minutosAnteriores) {
-                    // Melhorou (diminuiu o saldo)
-                    // Adicionado wrapper div para centralizar
-                    tendenciaIcon = '<div class="flex justify-center items-center"><i data-feather="arrow-down-right" style="color: #16a34a;"></i></div>'; // Verde
-                } else {
-                    // Manteve igual
-                    tendenciaIcon = '<span style="color: #f59e0b; font-weight: bold; font-family: monospace; font-size: 1.2em;">=</span>'; // Amarelo
-                }
-            }
-            // ****** FIM DA MUDANÇA ******
-            
-            // Adiciona os valores calculados ao item para o loop
-            item.HORA_ANTERIOR = horaAnterior;
-            item.TENDENCIA = tendenciaIcon; 
-            // *** FIM DO CÁLCULO ***
-
-
-            // APLICA ESTILOS VISUAIS
-            COLUMN_ORDER.forEach(key => {
-                const td = document.createElement('td');
-                const value = item[key] || '-';
-                
-                // Lógica especial para TENDENCIA
-                if (key === 'TENDENCIA') {
-                    td.innerHTML = value; // value é o <i>
-                    td.style.textAlign = 'center';
-                } else {
-                    td.textContent = value;
-                }
-                
-                // Adiciona classes para melhorar a visualização
-                if (key === 'NOME' || key === 'FUNCAO') {
-                    td.style.whiteSpace = 'normal'; // Permite quebra de linha
-                    td.style.minWidth = '200px';
-                }
-                
-                if (key === 'TOTAL_EM_HORA' || key === 'VAL_PGTO_BHS' || key === 'CODFILIAL' || key === 'CHAPA') {
-                    td.style.textAlign = 'right'; // Alinha números à direita
-                    td.style.fontFamily = 'monospace'; // Melhora leitura de números
-                    td.style.paddingRight = '1.5rem';
-                }
-
-                // Novo styling para HORA_ANTERIOR
-                if (key === 'HORA_ANTERIOR') {
-                     td.style.textAlign = 'right';
-                     td.style.fontFamily = 'monospace';
-                     td.style.paddingRight = '1.5rem';
-                     td.style.color = '#6b7280'; // Cinza
-                }
-                
-                if (key === 'TOTAL_EM_HORA') {
-                    if (String(value).includes('-')) {
-                        td.style.color = '#dc2626'; // Vermelho (tailwind red-600)
-                        td.style.fontWeight = 'bold';
-                    } else if (value !== '-' && value !== '0,00' && value !== '0' && value !== '00:00') {
-                        td.style.color = '#16a34a'; // Verde (tailwind green-600)
-                        td.style.fontWeight = 'bold';
-                    }
-                }
-                
-                if (key === 'VAL_PGTO_BHS') {
-                     if (value !== '-' && value !== '0,00' && value !== '0' && !String(value).includes('-')) {
-                        td.style.color = '#0077B6'; // Azul (accent)
-                        td.style.fontWeight = 'bold';
-                    }
-                }
-
-                tr.appendChild(td);
-            });
-
-            const tdAction = document.createElement('td');
-            const viewButton = document.createElement('button');
-            // Aplicando classes de botão do style.css
-            viewButton.innerHTML = '<i data-feather="eye" class="h-4 w-4"></i>';
-            viewButton.className = "btn btn-sm btn-info"; 
-            viewButton.title = "Ver Detalhes e Comparar";
-            viewButton.onclick = () => showDetails(item.CHAPA);
-            tdAction.appendChild(viewButton);
-            
-            tr.appendChild(tdAction);
-            fragment.appendChild(tr);
-        });
-
-        ui.tableBody.appendChild(fragment);
-        feather.replace();
-    }
-
-    function resetModal() {
-        ui.modalNome.textContent = '...';
-        ui.modalChapa.textContent = '...';
-        ui.modalComparison.innerHTML = '';
-        ui.modalNoHistory.classList.add('hidden');
-    }
-
-    function createComparisonRow(label, oldVal, newVal) {
-        oldVal = oldVal || 0;
-        newVal = newVal || 0;
-        
-        let diff = 0;
-        let diffClass = 'diff-same';
-        
-        // Usa as funções de parse corretas
-        let oldNum, newNum;
-        if (label.includes('Hora')) {
-            oldNum = parseHorasParaMinutos(oldVal);
-            newNum = parseHorasParaMinutos(newVal);
-            // Converte para horas para exibição
-            oldVal = (oldNum / 60).toFixed(2);
-            newVal = (newNum / 60).toFixed(2);
-            diff = newNum - oldNum;
-        } else {
-            oldNum = parseValor(oldVal);
-            newNum = parseValor(newVal);
-            oldVal = oldNum.toFixed(2);
-            newVal = newNum.toFixed(2);
-            diff = newNum - oldNum;
-        }
-
-        if (diff > 0.01) diffClass = 'diff-up';
-        else if (diff < -0.01) diffClass = 'diff-down';
-        
-        const diffText = diff.toFixed(2);
-        const diffDisplay = diff > 0 ? `+${diffText}` : diffText;
-
-
-        return `
-            <div class="grid grid-cols-3 gap-2 p-2 rounded-md ${diff !== 0 ? 'bg-gray-100' : ''}">
-                <span class="font-medium text-gray-700">${label}:</span>
-                <span class="text-gray-600">${oldVal}</span>
-                <span class="font-bold">${newVal} <span class="${diffClass}">(${diff === 0 ? '-' : diffDisplay})</span></span>
-            </div>
-        `;
-    }
-
-    async function showDetails(chapa) {
-        resetModal();
-        ui.modal.style.display = 'flex'; // Alterado para 'flex'
-        showLoading(true, 'Buscando detalhes...');
-
-        try {
-            // MUDANÇA: Busca o item no state.viewData (view atual)
-            let currentData = state.viewData.find(item => item.CHAPA === chapa);
-            
-            if (!currentData) {
-                // Fallback: Se não achar, busca no banco (não deveria acontecer, mas é seguro)
-                console.warn(`Fallback: Buscando ${chapa} no banco...`);
-                const currentDataArr = await supabaseRequest(`banco_horas_data?select=*&CHAPA=eq.${chapa}`, 'GET');
-                if (!currentDataArr || currentDataArr.length === 0) {
-                    throw new Error("Colaborador não encontrado na base de dados.");
-                }
-                currentData = currentDataArr[0];
-            }
-            
-            ui.modalTitle.textContent = `Detalhes: ${currentData.NOME}`;
-            ui.modalNome.textContent = currentData.NOME;
-            ui.modalChapa.textContent = currentData.CHAPA;
-
-            // Usa o cache de histórico
-            const oldData = state.previousData[chapa];
-            
-            if (oldData) {
-                ui.modalNoHistory.classList.add('hidden');
-                let comparisonHTML = `
-                    <div class="grid grid-cols-3 gap-2 p-2 font-bold text-gray-500 text-sm">
-                        <span>Campo</span>
-                        <span>Valor Anterior</span>
-                        <span>Valor Atual (Diferença)</span>
-                    </div>
-                `;
-                // Ajusta os labels e usa as funções de parse corretas
-                comparisonHTML += createComparisonRow('Total (Horas)', oldData.TOTAL_EM_HORA, currentData.TOTAL_EM_HORA);
-                comparisonHTML += createComparisonRow('Total Neg. (Horas)', oldData.TOTAL_NEGATIVO, currentData.TOTAL_NEGATIVO);
-                comparisonHTML += createComparisonRow('Valor Pgto. (R$)', oldData.VAL_PGTO_BHS, currentData.VAL_PGTO_BHS);
-                comparisonHTML += createComparisonRow('Total Geral (R$)', oldData['Total Geral'], currentData['Total Geral']);
-
-                ui.modalComparison.innerHTML = comparisonHTML;
-            } else {
-                ui.modalNoHistory.classList.remove('hidden');
-                ui.modalComparison.innerHTML = '';
-            }
-
-        } catch (err) {
-            console.error("Erro ao buscar detalhes:", err);
-            ui.modalBody.innerHTML = `<p class="alert alert-error">${err.message}</p>`;
-        } finally {
-            showLoading(false);
-        }
-    }
-    
-    // NOVA FUNÇÃO DE PRÉ-VISUALIZAÇÃO
-    function handlePreview() {
-        ui.importError.classList.add('hidden');
-        ui.previewContainer.style.display = 'none';
-        ui.previewTableContainer.innerHTML = '';
-        const pastedData = ui.dataInput.value;
-
-        if (!pastedData) {
-            showImportError("A área de texto está vazia para pré-visualizar.");
-            return;
-        }
-
-        let parsedData;
-        try {
-            parsedData = parsePastedData(pastedData);
-        } catch (err) {
-            showImportError(err.message);
-            return;
-        }
-
-        if (parsedData.length === 0) {
-            showImportError("Nenhum dado válido encontrado.");
-            return;
-        }
-
-        const previewData = parsedData.slice(0, 15);
-        
-        // Usa as colunas originais (COLUMN_ORDER_ORIGINAL) para o preview
-        const headers = COLUMN_ORDER_ORIGINAL;
-        
-        let tableHTML = '<table class="tabela"><thead><tr>';
-        headers.forEach(key => {
-            tableHTML += `<th>${COLUMN_MAP_ORIGINAL[key] || key}</th>`;
-        });
-        tableHTML += '</tr></thead><tbody>';
-
-        previewData.forEach(item => {
-            tableHTML += '<tr>';
-            headers.forEach(key => {
-                tableHTML += `<td>${item[key] || '-'}</td>`;
-            });
-            tableHTML += '</tr>';
-        });
-
-        tableHTML += '</tbody></table>';
-
-        ui.previewTableContainer.innerHTML = tableHTML;
-        ui.previewContainer.style.display = 'block';
-        
-        // Mostra uma mensagem de sucesso no lugar do erro
-        ui.importErrorMessage.textContent = `Mostrando ${previewData.length} de ${parsedData.length} registros.`;
-        ui.importError.className = "alert alert-success mb-4"; // Muda a cor para verde
-        ui.importError.classList.remove('hidden');
-    }
-
-    function parsePastedData(text) {
-        const lines = text.trim().split('\n');
-        if (lines.length < 2) throw new Error("Os dados precisam de pelo menos 2 linhas (cabeçalho e dados).");
-
-        const delimiter = lines[0].includes('\t') ? '\t' : ',';
-        const headers = lines[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
-        
-        // USA O ORIGINAL MAP PARA VALIDAR
-        const missingHeaders = COLUMN_ORDER_ORIGINAL.filter(col => !headers.includes(col));
-        if (missingHeaders.length > 0) {
-            throw new Error(`Cabeçalhos faltando: ${missingHeaders.join(', ')}`);
-        }
-
-        const data = lines.slice(1).map(line => {
-            const values = line.split(delimiter).map(v => v.trim().replace(/"/g, ''));
-            const obj = {};
-            headers.forEach((header, index) => {
-                // USA O ORIGINAL MAP PARA PARSEAR
-                if (COLUMN_ORDER_ORIGINAL.includes(header)) {
-                     obj[header] = values[index] || null;
-                }
-            });
-            if (!obj.CHAPA) {
-                // Não lança erro, apenas ignora a linha
-                console.warn("Linha sem 'CHAPA' ignorada:", line);
-                return null;
-            }
-            return obj;
-        }).filter(Boolean); // Remove linhas nulas (ignoradas)
-
-        return data;
-    }
-
-    async function handleImport() {
-        ui.importError.classList.add('hidden');
-        ui.previewContainer.style.display = 'none'; // NOVO: Esconde o preview ao importar
-        const pastedData = ui.dataInput.value;
-        if (!pastedData) {
-            showImportError("A área de texto está vazia.");
-            return;
-        }
-
-        let newData;
-        try {
-            newData = parsePastedData(pastedData);
-        } catch (err) {
-            showImportError(err.message);
-            return;
-        }
-
-        if (newData.length === 0) {
-            showImportError("Nenhum dado válido para importar.");
-            return;
-        }
-
-        showLoading(true, `Enviando ${newData.length} registros para o servidor...`);
-
-        try {
-            // *** CORREÇÃO APLICADA AQUI ***
-            
-            // Revertendo para a chamada da API Serverless, pois é mais provável
-            const response = await fetch('/api/import-banco-horas', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}` // Pega o token correto
-                },
-                body: JSON.stringify(newData)
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Erro do servidor: ${response.statusText}`);
-            }
-
-            const result = await response.json();
-            // Fim da chamada serverless
-
-            ui.dataInput.value = '';
-            
-            // MUDANÇA: Recarrega tudo
-            showLoading(true, 'Recarregando dados...');
-            
-            // ATUALIZADO: Chama o novo loadInitialData
-            await loadInitialData(); 
-            // Agora popula os filtros e histórico a partir dos dados já carregados
-            populateFilterDatalists();
-            await loadHistoryData();
-            await listenToMetadata();
-            
-            // NOVO: Navega para o dashboard e o recarrega
-            window.location.hash = '#dashboard';
-            handleHashChange(); // Força o recarregamento da view do dashboard
-            
-            showLoading(false);
-            mostrarNotificacao(result.message || "Dados importados com sucesso!", 'success');
-
-        } catch (err) {
-            console.error("Erro durante a importação:", err);
-            showLoading(false);
-            showImportError(`Erro fatal: ${err.message}.`);
-        }
-    }
-    
-    // Função de Notificação (copiada do script.js para consistência)
-    function mostrarNotificacao(message, type = 'info', timeout = 4000) {
-        const container = document.getElementById('notificationContainer');
-        if (!container) {
-            console.warn("Notification container not found, using alert().");
-            alert(message);
-            return;
-        }
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        let icon = type === 'success' ? 'check-circle' : (type === 'error' ? 'x-circle' : 'info');
-        if (type === 'warning') icon = 'alert-triangle';
-        
-        notification.innerHTML = `
-            <div class="notification-header">
-                <i data-feather="${icon}" class="h-5 w-5 mr-2"></i>
-                <span>${type === 'success' ? 'Sucesso!' : (type === 'error' ? 'Erro!' : (type === 'warning' ? 'Atenção!' : 'Aviso'))}</span>
-            </div>
-            <div class="notification-body">${message}</div>`;
-        container.appendChild(notification);
-        feather.replace();
-        setTimeout(() => {
-            notification.classList.add('hide');
-            notification.addEventListener('animationend', () => notification.remove());
-        }, timeout);
-    }
-    
-    
-    // -----------------------------------------------------------------
-    // --- NOVAS FUNÇÕES DO DASHBOARD (MODIFICADAS) ---
-    // -----------------------------------------------------------------
-
-    /**
-     * Função principal para carregar e renderizar o dashboard.
-     * ****** MODIFICADA: para usar state.allData ******
-     */
-    async function initializeDashboard() {
-        
-        // ADICIONADO: Check se os dados estão prontos
-        if (state.allData.length === 0) {
-             showLoading(true, 'Aguardando carregamento de dados...');
-             // Tenta recarregar se algo deu muito errado
-             if (!state.setupCompleto) {
-                 console.warn("Dashboard chamado antes do setup. Forçando recarga.");
-                 await loadInitialData();
-                 populateFilterDatalists();
-                 loadHistoryData();
-                 state.setupCompleto = true;
-             }
-             if (state.allData.length === 0) {
-                 mostrarNotificacao("Nenhum dado de banco de horas carregado.", 'error');
-                 showLoading(false);
-                 return;
+             } catch(e) {
+                 dtAdmissao = item.data_admissao; // Fallback
              }
         }
-        showLoading(true, 'Processando dashboard...');
         
-        try {
-            // 1. Pega os valores dos filtros
-            const regional = ui.filterRegionalDash.value;
-            const filial = ui.filterCodFilialDash.value;
-            const secao = ui.filterSecaoDash.value;
-            const funcao = ui.filterFuncaoDash.value;
+        const status = item.status || 'ativo';
+        let statusClass = 'status-ativo';
+        if (status === 'inativo') statusClass = 'status-inativo';
+        if (status === 'novato') statusClass = 'status-aviso'; // Reutilizando a cor 'aviso'
 
-            // 2. Filtra os dados do state.allData
-            let filteredData = state.allData;
-
-            // Aplica filtros de permissão
-            if (!state.isAdmin) {
-                if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-                    filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.CODFILIAL));
-                } else if (state.userMatricula) {
-                    filteredData = filteredData.filter(item => item.CHAPA === state.userMatricula);
-                } else {
-                    filteredData = []; // Não vê nada
-                }
-            }
-            
-            // Aplica filtros da UI do Dashboard
-            if (regional) filteredData = filteredData.filter(item => item.REGIONAL === regional);
-            if (filial) filteredData = filteredData.filter(item => item.CODFILIAL === filial);
-            if (secao) filteredData = filteredData.filter(item => item.SECAO === secao);
-            if (funcao) filteredData = filteredData.filter(item => item.FUNCAO === funcao);
-            
-            // 3. Salva os dados filtrados
-            state.dashboardData = filteredData;
-            
-            // 3. O histórico já foi carregado em 'loadHistoryData' (state.dashboardHistory)
-            // Apenas filtramos o histórico para bater com os filtros da UI
-            let historyData = state.dashboardHistory;
-            if (regional) historyData = historyData.filter(item => item.REGIONAL === regional);
-            if (filial) historyData = historyData.filter(item => item.CODFILIAL === filial);
-            if (secao) historyData = historyData.filter(item => item.SECAO === secao);
-            if (funcao) historyData = historyData.filter(item => item.FUNCAO === funcao);
-
-            // 4. Processa e renderiza os componentes
-            processDashboardTotals(filteredData, historyData);
-            processDashboardCharts(filteredData);
-            processDashboardTable(filteredData, historyData); // NOVO: Passa o histórico
-            processDashboardComparisonChart(filteredData, historyData); // NOVO
-            
-            feather.replace(); // Para os ícones de tendência de alta/baixa
-
-        } catch (err) {
-            console.error("Erro ao inicializar dashboard:", err);
-            mostrarNotificacao(`Erro ao carregar dashboard: ${err.message}`, 'error');
-        } finally {
-            showLoading(false);
-        }
-    }
-
-    /**
-     * Calcula e exibe os totais nos cards de estatística.
-     * Inclui o indicador de mudança (aumento/diminuição).
-     */
-    function processDashboardTotals(data, historyData) {
-        let totalColab = data.length;
-        let totalMinutos = 0;
-        let totalValor = 0;
-        
-        data.forEach(item => {
-            totalMinutos += parseHorasParaMinutos(item.TOTAL_EM_HORA);
-            totalValor += parseValor(item.VAL_PGTO_BHS);
-        });
-
-        let histTotalColab = historyData.length;
-        let histTotalMinutos = 0;
-        let histTotalValor = 0;
-        
-        historyData.forEach(item => {
-            histTotalMinutos += parseHorasParaMinutos(item.TOTAL_EM_HORA);
-            histTotalValor += parseValor(item.VAL_PGTO_BHS);
-        });
-
-        // Formata para exibição
-        const totalHoras = (totalMinutos / 60).toFixed(0);
-        
-        ui.statTotalColab.textContent = totalColab;
-        ui.statTotalHoras.textContent = totalHoras;
-        ui.statTotalValor.textContent = `R$ ${(totalValor / 1000).toFixed(1)} mil`;
-
-        // Renderiza indicadores de mudança
-        renderChangeIndicator(ui.statChangeColab, totalColab, histTotalColab, false); // Colab: 'down' é bom?
-        renderChangeIndicator(ui.statChangeHoras, totalMinutos, histTotalMinutos, true); // Horas: 'down' é bom (verde)
-        renderChangeIndicator(ui.statChangeValor, totalValor, histTotalValor, true); // Valor: 'down' é bom (verde)
-    }
-    
-    /**
-     * Helper para renderizar o indicador de mudança (aumento/diminuição).
-     * @param {boolean} isBadNews - Se true, um aumento é ruim (vermelho).
-     */
-    function renderChangeIndicator(element, current, previous, isBadNews = true) {
-        if (previous === 0) {
-            element.innerHTML = `<span class="text-gray-500">Sem histórico</span>`;
-            return;
-        }
-        
-        const diff = current - previous;
-        const percentChange = (diff / previous) * 100;
-        
-        if (Math.abs(diff) < 0.01) {
-            element.innerHTML = `
-                <i data-feather="minus" class="h-4 w-4 text-gray-500"></i>
-                <span class="text-gray-500">Manteve</span>
-            `;
-            return;
-        }
-        
-        const isUp = diff > 0;
-        const formattedPercent = `${Math.abs(percentChange).toFixed(1)}%`;
-        
-        let colorClass = isUp ? 'diff-up' : 'diff-down'; // Vermelho / Verde
-        let icon = isUp ? 'arrow-up-right' : 'arrow-down-right';
-        
-        // Inverte as cores se a notícia for boa (isBadNews = false)
-        // ou se a notícia for ruim e o valor caiu (isBadNews = true e isUp = false)
-        if ((isUp && !isBadNews) || (!isUp && isBadNews)) {
-            colorClass = 'diff-down'; // Verde
-        } else {
-            colorClass = 'diff-up'; // Vermelho
-        }
-
-        element.innerHTML = `
-            <i data-feather="${icon}" class="h-4 w-4 ${colorClass}"></i>
-            <span class="${colorClass}">${formattedPercent}</span>
-            <span class="text-gray-500 hidden md:inline">vs. última carga</span>
+        tr.innerHTML = `
+            <td>${item.nome || '-'}</td>
+            <td>${item.matricula || '-'}</td>
+            <td>${item.funcao || '-'}</td>
+            <td>${item.secao || '-'}</td>
+            <td>${item.filial || '-'}</td>
+            <td>${dtAdmissao}</td>
+            <td><span class="status-badge ${statusClass}">${status}</span></td>
+            <td class="actions">
+                <button class="btn btn-sm btn-info" title="Visualizar Perfil (em breve)" disabled>
+                    <i data-feather="eye" class="h-4 w-4"></i>
+                </button>
+                <button class="btn btn-sm btn-warning" title="Transferir Colaborador" onclick="window.location.hash='#transferir'">
+                    <i data-feather="repeat" class="h-4 w-4"></i>
+                </button>
+            </td>
         `;
-    }
+        fragment.appendChild(tr);
+    });
+    tbody.appendChild(fragment);
+    feather.replace();
+}
 
-    /**
-     * Agrega dados (por Seção ou Função) e renderiza os gráficos de pizza.
-     */
-    function processDashboardCharts(data) {
-        const dataSecao = aggregateData(data, 'SECAO', 'VAL_PGTO_BHS');
-        const dataFuncao = aggregateData(data, 'FUNCAO', 'VAL_PGTO_BHS');
-        
-        // Renderiza Gráfico 1 (Seção)
-        renderChart(
-            ui.canvasResumoSecao, 
-            'resumoSecao', // chave do state.charts
-            'pie', 
-            dataSecao.labels, 
-            dataSecao.values,
-            'Valor por Seção'
-        );
-        
-        // Renderiza Gráfico 2 (Função)
-        renderChart(
-            ui.canvasResumoFuncao, 
-            'resumoFuncao', // chave do state.charts
-            'pie', 
-            dataFuncao.labels, 
-            dataFuncao.values,
-            'Valor por Função'
-        );
-    }
+/**
+ * Aplica os filtros da UI na tabela "Meu Time"
+ */
+function applyFilters() {
+    const nomeFiltro = document.getElementById('filterNome').value.toLowerCase();
+    const filialFiltro = document.getElementById('filterFilial').value;
+    const funcaoFiltro = document.getElementById('filterFuncao').value;
+    const statusFiltro = document.getElementById('filterStatus').value;
     
-    /**
-     * Agrega dados para os gráficos de pizza (Top 10 + Outros).
-     * @param {Array} data - Os dados filtrados.
-     * @param {string} field - O campo para agrupar (ex: 'SECAO').
-     * @param {string} sumField - O campo para somar (ex: 'VAL_PGTO_BHS').
-     */
-    function aggregateData(data, field, sumField) {
-        const groups = data.reduce((acc, item) => {
-            const key = item[field] || 'Não Definido';
-            const value = parseValor(item[sumField]);
-            
-            if (!acc[key]) {
-                acc[key] = 0;
-            }
-            acc[key] += value;
-            return acc;
-        }, {});
-
-        // Converte para array, ordena e pega o Top 10
-        const sorted = Object.entries(groups)
-            .sort(([, a], [, b]) => b - a);
-            
-        const top10 = sorted.slice(0, 10);
-        const others = sorted.slice(10);
+    const filteredData = state.meuTime.filter(item => {
+        // ASSUME lowercase
+        const nomeChapaMatch = nomeFiltro === '' || 
+            (item.nome && item.nome.toLowerCase().includes(nomeFiltro)) ||
+            (item.matricula && item.matricula.toLowerCase().includes(nomeFiltro));
         
-        const labels = top10.map(([key]) => key);
-        const values = top10.map(([, value]) => value);
+        const filialMatch = filialFiltro === '' || item.filial === filialFiltro;
+        const funcaoMatch = funcaoFiltro === '' || item.funcao === funcaoFiltro;
+        const statusMatch = statusFiltro === '' || (item.status || 'ativo') === statusFiltro;
         
-        // Agrupa o 'resto' em 'Outros'
-        if (others.length > 0) {
-            labels.push('Outros');
-            values.push(others.reduce((sum, [, value]) => sum + value, 0));
-        }
-        
-        return { labels, values };
-    }
+        return nomeChapaMatch && filialMatch && funcaoMatch && statusMatch;
+    });
     
-    /**
-     * Renderiza ou atualiza um gráfico do Chart.js.
-     */
-    function renderChart(canvas, chartStateKey, type, labels, data, label) {
-        if (!canvas) return;
+    renderMeuTimeTable(filteredData);
+}
 
-        // Destrói gráfico antigo, se existir
-        if (state.charts[chartStateKey]) {
-            state.charts[chartStateKey].destroy();
-        }
-        
-        const ctx = canvas.getContext('2d');
-        state.charts[chartStateKey] = new Chart(ctx, {
-            type: type,
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: label,
-                    data: data,
-                    // Cores bonitas para os gráficos de pizza
-                    backgroundColor: [
-                        '#0077B6', '#00B4D8', '#90E0EF', '#023047', '#00D4AA',
-                        '#FFB703', '#FB8500', '#219EBC', '#8ECAE6', '#ADB5BD'
-                    ],
-                    borderColor: '#ffffff',
-                    borderWidth: (type === 'pie' || type === 'doughnut') ? 2 : 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right', // MUDANÇA: de bottom para right
-                        labels: {
-                            padding: 15,
-                            boxWidth: 12
-                        }
-                    },
-                    // NOVO: Configuração de %
-                    datalabels: {
-                        formatter: (value, ctx) => {
-                            if (type !== 'pie' && type !== 'doughnut') {
-                                return null;
-                            }
-                            let sum = 0;
-                            let dataArr = ctx.chart.data.datasets[0].data;
-                            dataArr.map(data => {
-                                sum += data;
-                            });
-                            let percentage = (value * 100 / sum);
-                            // Não mostra se for muito pequeno
-                            return percentage < 3 ? '' : percentage.toFixed(1) + '%';
-                        },
-                        color: '#fff',
-                        font: {
-                            weight: 'bold',
-                            size: 12
-                        },
-                        textShadowBlur: 2,
-                        textShadowColor: 'rgba(0, 0, 0, 0.5)'
-                    }
+/**
+ * Renderiza a tabela de Configuração de Gestores (Admin)
+ */
+function renderGestorConfigTable(data) {
+    const tbody = document.getElementById('tableBodyGestorConfig');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-10 text-gray-500">Nenhuma regra de gestão configurada.</td></tr>';
+        return;
+    }
+
+    // (tabela_gestores_config usa minúsculas, está correto)
+    data.sort((a, b) => (a.nivel_hierarquia || 0) - (b.nivel_hierarquia || 0));
+
+    data.forEach(item => {
+        const tr = document.createElement('tr');
+        const podeGestorText = item.pode_ser_gestor ? 'Sim' : 'Não';
+        const podeGestorClass = item.pode_ser_gestor ? 'status-ativo' : 'status-inativo';
+
+        tr.innerHTML = `
+            <td>${item.funcao}</td>
+            <td><span class="status-badge ${podeGestorClass}">${podeGestorText}</span></td>
+            <td>${item.nivel_hierarquia}</td>
+            <td class="actions">
+                <button class="btn btn-sm btn-danger" title="Excluir Regra" onclick="handleExcluirConfig('${item.funcao}')">
+                    <i data-feather="trash-2" class="h-4 w-4"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    feather.replace();
+}
+
+// ====================================================================
+// NOVAS FUNÇÕES: Lógica da Aba Transferência
+// ====================================================================
+
+/**
+ * Carrega os dados para a view de Transferência
+ */
+async function loadTransferViewData() {
+    const selectColaborador = document.getElementById('selectColaboradorTransfer');
+    const selectGestor = document.getElementById('selectNovoGestor');
+    const btnConfirm = document.getElementById('btnConfirmTransfer');
+    
+    if (!selectColaborador || !selectGestor || !btnConfirm) {
+        console.error("Elementos da view 'transferir' não encontrados.");
+        return;
+    }
+
+    // 1. Popula colaboradores do time atual (AGORA COM A CASCATA COMPLETA)
+    selectColaborador.innerHTML = '<option value="">Selecione um colaborador...</option>';
+    // ASSUME lowercase
+    state.meuTime.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
+        selectColaborador.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula})</option>`;
+    });
+
+    // 2. Popula gestores de destino
+    selectGestor.innerHTML = '<option value="">Carregando gestores...</option>';
+    selectGestor.disabled = true;
+    btnConfirm.disabled = true; // Desabilita o botão até que ambos sejam selecionados
+
+    try {
+        // Pega funções que podem ser gestor (do cache)
+        const funcoesGestor = state.gestorConfig
+            .filter(r => r.pode_ser_gestor)
+            .filter(r => {
+                // Se o usuário não tiver nível (ex: admin), permite todos
+                if (state.userNivel === null || state.userNivel === undefined) {
+                    return true;
                 }
+                // Gestor Nível 2 (Fabio) vê Nível 1 (Marcelo)
+                // 1 < 2 = true
+                return r.nivel_hierarquia < state.userNivel;
+            })
+            // O nome da função na tabela config é minúsculo
+            .map(r => `"${r.funcao.toUpperCase()}"`); // Converte para UPPERCASE para bater com a tabela 'colaboradores'
+        
+        if (funcoesGestor.length === 0) {
+            throw new Error("Nenhum gestor de nível hierárquico inferior encontrado.");
+        }
+        
+        // 1. Define os filtros base (ASSUME lowercase)
+        let queryParts = [
+            `funcao=in.(${funcoesGestor.join(',')})`, // Filtro de Função/Nível (funcao é UPPERCASE)
+            `matricula=neq.${state.userMatricula}`      // Excluir a si mesmo
+        ];
+
+        // 2. Adiciona o filtro de FILIAL (se não for admin)
+        if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`; // ASSUME lowercase
+            queryParts.push(filialFilter);
+            console.log("Aplicando filtro de filial na transferência:", filialFilter);
+        }
+        
+        // 3. Monta a query final (ASSUME lowercase)
+        const query = `colaboradores?select=nome,matricula,funcao,filial&${queryParts.join('&')}`;
+        
+        const gestores = await supabaseRequest(query, 'GET');
+
+        if (!gestores || gestores.length === 0) {
+            throw new Error("Nenhum outro gestor (na sua filial e nível) encontrado.");
+        }
+
+        selectGestor.innerHTML = '<option value="">Selecione um gestor de destino...</option>';
+        // ASSUME lowercase
+        gestores.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(g => {
+            selectGestor.innerHTML += `<option value="${g.matricula}">${g.nome} [${g.filial || 'S/F'}] (${g.funcao})</option>`;
+        });
+        selectGestor.disabled = false;
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao carregar gestores: ${err.message}`, 'error');
+        selectGestor.innerHTML = `<option value="">${err.message}</option>`;
+    }
+}
+
+/**
+ * Habilita o botão de confirmar transferência
+ */
+function checkTransferButtonState() {
+    const selectColaborador = document.getElementById('selectColaboradorTransfer').value;
+    const selectGestor = document.getElementById('selectNovoGestor').value;
+    const btnConfirm = document.getElementById('btnConfirmTransfer');
+    
+    if (!btnConfirm) return; // Proteção caso o elemento não exista
+    
+    if (selectColaborador && selectGestor) {
+        btnConfirm.disabled = false;
+    } else {
+        btnConfirm.disabled = true;
+    }
+}
+
+/**
+ * Executa a transferência do colaborador
+ */
+async function handleConfirmTransfer() {
+    const selectColaborador = document.getElementById('selectColaboradorTransfer');
+    const selectGestor = document.getElementById('selectNovoGestor');
+    const btnConfirm = document.getElementById('btnConfirmTransfer');
+
+    const colaboradorMatricula = selectColaborador.value;
+    const novoGestorMatricula = selectGestor.value;
+
+    if (!colaboradorMatricula || !novoGestorMatricula) {
+        mostrarNotificacao('Selecione um colaborador e um gestor de destino.', 'warning');
+        return;
+    }
+
+    const colaboradorNome = selectColaborador.options[selectColaborador.selectedIndex].text;
+    const gestorNome = selectGestor.options[selectGestor.selectedIndex].text;
+    
+    showLoading(true, `Transferindo ${colaboradorNome} para ${gestorNome}...`);
+    btnConfirm.disabled = true;
+
+    try {
+        // ASSUME lowercase
+        const payload = {
+            gestor_chapa: novoGestorMatricula
+        };
+        
+        await supabaseRequest(`colaboradores?matricula=eq.${colaboradorMatricula}`, 'PATCH', payload);
+
+        // Sucesso!
+        mostrarNotificacao('Colaborador transferido com sucesso!', 'success');
+
+        // Atualiza o estado local (ASSUME lowercase)
+        state.meuTime = state.meuTime.filter(c => c.matricula !== colaboradorMatricula);
+
+        // Reseta a view de transferência
+        selectColaborador.value = "";
+        selectGestor.value = "";
+        
+        // Vai para a view "Meu Time" para ver o resultado
+        showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao transferir: ${err.message}`, 'error');
+    } finally {
+        showLoading(false);
+        checkTransferButtonState();
+    }
+}
+
+
+// ====================================================================
+// NOVAS FUNÇÕES: Lógica da Aba Configurações
+// ====================================================================
+
+/**
+ * Popula o dropdown de Funções na aba Configurações.
+ */
+function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
+    const select = document.getElementById('configFuncaoSelect');
+    if (!select) return;
+
+    // A tabela config usa 'funcao' minúscula
+    const funcoesConfiguradas = new Set(gestorConfig.map(c => c.funcao.toLowerCase()));
+    
+    // 'todasAsFuncoes' vem de 'colaboradores.funcao' (UPPERCASE)
+    // Comparamos o minúsculo de ambas
+    const funcoesDisponiveis = todasAsFuncoes.filter(f => !funcoesConfiguradas.has(f.toLowerCase()));
+    
+    select.innerHTML = ''; // Limpa
+    
+    if (funcoesDisponiveis.length === 0) {
+        select.innerHTML = '<option value="">Nenhuma nova função a configurar</option>';
+        return;
+    }
+    
+    select.innerHTML = '<option value="">Selecione uma função...</option>';
+    funcoesDisponiveis.sort().forEach(funcao => {
+        // O valor salvo no dropdown é o UPPERCASE original
+        select.innerHTML += `<option value="${funcao}">${funcao}</option>`;
+    });
+}
+
+/**
+ * Salva a nova regra de gestão no banco de dados.
+ */
+async function handleSalvarConfig() {
+    const funcao = document.getElementById('configFuncaoSelect').value; // (vem UPPERCASE)
+    const nivel = document.getElementById('configNivel').value;
+    const podeGestor = document.getElementById('configPodeSerGestor').value === 'true';
+
+    if (!funcao || !nivel) {
+        mostrarNotificacao('Por favor, selecione uma função e defina um nível.', 'warning');
+        return;
+    }
+    
+    const payload = {
+        funcao: funcao.toUpperCase(), // Salva em UPPERCASE (para bater com o banco config)
+        pode_ser_gestor: podeGestor,
+        nivel_hierarquia: parseInt(nivel)
+    };
+    
+    showLoading(true, 'Salvando regra...');
+    
+    try {
+        // Tabela config usa minúsculas
+        const [resultado] = await supabaseRequest('tabela_gestores_config', 'POST', payload, {
+            'Prefer': 'return=representation,resolution=merge-duplicates'
+        });
+
+        if (!resultado) {
+            throw new Error("A API não retornou dados após salvar.");
+        }
+
+        // Atualiza o estado local
+        // Remove a antiga, se existir (caso de 'merge-duplicates')
+        state.gestorConfig = state.gestorConfig.filter(item => item.funcao.toUpperCase() !== resultado.funcao.toUpperCase());
+        // Adiciona a nova/atualizada
+        state.gestorConfig.push(resultado);
+
+        // Re-renderiza a UI
+        renderGestorConfigTable(state.gestorConfig);
+        populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig); // Atualiza o dropdown de adicionar
+        document.getElementById('formConfigGestor').reset(); // Limpa o formulário
+
+        mostrarNotificacao('Regra de gestão salva com sucesso!', 'success');
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao salvar regra: ${err.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/**
+ * Exclui uma regra de gestão.
+ */
+async function handleExcluirConfig(funcao) {
+    // 'funcao' (key) vem da tabela config (UPPERCASE)
+    if (!funcao || !confirm(`Tem certeza que deseja excluir a regra para a função "${funcao}"?`)) {
+        return;
+    }
+    
+    showLoading(true, 'Excluindo regra...');
+    
+    try {
+        // Usa 'funcao' (UPPERCASE) como a chave para exclusão
+        await supabaseRequest(`tabela_gestores_config?funcao=eq.${funcao.toUpperCase()}`, 'DELETE');
+
+        // Atualiza o estado local
+        state.gestorConfig = state.gestorConfig.filter(item => item.funcao.toUpperCase() !== funcao.toUpperCase());
+
+        // Re-renderiza a UI
+        renderGestorConfigTable(state.gestorConfig);
+        populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig); // Atualiza o dropdown de adicionar
+
+        mostrarNotificacao('Regra de gestão excluída com sucesso!', 'success');
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao excluir regra: ${err.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+
+// --- Inicialização ---
+async function initializeApp() {
+    showLoading(true, 'Conectando...');
+    try {
+        // 1. Inicializa o Supabase
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                storage: sessionStorageAdapter,
+                persistSession: true,
+                autoRefreshToken: true
             }
         });
-    }
-
-
-    /**
-     * Agrega dados por Filial e renderiza a tabela de ranking.
-     */
-    function processDashboardTable(data, historyData) {
-        const groups = data.reduce((acc, item) => {
-            const key = item.CODFILIAL || 'N/A';
-            const valor = parseValor(item.VAL_PGTO_BHS);
-            const minutos = parseHorasParaMinutos(item.TOTAL_EM_HORA);
-            
-            if (!acc[key]) {
-                acc[key] = {
-                    filial: key,
-                    totalValor: 0,
-                    totalMinutos: 0,
-                    colaboradores: 0
-                };
-            }
-            
-            acc[key].totalValor += valor;
-            acc[key].totalMinutos += minutos;
-            acc[key].colaboradores += 1;
-            return acc;
-        }, {});
-
-        // NOVO: Agrega dados do histórico
-        const historyGroups = historyData.reduce((acc, item) => {
-            const key = item.CODFILIAL || 'N/A';
-            const valor = parseValor(item.VAL_PGTO_BHS);
-            
-            if (!acc[key]) {
-                acc[key] = {
-                    totalValor: 0,
-                };
-            }
-            acc[key].totalValor += valor;
-            return acc;
-        }, {});
-
-
-        // Converte para array e ordena por Valor (descendente)
-        const rankedData = Object.values(groups)
-            .sort((a, b) => b.totalValor - a.totalValor);
-            
-        // Renderiza a tabela
-        ui.tableRankingFilialBody.innerHTML = '';
-        if (rankedData.length === 0) {
-            ui.tableRankingFilialBody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-gray-500">Nenhum dado para exibir.</td></tr>';
+        
+        // 2. Verifica a Sessão
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        if (sessionError || !session) {
+            console.error("Sem sessão, redirecionando para login.", sessionError);
+            window.location.href = '../home.html';
             return;
         }
         
-        const fragment = document.createDocumentFragment();
-        rankedData.forEach(item => {
-            const tr = document.createElement('tr');
-            
-            // NOVO: Lógica da Tendência
-            const previousItem = historyGroups[item.filial];
-            const prevValue = previousItem ? previousItem.totalValor : 0;
-            const currValue = item.totalValor;
-            let tendenciaIcon = '<span style="color: #6b7280;">-</span>'; // Neutro
-            
-            if (prevValue > 0) { // Só mostra tendência se havia valor antes
-                if (currValue > prevValue) {
-                    tendenciaIcon = '<i data-feather="arrow-up-right" style="color: #dc2626;"></i>'; // Piorou
-                } else if (currValue < prevValue) {
-                    tendenciaIcon = '<i data-feather="arrow-down-right" style="color: #16a34a;"></i>'; // Melhorou
-                }
-            }
-
-            // MUDANÇA: text-align: center e adição da coluna de tendência
-            tr.innerHTML = `
-                <td class="font-bold" style="text-align: center; padding-right: 1.5rem; font-family: monospace;">${item.filial}</td>
-                <td style="text-align: center; padding-right: 1.5rem; font-family: monospace; color: #0077B6; font-weight: bold;">R$ ${item.totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td style="text-align: center; padding-right: 1.5rem; font-family: monospace;">${(item.totalMinutos / 60).toFixed(0)}</td>
-                <td style="text-align: center; padding-right: 1.5rem; font-family: monospace;">${item.colaboradores}</td>
-                <td style="text-align: center;">${tendenciaIcon}</td>
-            `;
-            fragment.appendChild(tr);
-        });
-        ui.tableRankingFilialBody.appendChild(fragment);
-        feather.replace(); // Adicionado para renderizar o ícone de tendência
-    }
-
-
-    // NOVO: Função para o gráfico de barras comparativo
-    /**
-     * Agrega dados por Regional (Atual vs Anterior) e renderiza o gráfico de barras.
-     */
-    function processDashboardComparisonChart(data, historyData) {
-        // 1. Agrega dados atuais
-        const currentGroups = data.reduce((acc, item) => {
-            const key = item.REGIONAL || 'N/A';
-            const valor = parseValor(item.VAL_PGTO_BHS);
-            if (!acc[key]) acc[key] = 0;
-            acc[key] += valor;
-            return acc;
-        }, {});
+        state.auth = session;
+        localStorage.setItem('auth_token', session.access_token);
         
-        // 2. Agrega dados do histórico
-        const historyGroups = historyData.reduce((acc, item) => {
-            const key = item.REGIONAL || 'N/A';
-            const valor = parseValor(item.VAL_PGTO_BHS);
-            if (!acc[key]) acc[key] = 0;
-            acc[key] += valor;
-            return acc;
-        }, {});
-
-        // 3. Obtém todas as chaves (regionais)
-        const allRegionais = new Set([...Object.keys(currentGroups), ...Object.keys(historyGroups)]);
-        const labels = [...allRegionais].sort();
+        // 3. Busca o Perfil do Usuário
+        // (Tabela 'usuarios' usa lowercase)
+        const endpoint = `usuarios?auth_user_id=eq.${state.auth.user.id}&select=nome,role,profile_picture_url,permissoes_filiais,matricula,email`;
+        const profileResponse = await supabaseRequest(endpoint, 'GET');
         
-        // 4. Monta os datasets
-        const datasetAtual = {
-            label: 'Valor Atual',
-            data: labels.map(r => currentGroups[r] || 0),
-            backgroundColor: 'rgba(2, 48, 71, 0.7)', // var(--dark)
-            borderColor: 'rgba(2, 48, 71, 1)',
-            borderWidth: 1
-        };
-        
-        const datasetAnterior = {
-            label: 'Valor Anterior',
-            data: labels.map(r => historyGroups[r] || 0),
-            backgroundColor: 'rgba(144, 224, 239, 0.7)', // var(--light)
-            borderColor: 'rgba(144, 224, 239, 1)',
-            borderWidth: 1
-        };
-
-        // 5. Renderiza o gráfico de barras
-        renderBarChart(
-            ui.canvasComparativoRegional,
-            'chartComparativoRegional',
-            labels,
-            [datasetAtual, datasetAnterior]
-        );
-    }
-    
-    // NOVO: Função específica para renderizar o gráfico de barras
-    function renderBarChart(canvas, chartStateKey, labels, datasets) {
-        if (!canvas) return;
-
-        if (state.charts[chartStateKey]) {
-            state.charts[chartStateKey].destroy();
+        if (!profileResponse || profileResponse.length === 0) {
+             throw new Error("Perfil de usuário não encontrado.");
         }
         
-        const ctx = canvas.getContext('2d');
-        state.charts[chartStateKey] = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: datasets // Passa o array de datasets
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            // Formata o eixo Y como R$
-                            callback: function(value, index, values) {
-                                return 'R$ ' + (value / 1000).toLocaleString('pt-BR') + 'k';
-                            }
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: true, // Mostra a legenda (Atual vs Anterior)
-                        position: 'bottom'
-                    },
-                    datalabels: {
-                        display: false // Desligado para não poluir o gráfico de barras
-                    },
-                    tooltip: {
-                         callbacks: {
-                            label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed.y !== null) {
-                                    label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
-                                }
-                                return label;
-                            }
-                        }
-                    }
+        const profile = profileResponse[0];
+        state.userId = state.auth.user.id;
+        state.isAdmin = (profile.role === 'admin');
+        state.userMatricula = profile.matricula || null; // (matricula é lowercase)
+        state.permissoes_filiais = profile.permissoes_filiais || null;
+        state.userNome = profile.nome || session.user.email.split('@')[0];
+
+        // Atualizar UI
+        document.getElementById('topBarUserName').textContent = state.userNome;
+        document.getElementById('dropdownUserName').textContent = state.userNome;
+        document.getElementById('dropdownUserEmail').textContent = profile.email || session.user.email;
+        if (profile.profile_picture_url) {
+            document.getElementById('topBarUserAvatar').src = profile.profile_picture_url;
+        }
+        document.getElementById('gestorNameLabel').textContent = `${state.userNome} (Chapa: ${state.userMatricula || 'N/A'})`;
+        document.getElementById('dashGestorName').textContent = `${state.userNome} (${state.userMatricula || 'N/A'})`;
+        
+        // Mostrar links de Admin se for admin
+        if(state.isAdmin) {
+            document.getElementById('adminLinks').classList.remove('hidden');
+            document.getElementById('adminConfigLink').style.display = 'block';
+            document.getElementById('adminUpdateLink').style.display = 'block';
+        }
+        
+        // 4. Buscar a função e FILIAL do gestor logado (CORREÇÃO 2)
+        if (state.userMatricula) {
+            // (Tabela 'colaboradores' usa lowercase)
+            const gestorData = await supabaseRequest(`colaboradores?select=funcao,filial&matricula=eq.${state.userMatricula}&limit=1`, 'GET');
+            if (gestorData && gestorData[0]) {
+                state.userFuncao = gestorData[0].funcao; // Armazena a função (que é UPPERCASE)
+                state.userFilial = gestorData[0].filial; // Armazena a filial (CORREÇÃO 2)
+            }
+        }
+        
+        // 5. Carrega TODOS os dados (time, disponíveis, config, funções)
+        await loadModuleData();
+        
+        // 6. Encontrar o nível do gestor (agora que o config foi carregado)
+        if (state.userFuncao && state.gestorConfig.length > 0) {
+            // Compara a funcao (UPPERCASE) com a config (UPPERCASE)
+            const gestorRegra = state.gestorConfig.find(r => r.funcao.toUpperCase() === state.userFuncao.toUpperCase());
+            if (gestorRegra) {
+                state.userNivel = gestorRegra.nivel_hierarquia; // Armazena o nível
+            }
+        }
+        console.log(`Gestor: ${state.userNome}, Funcao: ${state.userFuncao}, Nivel: ${state.userNivel}, Filial: ${state.userFilial}`);
+        
+        document.getElementById('appShell').style.display = 'flex';
+        document.body.classList.add('system-active');
+        
+        // ATUALIZADO: Decide qual view mostrar
+        if (state.meuTime.length === 0 && !state.isAdmin) {
+            // Se o time está vazio E não é admin, força o setup
+            iniciarDefinicaoDeTime();
+        } else {
+            // Se o time já existe (ou é admin), carrega a view do hash
+            handleHashChange();
+        }
+
+    } catch (err) {
+        console.error("Erro fatal na inicialização:", err);
+        showLoading(false);
+        if (err.message && !err.message.includes("Sessão expirada")) {
+            mostrarNotificacao(`Erro ao carregar: ${err.message}`, 'error', 10000);
+        }
+    } finally {
+        showLoading(false);
+    }
+}
+
+function handleHashChange() {
+    if (!state.auth) return;
+    
+    const hash = window.location.hash || '#meuTime';
+    let viewId = 'meuTimeView';
+    let navElement = document.querySelector('a[href="#meuTime"]');
+
+    const cleanHash = hash.substring(1);
+    const newViewId = cleanHash + 'View';
+    const newNavElement = document.querySelector(`a[href="${hash}"]`);
+
+    if (document.getElementById(newViewId)) {
+        // *** NOVO CHECK ***
+        // Se o time está vazio, não deixa navegar para "Meu Time"
+        if (newViewId === 'meuTimeView' && state.meuTime.length === 0 && !state.isAdmin) {
+            console.warn("Time vazio, forçando setup.");
+            iniciarDefinicaoDeTime();
+            return; // Impede a navegação
+        }
+
+        // Verificar permissão de admin para views restritas
+        const isAdminView = newViewId === 'configuracoesView' || newViewId === 'atualizarQLPView';
+        if (isAdminView && !state.isAdmin) {
+            mostrarNotificacao('Acesso negado. Você precisa ser administrador.', 'error');
+            // Recarrega a view padrão
+            showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
+            return;
+        }
+        viewId = newViewId;
+        navElement = newNavElement;
+    }
+    
+    const currentActive = document.querySelector('.view-content.active');
+    if (!currentActive || currentActive.id !== viewId) {
+        showView(viewId, navElement);
+    }
+}
+
+// --- Event Listeners da UI ---
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp();
+    
+    window.addEventListener('hashchange', handleHashChange);
+    
+    // Links da Sidebar
+    document.querySelectorAll('.sidebar .nav-item[href]').forEach(link => {
+        link.addEventListener('click', (e) => {
+            const href = link.getAttribute('href');
+            if (href && href.startsWith('#') && href.length > 1) {
+                e.preventDefault();
+                if (window.location.hash !== href) {
+                    window.location.hash = href;
+                } else {
+                    // Se já está na view, força a chamada
+                    handleHashChange();
                 }
             }
         });
-    }
+    });
 
-
-    // --- INICIALIZAÇÃO E EVENTOS ---
-    async function main() {
-        showLoading(true, 'Conectando...');
-        try {
-            await initializeSupabase(); // Espera a inicialização
-
-            // *** NOVA LINHA ADICIONADA AQUI ***
-            // Carrega TODOS os dados do banco de horas ANTES de mostrar qualquer view
-            await loadInitialData(); 
-            // *** FIM DA NOVA LINHA ***
-
-            if (state.auth) {
-                // --- SESSÃO VÁLIDA ---
-                handleHashChange(); // Agora isso vai usar os dados pré-carregados
-                window.addEventListener('hashchange', handleHashChange);
-
-                // --- Listeners ---
-                ui.importButton.addEventListener('click', handleImport);
-                ui.previewButton.addEventListener('click', handlePreview); // NOVO
-                ui.modalClose.addEventListener('click', () => ui.modal.style.display = 'none');
-                window.addEventListener('click', (event) => {
-                    if (event.target == ui.modal) {
-                        ui.modal.style.display = 'none';
-                    }
-                });
-                
-                // Links da Sidebar (agora gerenciados pelo handleHashChange)
-                document.querySelector('a[href="#dashboard"]').addEventListener('click', (e) => {
-                    e.preventDefault();
-                    if (window.location.hash !== '#dashboard') {
-                        window.location.hash = '#dashboard';
-                    }
-                });
-                document.querySelector('a[href="#acompanhamento"]').addEventListener('click', (e) => {
-                    e.preventDefault();
-                     if (window.location.hash !== '#acompanhamento') {
-                        window.location.hash = '#acompanhamento';
-                    }
-                });
-                document.querySelector('a[href="#configuracoes"]').addEventListener('click', (e) => {
-                    e.preventDefault();
-                     if (window.location.hash !== '#configuracoes') {
-                        window.location.hash = '#configuracoes';
-                    }
-                });
-
-                // MUDANÇA: Debounce (atraso) para os filtros da tabela
-                let filterTimeout;
-                [ui.filterChapa, ui.filterNome, ui.filterRegional, ui.filterCodFilial].forEach(input => {
-                    input.addEventListener('input', () => {
-                        clearTimeout(filterTimeout);
-                        filterTimeout = setTimeout(() => {
-                            // MUDANÇA: Agora applyFilters é síncrono
-                            applyFilters();
-                        }, 300); // 300ms de atraso
-                    });
-                });
-                
-                // NOVO: Listeners para os filtros do Dashboard (agora são SELECTS)
-                [ui.filterRegionalDash, ui.filterCodFilialDash, ui.filterSecaoDash, ui.filterFuncaoDash].forEach(selectElement => {
-                    if (selectElement) { // Garante que o elemento existe
-                        // MUDANÇA: Agora initializeDashboard é assíncrono
-                        selectElement.addEventListener('change', () => initializeDashboard());
-                    }
-                });
-
-                ui.logoutButton.addEventListener('click', logout);
-                ui.logoutLink.addEventListener('click', logout);
-                
-                ui.profileDropdownButton.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    ui.profileDropdown.classList.toggle('open');
-                });
-                document.addEventListener('click', (e) => {
-                    if (ui.profileDropdown && !ui.profileDropdown.contains(e.target)) {
-                        ui.profileDropdown.classList.remove('open');
-                    }
-                });
-                // --- Fim dos listeners ---
-
-            } else {
-                // --- SESSÃO INVÁLIDA (ou expirada) ---
-                showLoading(false);
-                console.warn("Nenhuma sessão de autenticação encontrada. A aplicação não será totalmente carregada.");
-            }
-        } catch (err) {
-            // --- ERRO FATAL ---
-            console.error("Falha crítica ao carregar a aplicação (main):", err.message);
-            mostrarNotificacao(`Falha crítica: ${err.message}`, 'error', 10000);
-            showLoading(false); // Garante que o loading saia.
-        }
-    }
-
-    main();
+    // Logout
+    document.getElementById('logoutButton').addEventListener('click', logout);
+    // (logoutLink já está coberto pelo seletor acima)
     
-    // Lógica da Sidebar (copiado do app.html)
+    // Dropdown de Perfil
+    const profileDropdownButton = document.getElementById('profileDropdownButton');
+    const profileDropdown = document.getElementById('profileDropdown');
+    if (profileDropdownButton) {
+        profileDropdownButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            profileDropdown.classList.toggle('open');
+        });
+    }
+    document.addEventListener('click', (e) => {
+        if (profileDropdown && !profileDropdown.contains(e.target)) {
+            profileDropdown.classList.remove('open');
+        }
+    });
+    
+    // Toggle da Sidebar
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.querySelector('.sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
-
     if (sidebarToggle && sidebar && sidebarOverlay) {
         sidebarToggle.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1724,11 +1183,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 sidebar.classList.toggle('collapsed');
             }
         });
-        
         sidebarOverlay.addEventListener('click', () => {
             document.body.classList.remove('sidebar-open');
         });
     }
     
-    feather.replace(); // Chamada final
+    // Listeners para os filtros
+    document.getElementById('filterNome').addEventListener('input', applyFilters);
+    document.getElementById('filterFilial').addEventListener('change', applyFilters);
+    document.getElementById('filterFuncao').addEventListener('change', applyFilters);
+    document.getElementById('filterStatus').addEventListener('change', applyFilters);
+
+    // Listeners para a tela de Setup
+    document.getElementById('searchDisponiveis').addEventListener('input', filtrarDisponiveis);
+    document.getElementById('btnAdicionar').addEventListener('click', () => {
+        moverColaboradores(document.getElementById('listaDisponiveis'), document.getElementById('listaMeuTime'));
+    });
+    document.getElementById('btnRemover').addEventListener('click', () => {
+        moverColaboradores(document.getElementById('listaMeuTime'), document.getElementById('listaDisponiveis'));
+    });
+    document.getElementById('btnSalvarTime').addEventListener('click', handleSalvarTime);
+    
+    // NOVO: Listener para salvar Configuração
+    document.getElementById('btnSalvarConfig').addEventListener('click', handleSalvarConfig);
+
+    // NOVO: Listeners para a view de Transferência
+    const selColab = document.getElementById('selectColaboradorTransfer');
+    const selGestor = document.getElementById('selectNovoGestor');
+    const btnTransfer = document.getElementById('btnConfirmTransfer');
+    
+    if (selColab) selColab.addEventListener('change', checkTransferButtonState);
+    if (selGestor) selGestor.addEventListener('change', checkTransferButtonState);
+    if (btnTransfer) btnTransfer.addEventListener('click', handleConfirmTransfer);
+
+    feather.replace();
 });
