@@ -365,10 +365,12 @@ async function loadModuleData() {
         
         if (directReports && directReports.length > 0) {
             console.log(`[Load] Encontrados ${directReports.length} subordinados diretos.`);
+            
             // 4b. ADICIONA os diretos ao time
+            // <-- CORREÇÃO (INÍCIO): Aqui é onde armazenamos o Nível 1 (subordinados diretos de Fábio)
             timeCompleto = directReports; 
             
-            // 4c. Identifica quais deles são gestores
+            // 4c. Identifica quais deles são gestores (ex: Marcelo)
             subManagerChapas = directReports
                 .filter(r => {
                     const func = r.funcao ? r.funcao.toLowerCase() : null;
@@ -382,11 +384,15 @@ async function loadModuleData() {
             console.log(`[Load] Buscando times de ${subManagerChapas.length} sub-gestores...`);
             // Monta a query: gestor_chapa=in.(chapa_marcelo)
             const subTeamQuery = `colaboradores?select=*&gestor_chapa=in.(${subManagerChapas.map(c => `"${c}"`).join(',')})`;
+            
+            // Esta é a query que você mencionou (busca o Nível 2)
             const subTeams = await supabaseRequest(subTeamQuery, 'GET');
             
             if (subTeams && subTeams.length > 0) {
                 console.log(`[Load] ...times de sub-gestores encontrados: ${subTeams.length}`);
+                
                 // 4e. ADICIONA (concatena) o time deles ao time principal
+                // <-- CORREÇÃO (FIM): Aqui nós ADICIONAMOS (concat) o Nível 2 ao Nível 1, em vez de substituir.
                 timeCompleto = timeCompleto.concat(subTeams);
             }
         }
