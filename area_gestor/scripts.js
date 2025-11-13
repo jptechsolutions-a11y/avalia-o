@@ -278,8 +278,8 @@ async function loadRecursiveTeam(gestorChapa, configMap, visitedChapas) {
 
 /**
  * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
- * Chamado uma vez durante a inicialização.
- * ** ATUALIZADO para usar a função recursiva e colunas minúsculas **
+ * Chamado uma vez during a inicialização.
+ * ** ATUALIZADO: para usar uma lógica NÃO-RECURSIVA no load inicial. **
  */
 async function loadModuleData() {
     // Se não tiver matrícula, não pode ser gestor, pula o carregamento
@@ -320,14 +320,13 @@ async function loadModuleData() {
             return acc;
         }, {});
 
-        // --- ETAPA 3: Carregar Time (Recursivo) e Disponíveis (Paralelo) ---
+        // --- ETAPA 3: Carregar Disponíveis (em paralelo com o time) ---
         
         // Query de Disponíveis (ASSUME lowercase)
         let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; // Pega mais colunas para o filtro
         let filters = []; 
 
-        // --- INÍCIO DA CORREÇÃO 1 (Filtro de Filial) ---
-        // NOVO: Lógica de filtro de filial
+        // --- Lógica de filtro de filial ---
         if (!state.isAdmin) {
             if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
                 // Se 'permissoes_filiais' (do app 'usuarios') está preenchido, ele manda.
@@ -341,7 +340,6 @@ async function loadModuleData() {
                 filters.push('filial=eq.IMPOSSIVEL_FILIAL_FILTER');
             }
         }
-        // --- FIM DA CORREÇÃO 1 ---
         
         // Adiciona filtro para não incluir o próprio gestor
         if (state.userMatricula) {
@@ -353,34 +351,63 @@ async function loadModuleData() {
             disponiveisQuery += `&${filters.join('&')}`;
         }
         
-        // Executa a busca recursiva e a busca de disponíveis
-        // --- CORREÇÃO: Passa um novo Set() para a busca recursiva ---
-        const [timeRes, disponiveisRes] = await Promise.allSettled([
-            loadRecursiveTeam(state.userMatricula, configMap, new Set()), // <-- CORRIGIDO
-            supabaseRequest(disponiveisQuery, 'GET')
-        ]);
+        // Dispara a busca de 'disponíveis'
+        const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
+
+        // --- ETAPA 4: NOVA LÓGICA DE CARREGAMENTO DE TIME (NÃO-RECURSIVA) ---
         
-        if (timeRes.status === 'fulfilled' && timeRes.value) {
-            state.meuTime = timeRes.value;
-            console.log(`Carregamento em cascata concluído. Total: ${state.meuTime.length} colaboradores.`);
-        } else {
-            // Se a busca recursiva falhar (ex: loop), o time ficará vazio
-            console.error("Erro ao carregar time (recursivo):", timeRes.reason);
-            state.meuTime = []; // Garante que o time esteja vazio em caso de falha
+        let timeCompleto = [];
+        let subManagerChapas = [];
+
+        // 4a. Busca os subordinados DIRETOS (Nível 1, ex: Marcelo)
+        const directReports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET');
+        
+        if (directReports && directReports.length > 0) {
+            console.log(`[Load] Encontrados ${directReports.length} subordinados diretos.`);
+            timeCompleto = timeCompleto.concat(directReports);
+            
+            // 4b. Identifica quais deles são gestores
+            subManagerChapas = directReports
+                .filter(r => {
+                    const func = r.funcao ? r.funcao.toLowerCase() : null;
+                    return func && configMap[func]; // Compara com o configMap
+                })
+                .map(r => r.matricula);
+        }
+
+        // 4c. Se houver sub-gestores, busca o time DELES (Nível 0)
+        if (subManagerChapas.length > 0) {
+            console.log(`[Load] Buscando times de ${subManagerChapas.length} sub-gestores...`);
+            // Monta a query: gestor_chapa=in.(chapa1,chapa2,...)
+            const subTeamQuery = `colaboradores?select=*&gestor_chapa=in.(${subManagerChapas.map(c => `"${c}"`).join(',')})`;
+            const subTeams = await supabaseRequest(subTeamQuery, 'GET');
+            
+            if (subTeams && subTeams.length > 0) {
+                console.log(`[Load] Encontrados ${subTeams.length} subordinados Nível 0.`);
+                timeCompleto = timeCompleto.concat(subTeams);
+            }
         }
         
-        if (disponiveisRes.status === 'fulfilled' && disponiveisRes.value) {
-            state.disponiveis = disponiveisRes.value;
+        // 4d. Define o time no estado
+        state.meuTime = timeCompleto;
+        console.log(`[Load] Carregamento de time concluído. Total: ${state.meuTime.length} colaboradores.`);
+
+        // 4e. Espera a promise de 'disponíveis' que rodou em paralelo
+        const disponiveisRes = await Promise.allSettled([disponiveisPromise]);
+        if (disponiveisRes[0].status === 'fulfilled' && disponiveisRes[0].value) {
+            state.disponiveis = disponiveisRes[0].value;
         } else {
-            console.error("Erro ao carregar disponíveis:", disponiveisRes.reason);
+            console.error("Erro ao carregar disponíveis:", disponiveisRes[0].reason);
         }
         
     } catch (err) {
         console.error("Erro fatal no loadModuleData:", err);
+        state.meuTime = []; // Garante que o time fique vazio em caso de erro
     } finally {
         showLoading(false);
     }
 }
+
 
 /**
  * Mostra a view de setup pela primeira vez.
