@@ -354,17 +354,18 @@ async function loadModuleData() {
         // Dispara a busca de 'disponíveis'
         const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
 
-        // --- ETAPA 4: NOVA LÓGICA DE CARREGAMENTO DE TIME (NÃO-RECURSIVA) ---
+        // --- INÍCIO DA CORREÇÃO ---
+        // --- ETAPA 4: LÓGICA DE CARREGAMENTO DE TIME CORRIGIDA ---
         
         let timeCompleto = [];
         let subManagerChapas = [];
 
-        // 4a. Busca os subordinados DIRETOS (Nível 1, ex: Marcelo)
+        // 4a. Busca os subordinados DIRETOS (Nível 1, ex: Marcelo, Ana)
         const directReports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET');
         
         if (directReports && directReports.length > 0) {
             console.log(`[Load] Encontrados ${directReports.length} subordinados diretos.`);
-            timeCompleto = timeCompleto.concat(directReports);
+            // NÃO adicione ao timeCompleto ainda.
             
             // 4b. Identifica quais deles são gestores
             subManagerChapas = directReports
@@ -375,24 +376,30 @@ async function loadModuleData() {
                 .map(r => r.matricula);
         }
 
-        // 4c. Se houver sub-gestores, busca o time DELES (Nível 0)
+        // 4c. Monta a query final
+        // Começa com a chapa do próprio gestor (para pegar os diretos, como Ana e Marcelo)
+        let queryChapas = [`"${state.userMatricula}"`]; 
         if (subManagerChapas.length > 0) {
-            console.log(`[Load] Buscando times de ${subManagerChapas.length} sub-gestores...`);
-            // Monta a query: gestor_chapa=in.(chapa1,chapa2,...)
-            const subTeamQuery = `colaboradores?select=*&gestor_chapa=in.(${subManagerChapas.map(c => `"${c}"`).join(',')})`;
-            const subTeams = await supabaseRequest(subTeamQuery, 'GET');
-            
-            if (subTeams && subTeams.length > 0) {
-                console.log(`[Load] Encontrados ${subTeams.length} subordinados Nível 0.`);
-                timeCompleto = timeCompleto.concat(subTeams);
-            }
+            // Adiciona as chapas dos sub-gestores (Marcelo)
+            queryChapas = queryChapas.concat(subManagerChapas.map(c => `"${c}"`)); 
         }
+
+        // 4d. Busca TODOS os colaboradores (Time do Fábio + Time do Marcelo) de uma vez
+        const finalQuery = `colaboradores?select=*&gestor_chapa=in.(${queryChapas.join(',')})`;
+        console.log(`[Load] Executando query final: ${finalQuery}`);
         
-        // 4d. Define o time no estado
+        const finalTeam = await supabaseRequest(finalQuery, 'GET');
+
+        if (finalTeam && finalTeam.length > 0) {
+            timeCompleto = finalTeam;
+        }
+        // --- FIM DA CORREÇÃO ---
+        
+        // 4e. Define o time no estado
         state.meuTime = timeCompleto;
         console.log(`[Load] Carregamento de time concluído. Total: ${state.meuTime.length} colaboradores.`);
 
-        // 4e. Espera a promise de 'disponíveis' que rodou em paralelo
+        // 4f. Espera a promise de 'disponíveis' que rodou em paralelo
         const disponiveisRes = await Promise.allSettled([disponiveisPromise]);
         if (disponiveisRes[0].status === 'fulfilled' && disponiveisRes[0].value) {
             state.disponiveis = disponiveisRes[0].value;
@@ -450,6 +457,9 @@ function iniciarDefinicaoDeTime() {
 
             // --- INÍCIO DA CORREÇÃO ---
             // Regra 0: Já é um subordinado direto do gestor logado (ex: Ana)
+            // (Esta regra estava correta, mas a 'Ana' não estava na lista de 'disponiveis'
+            // se o gestor_chapa dela já era o do Fábio. Mas agora o loadModuleData falha,
+            // então ela estará em 'disponiveis'. Vamos garantir que ela apareça)
             if (colaboradorGestor === state.userMatricula) {
                 return true;
             }
