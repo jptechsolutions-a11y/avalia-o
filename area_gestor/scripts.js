@@ -27,11 +27,10 @@ const state = {
     meuTime: [],
     disponiveis: [],
     gestorConfig: [],
--    todasAsFuncoes: [] 
-+    todasAsFuncoes: [],
-+    todosUsuarios: [], // Cache para fotos de perfil
-+    mapaFotos: {}, // Mapa de matricula -> foto
-+    subordinadosComTimes: [] // Cache para a nova view
+    todasAsFuncoes: [],
+    todosUsuarios: [], // Cache para fotos de perfil
+    mapaFotos: {}, // Mapa de matricula -> foto
+    subordinadosComTimes: [] // Cache para a nova view
 };
 
 // --- Funções de UI (Idênticas aos outros módulos) ---
