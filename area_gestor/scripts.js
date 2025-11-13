@@ -200,15 +200,52 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 
 // --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
 
-//
-// REMOVIDA: A função loadRecursiveTeam (JS) foi removida.
-//
+/**
+ * ** NOVO: Função Recursiva para Carregar Time em Cascata **
+ * Busca todos os colaboradores abaixo de um gestor, incluindo sub-gestores.
+ */
+async function loadRecursiveTeam(gestorChapa, configMap) {
+    let team = [];
+    
+    // 1. Busca subordinados diretos
+    const reports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${gestorChapa}`, 'GET');
+    
+    if (!reports || reports.length === 0) {
+        return []; // Condição de parada: gestor sem time
+    }
+
+    // 2. Adiciona os subordinados diretos ao time
+    team = team.concat(reports);
+
+    // 3. Identifica quais desses subordinados são também gestores
+    const subManagerChapas = reports
+        .filter(r => {
+            const func = r.funcao ? r.funcao.toLowerCase() : null; 
+            return func && configMap[func]; // Compara com o configMap (lower)
+        })
+        .map(r => r.matricula); 
+
+    if (subManagerChapas.length === 0) {
+        return team; // Condição de parada: sem sub-gestores
+    }
+
+    // 4. Busca recursivamente o time de cada sub-gestor
+    const subTeamPromises = subManagerChapas.map(chapa => loadRecursiveTeam(chapa, configMap));
+    const subTeams = await Promise.all(subTeamPromises);
+
+    // 5. Adiciona os times dos sub-gestores ao time principal
+    subTeams.forEach(subTeam => {
+        team = team.concat(subTeam);
+    });
+
+    return team;
+}
 
 
 /**
  * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
  * Chamado uma vez during a inicialização.
- * ** ATUALIZADO: para usar a query 'or' (plana) com as novas colunas de hierarquia **
+ * ** REVERTIDO: para usar a função recursiva em JS **
  */
 async function loadModuleData() {
     // Se não tiver matrícula, não pode ser gestor, pula o carregamento
@@ -246,30 +283,43 @@ async function loadModuleData() {
         const gestorMap = (gestorMapRes.status === 'fulfilled' && gestorMapRes.value) 
             ? gestorMapRes.value.reduce((acc, c) => { acc[c.matricula] = c.nome; return acc; }, {}) 
             : {};
-        // Adiciona o próprio usuário ao mapa, caso ele não esteja na tabela (improvável, mas seguro)
+        // Adiciona o próprio usuário ao mapa
         if (state.userMatricula && !gestorMap[state.userMatricula]) {
             gestorMap[state.userMatricula] = state.userNome;
         }
 
-        // --- ETAPA 2: Preparar Mapa de Configuração (Função -> Nível) ---
-        const configMap = state.gestorConfig.reduce((acc, regra) => {
-            // Usa toLowerCase() para garantir a correspondência
+        // --- ETAPA 2: Preparar Mapas de Configuração ---
+        // Mapa 1: (Função -> Nível)
+        const configMapNivel = state.gestorConfig.reduce((acc, regra) => {
             acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia; 
             return acc;
         }, {});
+        // Mapa 2: (Função -> Pode ser Gestor?)
+        const configMapGestor = state.gestorConfig.reduce((acc, regra) => {
+            if (regra.pode_ser_gestor) {
+                acc[regra.funcao.toLowerCase()] = true; 
+            }
+            return acc;
+        }, {});
+
 
         // --- ETAPA 3: Carregar Disponíveis (em paralelo com o time) ---
         let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; 
         let filters = []; 
+        
+        // **AQUI ESTÁ A CORREÇÃO PARA O PROBLEMA 2 (FILIAL)**
         if (!state.isAdmin) {
             if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
                 filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`);
             } else if (state.userFilial) {
                 filters.push(`filial=eq.${state.userFilial}`);
             } else {
+                console.warn("Gestor não-admin sem 'permissoes_filiais' ou 'filial'. A lista de disponíveis pode estar vazia.");
                 filters.push('filial=eq.IMPOSSIVEL_FILIAL_FILTER');
             }
         }
+        // Fim da Correção 2
+
         if (state.userMatricula) {
             filters.push(`matricula=neq.${state.userMatricula}`); 
         }
@@ -279,37 +329,24 @@ async function loadModuleData() {
         const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
 
         
-        // --- ETAPA 4: Carregar Time (Hierarquia Plana) ---
+        // --- ETAPA 4: Carregar Time (Recursivo) ---
         let timeRes = [];
         if (state.isAdmin) {
             console.log("[Load] Admin detectado. Carregando TODOS os colaboradores...");
             timeRes = await supabaseRequest('colaboradores?select=*', 'GET');
         } else {
-            // **A NOVA LÓGICA USANDO AS COLUNAS DE HIERARQUIA**
-            console.log(`[Load] 1. Buscando time hierárquico (Query Plana) de ${state.userMatricula}...`);
-            const m = state.userMatricula;
-            
-            // ***** INÍCIO DA CORREÇÃO *****
-            // Troca 'gestor_imediato_chapa' por 'gestor_chapa'
-            const orQuery = `or=(gestor_chapa.eq.${m},gestor_n2_chapa.eq.${m},gestor_n3_chapa.eq.${m},gestor_n4_chapa.eq.${m},gestor_n5_chapa.eq.${m})`;
-            // ***** FIM DA CORREÇÃO *****
-            
-            timeRes = await supabaseRequest(`colaboradores?select=*&${orQuery}`, 'GET');
+            // **AQUI ESTÁ A CORREÇÃO PARA O PROBLEMA 1 (LOOP)**
+            console.log(`[Load] 1. Buscando time hierárquico (Recursivo JS) de ${state.userMatricula}...`);
+            timeRes = await loadRecursiveTeam(state.userMatricula, configMapGestor);
         }
 
         if (!timeRes) timeRes = [];
         console.log(`[Load] ...encontrados ${timeRes.length} colaboradores (Nível 1-5).`);
 
         // --- ETAPA 5: Processar o Time (Adicionar Nível e Nome do Gestor) ---
-        // (Esta lógica agora é a mesma para Admin e Não-Admin)
         state.meuTime = timeRes.map(c => {
-            // Nível hierárquico (baseado na *função* do colaborador)
-            const nivel_hierarquico = configMap[c.funcao?.toLowerCase()] || null;
-            
-            // Nome do gestor (baseado no *gestor direto* do colaborador)
-            // ***** INÍCIO DA CORREÇÃO *****
+            const nivel_hierarquico = configMapNivel[c.funcao?.toLowerCase()] || null;
             const gestor_imediato_nome = gestorMap[c.gestor_chapa] || 'N/A';
-            // ***** FIM DA CORREÇÃO *****
             
             return {
                 ...c,
@@ -356,6 +393,8 @@ function iniciarDefinicaoDeTime() {
     sidebar.style.pointerEvents = 'none';
     sidebar.style.opacity = '0.7';
 
+    // **NOTA:** state.disponiveis (passado para listaDisponiveisFiltrada)
+    // já foi filtrado por filial dentro de loadModuleData.
     let listaDisponiveisFiltrada = state.disponiveis;
     
     // Só aplica o filtro de hierarquia se o gestor tiver um nível definido
@@ -463,7 +502,6 @@ function filtrarDisponiveis() {
 
 /**
  * Salva o time (Nível 1) e recarrega a hierarquia completa (Nível 1-5).
- * (REVERTIDO: Esta é a versão estável, sem o 'reload')
  */
 async function handleSalvarTime() {
     showLoading(true, 'Salvando seu time (Nível 1)...');
@@ -480,13 +518,10 @@ async function handleSalvarTime() {
     try {
         // --- ETAPA 1: Salvar os gestores/colaboradores diretos (Nível 1) ---
         const promessas = chapasSelecionadas.map(chapa => {
-            // ***** INÍCIO DA CORREÇÃO *****
             const payload = {
-                gestor_chapa: state.userMatricula, // CORREÇÃO: Usa a coluna correta
+                gestor_chapa: state.userMatricula, 
                 status: 'ativo' // Tira do status 'novato'
             };
-            // ***** FIM DA CORREÇÃO *****
-            
             // ATENÇÃO: A query para PATCH deve usar a PKey (matricula)
             return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
         });
@@ -496,7 +531,7 @@ async function handleSalvarTime() {
         
         // --- ETAPA 2: Recarregar TUDO (Nível 1-5) ---
         // Agora que o Nível 1 está salvo, chamamos a loadModuleData
-        // que usará a query 'or' (plana) para buscar a hierarquia completa.
+        // que usará a recursão JS para buscar a hierarquia completa.
         await loadModuleData(); 
         
         // --- ETAPA 3: Atualizar Estado e Navegar ---
@@ -606,9 +641,7 @@ function renderMeuTimeTable(data) {
         let rowClass = '';
         
         // Define a classe da linha (Direto vs Indireto)
-        // ***** INÍCIO DA CORREÇÃO *****
         if (item.gestor_chapa === state.userMatricula) {
-        // ***** FIM DA CORREÇÃO *****
             rowClass = 'direct-report-row';
         } else {
             rowClass = 'indirect-report-row';
@@ -853,12 +886,10 @@ async function handleConfirmTransfer() {
     btnConfirm.disabled = true;
 
     try {
-        // ***** INÍCIO DA CORREÇÃO *****
         const payload = {
             gestor_chapa: novoGestorMatricula
             // IDEALMENTE: A trigger no DB deve recalcular N2, N3, N4, N5...
         };
-        // ***** FIM DA CORREÇÃO *****
         
         await supabaseRequest(`colaboradores?matricula=eq.${colaboradorMatricula}`, 'PATCH', payload);
 
@@ -1057,7 +1088,7 @@ async function initializeApp() {
             }
         }
         
-        // 5. Carrega TODOS os dados (time (Plano N1-5), disponíveis, config, funções)
+        // 5. Carrega TODOS os dados (time (Recursivo N1-5), disponíveis, config, funções)
         await loadModuleData();
         
         // 6. Encontrar o nível do gestor (agora que o config foi carregado)
@@ -1073,7 +1104,7 @@ async function initializeApp() {
         document.body.classList.add('system-active');
         
         // ** O CHECK CRÍTICO (CORRIGIDO) **
-        // Se, DEPOIS de rodar a query plana, o time ainda estiver vazio (e não for admin)
+        // Se, DEPOIS de rodar a recursão, o time ainda estiver vazio (e não for admin)
         // força o setup.
         if (state.meuTime.length === 0 && !state.isAdmin) {
             iniciarDefinicaoDeTime();
