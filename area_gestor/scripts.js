@@ -205,14 +205,71 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 
 // --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
 
-// REMOVIDA: A função loadRecursiveTeam (JS) não é mais necessária,
-// pois a função SQL 'get_time_hierarquico' faz o trabalho.
+// *******************************************************************
+// INÍCIO DA CORREÇÃO (LÓGICA DE HIERARQUIA)
+// *******************************************************************
+
+// Cache para nomes de gestores para evitar queries repetidas
+let gestorNameCache = {};
+
+/**
+ * Função Recursiva para Carregar Time em Cascata (Nível 1-5)
+ * Busca todos os colaboradores abaixo de um gestor, incluindo sub-gestores.
+ * Esta função JS substitui a chamada RPC para 'get_time_hierarquico'.
+ */
+async function loadRecursiveTeam(gestorChapa, configMap, currentLevel = 1, gestorNome = 'N/A') {
+    let team = [];
+    
+    // 1. Busca subordinados diretos
+    const reports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${gestorChapa}`, 'GET');
+    
+    if (!reports || reports.length === 0) {
+        return []; // Condição de parada: gestor sem time
+    }
+
+    // 2. Processa e adiciona os subordinados diretos ao time
+    for (const r of reports) {
+        team.push({
+            ...r,
+            // Adiciona os campos que a renderMeuTimeTable espera
+            nivel_hierarquico: currentLevel, 
+            gestor_imediato_nome: gestorNome // Nome do gestor que foi passado para esta chamada
+        });
+    }
+
+    // 3. Identifica quais desses subordinados são também gestores
+    const subManagers = reports
+        .filter(r => {
+            const func = r.funcao ? r.funcao.toLowerCase() : null; 
+            return func && configMap[func]; // Compara com o configMap (lower)
+        })
+        .map(r => ({ matricula: r.matricula, nome: r.nome })); // Passa a matrícula e o nome
+
+    if (subManagers.length === 0) {
+        return team; // Condição de parada: sem sub-gestores
+    }
+
+    // 4. Busca recursivamente o time de cada sub-gestor
+    const subTeamPromises = subManagers.map(manager => 
+        // Passa a chapa, o config, o novo nível, e o NOME do manager
+        loadRecursiveTeam(manager.matricula, configMap, currentLevel + 1, manager.nome)
+    );
+    
+    const subTeams = await Promise.all(subTeamPromises);
+
+    // 5. Adiciona os times dos sub-gestores ao time principal
+    subTeams.forEach(subTeam => {
+        team = team.concat(subTeam);
+    });
+
+    return team;
+}
 
 
 /**
  * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
  * Chamado uma vez during a inicialização.
- * ** ATUALIZADO: para usar a FUNÇÃO SQL 'get_time_hierarquico' (Nível 1-5) **
+ * ** ATUALIZADO: para usar a FUNÇÃO JS 'loadRecursiveTeam' (Nível 1-5) **
  */
 async function loadModuleData() {
     // Se não tiver matrícula, não pode ser gestor, pula o carregamento
@@ -250,6 +307,10 @@ async function loadModuleData() {
             }
             return acc;
         }, {});
+        
+        // --- LIMPA O CACHE DE NOMES (usado pela recursão) ---
+        gestorNameCache = {};
+        gestorNameCache[state.userMatricula] = state.userNome; // Adiciona o próprio usuário ao cache
 
         // --- ETAPA 3: Carregar Disponíveis (em paralelo com o time) ---
         let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; 
@@ -273,7 +334,6 @@ async function loadModuleData() {
 
         
         // --- ETAPA 4: Carregar Time (Nível 1-5) ---
-        // <-- INÍCIO DA CORREÇÃO: Lógica para Admin vs. Gestor -->
         
         if (state.isAdmin) {
             // 1. SE FOR ADMIN: Carrega TUDO
@@ -306,21 +366,22 @@ async function loadModuleData() {
             console.log(`[Load] Admin: ${state.meuTime.length} colaboradores carregados.`);
 
         } else {
-            // 2. SE FOR GESTOR (Não-Admin): Usa a função SQL (que corrigimos com LEFT JOIN)
-            console.log(`[Load] 1. Buscando time hierárquico (SQL) de ${state.userMatricula}...`);
+            // 2. SE FOR GESTOR (Não-Admin): Usa a função JS Recursiva
+            console.log(`[Load] 1. Buscando time hierárquico (JS) de ${state.userMatricula}...`);
             
-            const rpcEndpoint = 'rpc/get_time_hierarquico';
-            const rpcBody = { chapa_gestor_raiz: state.userMatricula };
+            // **** INÍCIO DA MUDANÇA (Substitui RPC por JS) ****
+            // REMOVIDO:
+            // const rpcEndpoint = 'rpc/get_time_hierarquico';
+            // const rpcBody = { chapa_gestor_raiz: state.userMatricula };
+            // const timeRes = await supabaseRequest(rpcEndpoint, 'POST', rpcBody); 
             
-            // Usamos POST para RPC via API REST
-            const timeRes = await supabaseRequest(rpcEndpoint, 'POST', rpcBody); 
+            // ADICIONADO:
+            const timeRes = await loadRecursiveTeam(state.userMatricula, configMap, 1, state.userNome);
+            // **** FIM DA MUDANÇA ****
             
-            // O proxy retorna o array de dados diretamente
             state.meuTime = timeRes || [];
             console.log(`[Load] ...encontrados ${state.meuTime.length} colaboradores (Nível 1-5).`);
         }
-        // <-- FIM DA CORREÇÃO -->
-
         
         // 4d. Espera a promise de 'disponíveis' que rodou em paralelo
         const disponiveisRes = await Promise.allSettled([disponiveisPromise]);
@@ -337,6 +398,10 @@ async function loadModuleData() {
         showLoading(false);
     }
 }
+
+// *******************************************************************
+// FIM DA CORREÇÃO (LÓGICA DE HIERARQUIA)
+// *******************************************************************
 
 
 /**
@@ -495,7 +560,7 @@ async function handleSalvarTime() {
         
         // --- ETAPA 2: Recarregar TUDO (Nível 1-5) ---
         // Agora que o Nível 1 está salvo, chamamos a loadModuleData
-        // que usará o SQL para buscar a hierarquia completa.
+        // que usará o 'loadRecursiveTeam' (JS) para buscar a hierarquia completa.
         await loadModuleData(); 
         
         // --- ETAPA 3: Atualizar Estado e Navegar ---
@@ -601,6 +666,12 @@ function renderMeuTimeTable(data) {
         
         // Define Nível e Gestor (Vindo do SQL)
         const nivel = item.nivel_hierarquico;
+        
+        // *******************************************************************
+        // INÍCIO DA CORREÇÃO (ERRO DE REFERÊNCIA)
+        // A variável 'nivelLabel' foi removida, mas ainda estava sendo
+        // referenciada na tabela. Comentamos a coluna 'Nível Hier.'
+        // *******************************************************************
         // let nivelLabel = ''; // <-- REMOVIDO
         let rowClass = '';
 
@@ -636,7 +707,7 @@ function renderMeuTimeTable(data) {
         tr.innerHTML = `
             <td ${nomeStyle}>${item.nome || '-'}</td>
             <td>${item.matricula || '-'}</td>
-            <!-- <td>${nivelLabel}</td> --> <!-- REMOVIDO -->
+            <!-- <td>${nivelLabel}</td> --> <!-- REMOVIDO / CORRIGIDO -->
             <td>${gestorImediato}</td> <!-- ATUALIZADO para usar a variável corrigida -->
             <td>${item.funcao || '-'}</td>
             <td>${item.secao || '-'}</td>
@@ -652,6 +723,9 @@ function renderMeuTimeTable(data) {
                 </button>
             </td>
         `;
+        // *******************************************************************
+        // FIM DA CORREÇÃO (ERRO DE REFERÊNCIA)
+        // *******************************************************************
         fragment.appendChild(tr);
     });
     tbody.appendChild(fragment);
@@ -1054,7 +1128,7 @@ async function initializeApp() {
             }
         }
         
-        // 5. Carrega TODOS os dados (time (SQL N1-5), disponíveis, config, funções)
+        // 5. Carrega TODOS os dados (time (JS N1-5), disponíveis, config, funções)
         await loadModuleData();
         
         // 6. Encontrar o nível do gestor (agora que o config foi carregado)
