@@ -1,6 +1,6 @@
 // Configuração do Supabase (baseado nos seus outros módulos)
 const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhYmFzZXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
 const SUPABASE_PROXY_URL = '/api/proxy'; // Usando o proxy
 
 // Define o adaptador para sessionStorage
@@ -400,19 +400,29 @@ function iniciarDefinicaoDeTime() {
             if (colaboradorGestor === null || colaboradorStatus === 'novato') {
                 return true;
             }
-
-            // Regra 2: É Líder de Nível Inferior (Hierarquia) (ex: Marcelo)
+            
+            // --- INÍCIO DA CORREÇÃO ---
+            // Regra 2: É Líder de Nível Inferior OU Colaborador Regular
             if (colaboradorFuncao) {
                 const colaboradorNivel = mapaNiveis[colaboradorFuncao.toLowerCase()];
                 
                 if (colaboradorNivel !== undefined && colaboradorNivel !== null) {
+                    // É um líder (tem nível)
                     if (colaboradorNivel < state.userNivel) {
-                        return true; 
+                        return true; // É de nível inferior, permite (ex: L2 vê L1)
+                    } else {
+                        return false; // É um líder de nível igual/superior, bloqueia (ex: L2 não vê L2)
                     }
+                } else {
+                    // É um colaborador regular (Nível undefined)
+                    // Permite que o gestor adicione colaboradores regulares.
+                    return true;
                 }
             }
             
-            return false;
+            // Fallback: Se não tem função, é um colaborador regular, permite.
+            return true;
+            // --- FIM DA CORREÇÃO ---
         });
 
         console.log(`Filtro de Hierarquia/Disponível: Gestor Nível ${state.userNivel}. Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
