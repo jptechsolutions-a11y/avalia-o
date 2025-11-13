@@ -108,7 +108,7 @@ function showView(viewId, element) {
                 // Funções que usam os dados carregados no state
                 updateDashboardStats(state.meuTime);
                 populateFilters(state.meuTime);
-                applyFilters(); // Renderiza a tabela inicial
+                // applyFilters(); // <-- REMOVIDO DAQUI
                 break;
             case 'transferirView':
                 loadTransferViewData();
@@ -1116,18 +1116,18 @@ function handleHashChange() {
             mostrarNotificacao('Acesso negado. Você precisa ser administrador.', 'error');
             // Recarrega a view padrão
             showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
-            return;
-        }
-        viewId = newViewId;
-        navElement = newNavElement;
-    }
-    
-    // const currentActive = document.querySelector('.view-content.active');
-    // if (!currentActive || currentActive.id !== viewId) {
-    //     showView(viewId, navElement);
+        // }
     // }
     // <-- CORREÇÃO 3: Força a chamada do showView para garantir o carregamento dos dados da view -->
     showView(viewId, navElement);
+
+    // <-- INÍCIO DA CORREÇÃO (Problema da Tabela Vazia) -->
+    // Movemos o applyFilters para DEPOIS do showView.
+    // Isso garante que os filtros sejam populados ANTES da tabela ser renderizada.
+    if (viewId === 'meuTimeView') {
+        applyFilters();
+    }
+    // <-- FIM DA CORREÇÃO -->
 }
 
 // --- Event Listeners da UI ---
