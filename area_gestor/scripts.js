@@ -482,7 +482,7 @@ function renderListasTimes(disponiveis, meuTime) {
     });
     
     meuTime.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
-        listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
+        listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
 }
 
@@ -520,6 +520,7 @@ function filtrarDisponiveis() {
 
 /**
  * Salva o time (Nível 1) e recarrega a hierarquia completa (Nível 1-5).
+ * ** ATUALIZADO PARA CHAMAR A FUNÇÃO RPC DE CASCATA **
  */
 async function handleSalvarTime() {
     showLoading(true, 'Salvando seu time (Nível 1)...');
@@ -535,25 +536,42 @@ async function handleSalvarTime() {
 
     try {
         // --- ETAPA 1: Salvar os gestores/colaboradores diretos (Nível 1) ---
-        const promessas = chapasSelecionadas.map(chapa => {
+        // O Trigger BEFORE 'set_gestor_hierarchy' vai rodar aqui para cada um,
+        // atualizando a hierarquia DELES (ex: Marcelo).
+        const promessasPatch = chapasSelecionadas.map(chapa => {
             const payload = {
                 gestor_chapa: state.userMatricula, 
-                status: 'ativo' // Tira do status 'novato'
+                status: 'ativo'
             };
             // ATENÇÃO: A query para PATCH deve usar a PKey (matricula)
             return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
         });
 
-        await Promise.all(promessas);
-        mostrarNotificacao('Time direto salvo! Recarregando hierarquia completa (Nível 1-5)...', 'success');
+        await Promise.all(promessasPatch);
+        mostrarNotificacao('Time direto salvo! Atualizando hierarquia de subordinados (N2-N5)...', 'success');
         
-        // --- ETAPA 2: Recarregar TUDO (Nível 1-5) ---
-        // ** CORREÇÃO (JP): **
-        // Não precisamos mais da recursão JS aqui. Apenas recarregamos
-        // os dados usando a nova função principal.
+        // --- ETAPA 2: Chamar RPC para atualizar a CASCATA (Ex: Juliano e Felipe) ---
+        // Isso é o que faltava.
+        showLoading(true, 'Atualizando cascata N2-N5...');
+        
+        const promessasRPC = chapasSelecionadas.map(chapa => {
+            // Chama a função RPC 'atualizar_subordinados' para cada gestor que foi movido
+            return supabaseRequest(
+                'rpc/atualizar_subordinados', // Endpoint RPC
+                'POST',                      // Método
+                { matricula_pai: chapa }     // Payload
+            );
+        });
+        
+        await Promise.all(promessasRPC);
+        mostrarNotificacao('Hierarquia em cascata atualizada! Recarregando time...', 'success');
+
+
+        // --- ETAPA 3: Recarregar TUDO (Nível 1-5) ---
+        // A busca dinâmica agora vai funcionar, pois os dados no DB estão corretos.
         await loadModuleData(); 
         
-        // --- ETAPA 3: Atualizar Estado e Navegar ---
+        // --- ETAPA 4: Atualizar Estado e Navegar ---
         
         // 1. Libera a sidebar
         const sidebar = document.querySelector('.sidebar');
@@ -907,13 +925,20 @@ async function handleConfirmTransfer() {
     try {
         const payload = {
             gestor_chapa: novoGestorMatricula
-            // IDEALMENTE: A trigger no DB deve recalcular N2, N3, N4, N5...
+            // O TRIGGER 'set_gestor_hierarchy' VAI ATUALIZAR N2-N5 DESTE COLABORADOR
         };
         
         await supabaseRequest(`colaboradores?matricula=eq.${colaboradorMatricula}`, 'PATCH', payload);
-
+        
+        // --- NOVO: CHAMA A FUNÇÃO RPC PARA ATUALIZAR OS FILHOS DELE ---
+        await supabaseRequest(
+            'rpc/atualizar_subordinados',
+            'POST',
+            { matricula_pai: colaboradorMatricula }
+        );
+        
         // Sucesso!
-        mostrarNotificacao('Colaborador transferido com sucesso! Recarregando time...', 'success');
+        mostrarNotificacao('Colaborador transferido e hierarquia atualizada! Recarregando...', 'success');
 
         // Atualiza o estado local (Removendo o colaborador do time antigo)
         state.meuTime = state.meuTime.filter(c => c.matricula !== colaboradorMatricula);
@@ -1077,7 +1102,12 @@ async function initializeApp() {
         const profile = profileResponse[0];
         state.userId = state.auth.user.id;
         state.isAdmin = (profile.role === 'admin');
-        state.userMatricula = profile.matricula || null; 
+        
+        // --- ESTA É A CORREÇÃO ---
+        // Garante que a matrícula vinda da tabela 'usuarios' não tenha espaços
+        state.userMatricula = profile.matricula ? String(profile.matricula).trim() : null; 
+        // --- FIM DA CORREÇÃO ---
+        
         state.permissoes_filiais = profile.permissoes_filiais || null;
         state.userNome = profile.nome || session.user.email.split('@')[0];
 
@@ -1100,6 +1130,7 @@ async function initializeApp() {
         
         // 4. Buscar a função e FILIAL do gestor logado
         if (state.userMatricula) {
+            // A query aqui agora usa a matrícula limpa (sem espaços)
             const gestorData = await supabaseRequest(`colaboradores?select=funcao,filial&matricula=eq.${state.userMatricula}&limit=1`, 'GET');
             if (gestorData && gestorData[0]) {
                 state.userFuncao = gestorData[0].funcao; 
