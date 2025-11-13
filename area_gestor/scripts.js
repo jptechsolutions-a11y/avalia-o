@@ -202,20 +202,36 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 
 /**
  * ** CORREÇÃO (JP): **
- * A função recursiva anterior (`loadRecursiveTeam`) era lenta e causava
- * timeouts (erros) para gestores N2+.
- *
- * Esta nova função (`loadAllTeamMembers`) usa a lógica correta para
- * esta estrutura de banco de dados: ela busca de uma só vez em todas
- * as colunas de hierarquia (N1 a N5), o que é muito mais rápido
- * e eficiente.
+ * A função agora constrói a query dinamicamente com base no nível do gestor,
+ * conforme solicitado.
  */
-async function loadAllTeamMembers(gestorChapa) {
+async function loadAllTeamMembers(gestorChapa, nivelGestor) {
     const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
-    const chapaStr = String(gestorChapa); // Garante que a chapa seja string para a query
+    const chapaStr = String(gestorChapa);
     
-    // Busca em TODOS os 5 níveis hierárquicos de uma vez
-    const query = `colaboradores?select=${columns}&or=(gestor_chapa.eq.${chapaStr},gestor_n2_chapa.eq.${chapaStr},gestor_n3_chapa.eq.${chapaStr},gestor_n4_chapa.eq.${chapaStr},gestor_n5_chapa.eq.${chapaStr})`;
+    // Array base de colunas de gestor
+    const colunasGestor = ['gestor_chapa', 'gestor_n2_chapa', 'gestor_n3_chapa', 'gestor_n4_chapa', 'gestor_n5_chapa'];
+    
+    let orConditions = [];
+    
+    // Se o nível não for definido (ou for admin), busca em todas as 5 colunas
+    if (nivelGestor === null || nivelGestor === undefined || nivelGestor > 5) {
+        console.log(`[Load] Nível não definido ou admin. Buscando em todas as ${colunasGestor.length} colunas.`);
+        orConditions = colunasGestor.map(col => `${col}.eq.${chapaStr}`);
+    } else {
+        // Nível 1 busca 1 coluna, Nível 2 busca 2 colunas, etc.
+        const niveisParaBuscar = Math.max(1, nivelGestor); // Garante pelo menos N1
+        console.log(`[Load] Gestor Nível ${nivelGestor}. Buscando nas ${niveisParaBuscar} primeiras colunas.`);
+        orConditions = colunasGestor.slice(0, niveisParaBuscar).map(col => `${col}.eq.${chapaStr}`);
+    }
+
+    // Se por algum motivo o nível for 0 ou inválido, garante pelo menos o N1
+    if (orConditions.length === 0) {
+         orConditions.push(`gestor_chapa.eq.${chapaStr}`);
+    }
+
+    const query = `colaboradores?select=${columns}&or=(${orConditions.join(',')})`;
+    console.log(`[Load] Query: ${query}`);
     
     const team = await supabaseRequest(query, 'GET');
     
@@ -226,7 +242,6 @@ async function loadAllTeamMembers(gestorChapa) {
 /**
  * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
  * Chamado uma vez during a inicialização.
- * ** REVERTIDO: para usar a função recursiva em JS **
  */
 async function loadModuleData() {
     // Se não tiver matrícula, não pode ser gestor, pula o carregamento
@@ -269,6 +284,19 @@ async function loadModuleData() {
             gestorMap[state.userMatricula] = state.userNome;
         }
 
+        // --- *** NOVA ETAPA (MOVILDA) *** ---
+        // --- ETAPA 1.5: Definir o Nível do Gestor AGORA ---
+        // (Isso foi movido de 'initializeApp' para cá, para que 'loadAllTeamMembers' possa usar)
+        if (state.userFuncao && state.gestorConfig.length > 0) {
+            const gestorRegra = state.gestorConfig.find(r => r.funcao.toUpperCase() === state.userFuncao.toUpperCase());
+            if (gestorRegra) {
+                state.userNivel = gestorRegra.nivel_hierarquia; // Armazena o nível
+            }
+        }
+        console.log(`[Load] Gestor: ${state.userNome}, Funcao: ${state.userFuncao}, Nivel: ${state.userNivel}`);
+        // --- *** FIM DA NOVA ETAPA *** ---
+
+
         // --- ETAPA 2: Preparar Mapas de Configuração ---
         // Mapa 1: (Função -> Nível)
         const configMapNivel = state.gestorConfig.reduce((acc, regra) => {
@@ -306,7 +334,7 @@ async function loadModuleData() {
         const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
 
         
-        // --- ETAPA 4: Carregar Time (COM A NOVA FUNÇÃO) ---
+        // --- ETAPA 4: Carregar Time (COM A NOVA FUNÇÃO DINÂMICA) ---
         let timeRes = [];
         if (state.isAdmin) {
             console.log("[Load] Admin detectado. Carregando TODOS os colaboradores...");
@@ -314,13 +342,14 @@ async function loadModuleData() {
             const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
             timeRes = await supabaseRequest(`colaboradores?select=${columns}`, 'GET');
         } else {
-            // **AQUI ESTÁ A CORREÇÃO (JP) **
-            console.log(`[Load] 1. Buscando time hierárquico (Query Otimizada N1-N5) de ${state.userMatricula}...`);
-            timeRes = await loadAllTeamMembers(state.userMatricula);
+            // **AQUI ESTÁ A MUDANÇA (JP) **
+            console.log(`[Load] 1. Buscando time hierárquico (Nível ${state.userNivel || 'N/A'}) de ${state.userMatricula}...`);
+            // Passa o nível do usuário para a função de busca
+            timeRes = await loadAllTeamMembers(state.userMatricula, state.userNivel);
         }
 
         if (!timeRes) timeRes = [];
-        console.log(`[Load] ...encontrados ${timeRes.length} colaboradores (Nível 1-5).`);
+        console.log(`[Load] ...encontrados ${timeRes.length} colaboradores.`);
 
         // --- ETAPA 5: Processar o Time (Adicionar Nível e Nome do Gestor) ---
         state.meuTime = timeRes.map(c => {
@@ -1078,17 +1107,10 @@ async function initializeApp() {
             }
         }
         
-        // 5. Carrega TODOS os dados (time (Recursivo N1-5), disponíveis, config, funções)
+        // 5. Carrega TODOS os dados (a definição do nível agora está AQUI DENTRO)
         await loadModuleData();
         
-        // 6. Encontrar o nível do gestor (agora que o config foi carregado)
-        if (state.userFuncao && state.gestorConfig.length > 0) {
-            const gestorRegra = state.gestorConfig.find(r => r.funcao.toUpperCase() === state.userFuncao.toUpperCase());
-            if (gestorRegra) {
-                state.userNivel = gestorRegra.nivel_hierarquia; // Armazena o nível
-            }
-        }
-        console.log(`Gestor: ${state.userNome}, Funcao: ${state.userFuncao}, Nivel: ${state.userNivel}, Filial: ${state.userFilial}`);
+        // 6. REMOVIDA: A definição do state.userNivel foi movida para dentro do loadModuleData()
         
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
