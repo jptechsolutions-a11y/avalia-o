@@ -113,9 +113,9 @@ function showView(viewId, element) {
                 populateFilters(state.meuTime);
                 applyFilters(); // Renderiza a tabela inicial
                 break;
-+            case 'meusGestoresView':
-+                loadMeusGestoresView();
-+                break;
+            case 'meusGestoresView':
+                loadMeusGestoresView();
+                break;
             case 'transferirView':
                 loadTransferViewData();
                 break;
