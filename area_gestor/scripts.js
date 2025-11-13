@@ -312,26 +312,35 @@ async function loadModuleData() {
         let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; 
         let filters = []; 
         
-        // **AQUI ESTÁ A CORREÇÃO PARA O PROBLEMA 2 (FILIAL)**
-        if (!state.isAdmin) {
-            if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-                filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`);
-            } else if (state.userFilial) {
-                filters.push(`filial.eq.${state.userFilial}`);
-            } else {
-                console.warn("Gestor não-admin sem 'permissoes_filiais' ou 'filial'. A lista de disponíveis pode estar vazia.");
-                filters.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
-            }
-        } else {
-            // **NOVA LÓGICA (CORREÇÃO JP):**
-            // Se FOR Admin, AINDA TENTAR filtrar pela filial do gestor (state.userFilial)
-            // para a tela de setup. Se ele não tiver filial, aí sim mostra tudo.
-            if (state.userFilial) {
-                 filters.push(`filial.eq.${state.userFilial}`);
-                 console.log(`[Admin Load] Aplicando filtro de filial (filial.eq.${state.userFilial}) para a lista de 'disponíveis'.`);
-            }
-            // Se for Admin E não tiver filial, NENHUM filtro de filial é adicionado (mostra todos).
+        // **RE-CORREÇÃO DA LÓGICA DE FILIAL (JP)**
+        // A lógica de filtro de filial deve priorizar 'permissoes_filiais'
+        
+        let filialFiltrada = false;
+        
+        if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            // REGRA 1: Usar 'permissoes_filiais' (array) se existir.
+            filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`);
+            console.log(`[Load Disponíveis] Aplicando filtro por 'permissoes_filiais': ${state.permissoes_filiais.join(',')}`);
+            filialFiltrada = true;
+        } else if (state.userFilial) {
+            // REGRA 2: Usar 'userFilial' (filial do próprio gestor) se 'permissoes_filiais' estiver vazio.
+            filters.push(`filial.eq.${state.userFilial}`);
+            console.log(`[Load Disponíveis] Aplicando filtro por 'userFilial': ${state.userFilial}`);
+            filialFiltrada = true;
         }
+
+        // REGRA 3: Tratar o "fallback"
+        if (!filialFiltrada) {
+            if (!state.isAdmin) {
+                // Se NÃO for admin e não tiver filial, não mostrar NINGUÉM.
+                console.warn("[Load Disponíveis] Gestor não-admin sem 'permissoes_filiais' ou 'userFilial'. Lista de disponíveis estará vazia.");
+                filters.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
+            } else {
+                // Se FOR admin e não tiver filial, mostrar TODOS (não adicionar filtro).
+                console.log("[Load Disponíveis] Admin sem 'permissoes_filiais' ou 'userFilial'. Mostrando todos os disponíveis.");
+            }
+        }
+
 
         if (state.userMatricula) {
             filters.push(`matricula.neq.${state.userMatricula}`); 
@@ -787,7 +796,7 @@ async function loadTransferViewData() {
     // 1. Popula colaboradores do time atual (Nível 1-5)
     selectColaborador.innerHTML = '<option value="">Selecione um colaborador...</option>';
     state.meuTime.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
-        selectColaborador.innerHTML += `<option value="${c.matricula}">${c.nome} (Nível ${c.nivel_hierarquico || 'N/A'})</option>`;
+        selectColaborador.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula})</option>`;
     });
 
     // 2. Popula gestores de destino
