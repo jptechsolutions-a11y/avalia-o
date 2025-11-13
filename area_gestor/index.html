@@ -146,7 +146,10 @@
                     <a href="#meuTime" class="nav-item active" title="Meu Time">
                         <i data-feather="users" class="h-5 w-5 mr-3"></i> <span class="nav-text">Meu Time</span>
                     </a>
-                    <!-- NOVO ITEM DE MENU -->
+                    <!-- NOVO ITEM DE MENU (GERENCIADO VIA JS) -->
+                    <a href="#meusGestores" id="meusGestoresLink" class="nav-item" title="Meus Gestores" style="display: none;">
+                        <i data-feather="briefcase" class="h-5 w-5 mr-3"></i> <span class="nav-text">Meus Gestores</span>
+                    </a>
                     <a href="#adicionarTime" class="nav-item" title="Adicionar ao Time">
                         <i data-feather="user-plus" class="h-5 w-5 mr-3"></i> <span class="nav-text">Adicionar ao Time</span>
                     </a>
@@ -189,102 +192,15 @@
                             </div>
                         </div>
 
-                        <!-- Cards de Estatísticas -->
-                        <div class="stats-grid">
-                            <div class="stat-card-dash flex items-start gap-4">
-                                <div class="p-3 rounded-lg bg-blue-100 text-blue-600">
-                                    <i data-feather="users" class="h-6 w-6"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="stat-number" id="statTotalTime">0</div>
-                                    <div class="stat-label">Total no Time</div>
-                                </div>
-                            </div>
-                            <div class="stat-card-dash flex items-start gap-4">
-                                <div class="p-3 rounded-lg bg-green-100 text-green-600">
-                                    <i data-feather="user-check" class="h-6 w-6"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="stat-number" id="statAtivos">0</div>
-                                    <div class="stat-label">Ativos</div>
-                                </div>
-                            </div>
-                            <div class="stat-card-dash flex items-start gap-4">
-                                <div class="p-3 rounded-lg bg-yellow-100 text-yellow-600">
-                                    <i data-feather="user-plus" class="h-6 w-6"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="stat-number" id="statNovatos">0</div>
-                                    <div class="stat-label">Novatos</div>
-                                </div>
-                            </div>
-                             <div class="stat-card-dash flex items-start gap-4">
-                                <div class="p-3 rounded-lg bg-red-100 text-red-600">
-                                    <i data-feather="user-x" class="h-6 w-6"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="stat-number" id="statInativos">0</div>
-                                    <div class="stat-label">Inativos</div>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- NOVA VIEW: Meus Gestores (Nível 2+) -->
+                    <div id="meusGestoresView" class="view-content">
+                        <h1><i data-feather="briefcase" class="h-7 w-7 text-accent"></i> Meus Gestores</h1>
+                        <p class="text-gray-600 mb-6 -mt-4">Visualize o resumo dos times dos gestores que respondem a você.</p>
                         
-                        <!-- Acompanhamento do Time -->
-                        <div class="info-card">
-                            <h3 class="!mb-4"><i data-feather="list" class="h-5 w-5 mr-2"></i> Acompanhamento do Time</h3>
-                            
-                            <!-- Filtros -->
-                            <div class="filter-bar">
-                                <div class="form-group">
-                                    <label for="filterNome">Filtrar por Nome/Chapa</label>
-                                    <input type="text" id="filterNome" placeholder="Digite nome ou chapa...">
-                                </div>
-                                <div class="form-group">
-                                    <label for="filterFilial">Filtrar por Filial</label>
-                                    <select id="filterFilial">
-                                        <option value="">Todas as filiais</option>
-                                    </select>
-                                </div>
-                                 <div class="form-group">
-                                    <label for="filterFuncao">Filtrar por Função</label>
-                                    <select id="filterFuncao">
-                                        <option value="">Todas as funções</option>
-                                    </select>
-                                </div>
-                                 <div class="form-group">
-                                    <label for="filterStatus">Filtrar por Status</label>
-                                    <select id="filterStatus">
-                                        <option value="">Todos os status</option>
-                                        <option value="ativo">Ativo</option>
-                                        <option value="inativo">Inativo</option>
-                                        <option value="novato">Novato</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- Tabela -->
-                            <div id="tableContainer" class="table-container mt-6">
-                                <table class="tabela">
-                                    <thead>
-                                        <tr>
-                                            <th>Nome</th>
-                                            <th>Chapa</th>
-                                            <!-- <th>Nível Hier.</th> --> <!-- REMOVIDO -->
-                                            <th>Gestor Imediato</th>
-                                            <th>Função</th>
-                                            <th>Seção</th>
-                                            <th>Filial</th>
-                                            <!-- <th>Admissão</th> --> <!-- REMOVIDA -->
-                                            <th>Status</th>
-                                            <th>Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="tableBodyMeuTime">
-                                        <tr><td colspan="8" class="text-center py-10 text-gray-500">Carregando dados...</td></tr> <!-- COLSPAN ALTERADO DE 9 PARA 8 -->
-                                    </tbody>
-                                </table>
-                            </div>
-                            <p id="tableMessageMeuTime" class="hidden text-center py-10 text-gray-500">Nenhum dado encontrado.</p>
+                        <!-- Container para os Cards dos Gestores -->
+                        <div id="gestoresCardsContainer" class="stats-grid">
+                            <!-- Cards serão injetados aqui pelo JS -->
+                            <p class="text-gray-500 col-span-full text-center py-10">Carregando gestores...</p>
                         </div>
                     </div>
 
@@ -472,6 +388,32 @@
     <div id="loading" class="loading">
         <div class="spinner"></div>
         <p id="loadingText">Processando...</p>
+    </div>
+
+    <!-- Modal Detalhe Time do Gestor (NOVO) -->
+    <div id="gestorTimeModal" class="modal" style="align-items: flex-start; padding-top: 5vh; display: none;">
+        <div class="modal-content" style="width: 1000px; max-width: 95vw;">
+            <span class="modal-close" onclick="closeGestorTimeModal()">&times;</span>
+            <h3 id="modalGestorTitle">Time de...</h3>
+            <div id="modalGestorTableContainer" class="table-container mt-6">
+                <table class="tabela">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Chapa</th>
+                            <th>Gestor Imediato</th>
+                            <th>Função</th>
+                            <th>Seção</th>
+                            <th>Filial</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalGestorTableBody">
+                        <!-- Conteúdo injetado via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <!-- JS DO SISTEMA -->
