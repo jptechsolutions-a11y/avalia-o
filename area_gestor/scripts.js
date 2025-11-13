@@ -709,44 +709,99 @@ function renderMeuTimeTable(data) {
     if (data.length === 0) {
         message.classList.remove('hidden');
         if (state.meuTime.length === 0) { // Se o cache original está vazio
-             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Seu time ainda não possui colaboradores vinculados.</td></tr>';
+             tbody.innerHTML = '<tr><td colspan="10" class="text-center py-10 text-gray-500">Seu time ainda não possui colaboradores vinculados.</td></tr>'; // Colspan 10
         } else { // Se o cache tem dados, mas o filtro limpou
-             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Nenhum colaborador encontrado para os filtros aplicados.</td></tr>';
+             tbody.innerHTML = '<tr><td colspan="10" class="text-center py-10 text-gray-500">Nenhum colaborador encontrado para os filtros aplicados.</td></tr>'; // Colspan 10
         }
         return;
     }
     
     message.classList.add('hidden');
 
+    // --- INÍCIO DA SOLUÇÃO PRÁTICA (Nível Hierárquico) ---
+        
+    // 1. Criar um mapa de Nomes (Chapa -> Nome) para buscar o nome do gestor
+    const nomeGestoresMap = state.meuTime.reduce((acc, colab) => {
+        acc[colab.matricula] = colab.nome;
+        return acc;
+    }, {});
+    // Adiciona o próprio gestor logado ao mapa
+    nomeGestoresMap[state.userMatricula] = state.userNome;
+
+    // 2. Ordenar os dados:
+    //    - Nível 1 (diretos) primeiro, por nome.
+    //    - Nível 2 (indiretos) depois, por nome do gestor, depois por nome.
+    data.sort((a, b) => {
+        const aIsDirect = a.gestor_chapa === state.userMatricula;
+        const bIsDirect = b.gestor_chapa === state.userMatricula;
+
+        if (aIsDirect && !bIsDirect) return -1; // A (direto) vem antes
+        if (!aIsDirect && bIsDirect) return 1;  // B (direto) vem antes
+
+        if (aIsDirect && bIsDirect) {
+            // Ambos são diretos, ordena por nome
+            return (a.nome || '').localeCompare(b.nome || '');
+        } else {
+            // Ambos são indiretos, ordena pelo NOME do gestor, depois por nome
+            const gestorANome = nomeGestoresMap[a.gestor_chapa] || a.gestor_chapa || '';
+            const gestorBNome = nomeGestoresMap[b.gestor_chapa] || b.gestor_chapa || '';
+            
+            if (gestorANome !== gestorBNome) {
+                return gestorANome.localeCompare(gestorBNome);
+            }
+            // Se o gestor for o mesmo, ordena por nome
+            return (a.nome || '').localeCompare(b.nome || '');
+        }
+    });
+
     const fragment = document.createDocumentFragment();
-    data.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(item => {
+    data.forEach(item => {
         const tr = document.createElement('tr');
         
-        // ASSUME lowercase
-        let dtAdmissao = '-';
-        if (item.data_admissao) {
-             try {
-                // Tenta formatar a data, seja qual for o formato (ISO ou DD/MM/YYYY)
-                let dateStr = item.data_admissao.split(' ')[0]; // Remove timestamp se houver
-                const dateParts = dateStr.split('-'); // Tenta formato ISO
-                if (dateParts.length === 3) {
-                     dtAdmissao = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
-                } else {
-                     dtAdmissao = item.data_admissao; // Mantém o original se não for ISO
-                }
-             } catch(e) {
-                 dtAdmissao = item.data_admissao; // Fallback
-             }
+        // Define Nível e Gestor
+        let nivelLabel = '';
+        let gestorNome = '';
+        let rowClass = '';
+
+        if (item.gestor_chapa === state.userMatricula) {
+            nivelLabel = '<span class="status-badge status-ativo" style="background-color: var(--accent); color: white;">Nível 1 (Direto)</span>';
+            gestorNome = state.userNome;
+            rowClass = 'direct-report-row'; // Classe para L1
+        } else {
+            nivelLabel = '<span class="status-badge status-aviso" style="font-weight: 500;">Nível 2 (Indireto)</span>';
+            gestorNome = nomeGestoresMap[item.gestor_chapa] || item.gestor_chapa; // Busca nome do gestor (ex: Marcelo)
+            rowClass = 'indirect-report-row'; // Classe para L2
         }
-        
+
+        // Status
         const status = item.status || 'ativo';
         let statusClass = 'status-ativo';
         if (status === 'inativo') statusClass = 'status-inativo';
-        if (status === 'novato') statusClass = 'status-aviso'; // Reutilizando a cor 'aviso'
+        if (status === 'novato') statusClass = 'status-aviso';
+        
+        // Data de Admissão (código original)
+        let dtAdmissao = '-';
+        if (item.data_admissao) {
+             try {
+                let dateStr = item.data_admissao.split(' ')[0];
+                const dateParts = dateStr.split('-');
+                if (dateParts.length === 3) {
+                     dtAdmissao = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+                } else {
+                     dtAdmissao = item.data_admissao;
+                }
+             } catch(e) {
+                 dtAdmissao = item.data_admissao;
+             }
+        }
+
+        tr.className = rowClass;
 
         tr.innerHTML = `
             <td>${item.nome || '-'}</td>
             <td>${item.matricula || '-'}</td>
+            <td>${nivelLabel}</td>
+            <td>${gestorNome}</td>
             <td>${item.funcao || '-'}</td>
             <td>${item.secao || '-'}</td>
             <td>${item.filial || '-'}</td>
@@ -765,6 +820,26 @@ function renderMeuTimeTable(data) {
     });
     tbody.appendChild(fragment);
     feather.replace();
+    
+    // Adiciona um estilo leve para diferenciar L1 de L2
+    const styleEl = document.getElementById('dynamic-styles') || document.createElement('style');
+    styleEl.id = 'dynamic-styles';
+    styleEl.innerHTML = `
+        .indirect-report-row td {
+            background-color: #f9fafb; /* Um cinza bem leve */
+            font-size: 0.875rem;
+        }
+        .indirect-report-row td:first-child {
+            padding-left: 1.5rem; /* Indentação para Nível 2 */
+        }
+        .direct-report-row {
+            /* (Opcional) Deixa o Nível 1 em negrito */
+            /* font-weight: 600; */ 
+        }
+    `;
+    document.head.appendChild(styleEl);
+    
+    // --- FIM DA SOLUÇÃO PRÁTICA ---
 }
 
 /**
