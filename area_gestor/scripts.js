@@ -288,8 +288,12 @@ async function loadModuleData() {
             // **A NOVA LÓGICA USANDO AS COLUNAS DE HIERARQUIA**
             console.log(`[Load] 1. Buscando time hierárquico (Query Plana) de ${state.userMatricula}...`);
             const m = state.userMatricula;
-            // Busca qualquer colaborador que tenha o usuário como gestor em qualquer nível
-            const orQuery = `or=(gestor_imediato_chapa.eq.${m},gestor_n2_chapa.eq.${m},gestor_n3_chapa.eq.${m},gestor_n4_chapa.eq.${m},gestor_n5_chapa.eq.${m})`;
+            
+            // ***** INÍCIO DA CORREÇÃO *****
+            // Troca 'gestor_imediato_chapa' por 'gestor_chapa'
+            const orQuery = `or=(gestor_chapa.eq.${m},gestor_n2_chapa.eq.${m},gestor_n3_chapa.eq.${m},gestor_n4_chapa.eq.${m},gestor_n5_chapa.eq.${m})`;
+            // ***** FIM DA CORREÇÃO *****
+            
             timeRes = await supabaseRequest(`colaboradores?select=*&${orQuery}`, 'GET');
         }
 
@@ -303,7 +307,9 @@ async function loadModuleData() {
             const nivel_hierarquico = configMap[c.funcao?.toLowerCase()] || null;
             
             // Nome do gestor (baseado no *gestor direto* do colaborador)
-            const gestor_imediato_nome = gestorMap[c.gestor_imediato_chapa] || 'N/A';
+            // ***** INÍCIO DA CORREÇÃO *****
+            const gestor_imediato_nome = gestorMap[c.gestor_chapa] || 'N/A';
+            // ***** FIM DA CORREÇÃO *****
             
             return {
                 ...c,
@@ -474,10 +480,13 @@ async function handleSalvarTime() {
     try {
         // --- ETAPA 1: Salvar os gestores/colaboradores diretos (Nível 1) ---
         const promessas = chapasSelecionadas.map(chapa => {
+            // ***** INÍCIO DA CORREÇÃO *****
             const payload = {
-                gestor_imediato_chapa: state.userMatricula, // CORREÇÃO: Usa a coluna correta
+                gestor_chapa: state.userMatricula, // CORREÇÃO: Usa a coluna correta
                 status: 'ativo' // Tira do status 'novato'
             };
+            // ***** FIM DA CORREÇÃO *****
+            
             // ATENÇÃO: A query para PATCH deve usar a PKey (matricula)
             return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
         });
@@ -597,7 +606,9 @@ function renderMeuTimeTable(data) {
         let rowClass = '';
         
         // Define a classe da linha (Direto vs Indireto)
-        if (item.gestor_imediato_chapa === state.userMatricula) {
+        // ***** INÍCIO DA CORREÇÃO *****
+        if (item.gestor_chapa === state.userMatricula) {
+        // ***** FIM DA CORREÇÃO *****
             rowClass = 'direct-report-row';
         } else {
             rowClass = 'indirect-report-row';
@@ -825,7 +836,7 @@ async function handleConfirmTransfer() {
     }
     
     // ATENÇÃO: Esta é uma operação complexa.
-    // Mudar o 'gestor_imediato_chapa' requer recalcular
+    // Mudar o 'gestor_chapa' requer recalcular
     // gestor_n2_chapa, gestor_n3_chapa, etc. para o colaborador
     // E para TODOS os seus subordinados (a cascata abaixo dele).
     
@@ -842,10 +853,12 @@ async function handleConfirmTransfer() {
     btnConfirm.disabled = true;
 
     try {
+        // ***** INÍCIO DA CORREÇÃO *****
         const payload = {
-            gestor_imediato_chapa: novoGestorMatricula
+            gestor_chapa: novoGestorMatricula
             // IDEALMENTE: A trigger no DB deve recalcular N2, N3, N4, N5...
         };
+        // ***** FIM DA CORREÇÃO *****
         
         await supabaseRequest(`colaboradores?matricula=eq.${colaboradorMatricula}`, 'PATCH', payload);
 
