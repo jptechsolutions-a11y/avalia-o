@@ -1,6 +1,6 @@
 // Configuração do Supabase (baseado nos seus outros módulos)
 const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhYmFzZXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
 const SUPABASE_PROXY_URL = '/api/proxy'; // Usando o proxy
 
 // Define o adaptador para sessionStorage
@@ -216,13 +216,15 @@ async function loadRecursiveTeam(gestorChapa, configMap) {
     // 1. Busca subordinados diretos
     // OTIMIZAÇÃO: Seleciona apenas as colunas necessárias.
     const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
-    const reports = await supabaseRequest(`colaboradores?select=${columns}&gestor_chapa=eq.${gestorChapa}`, 'GET');
+    // GARANTIA: Força a 'gestorChapa' (que pode ser número) para string na query.
+    const reports = await supabaseRequest(`colaboradores?select=${columns}&gestor_chapa=eq.${String(gestorChapa)}`, 'GET');
     
     if (!reports || reports.length === 0) {
         return []; // Condição de parada: gestor sem time
     }
 
     // 2. Adiciona os subordinados diretos ao time
+    // LÓGICA: A soma (concat) é a chave aqui.
     team = team.concat(reports);
 
     // 3. Identifica quais desses subordinados são também gestores
@@ -231,7 +233,8 @@ async function loadRecursiveTeam(gestorChapa, configMap) {
             const func = r.funcao ? r.funcao.toLowerCase() : null; 
             return func && configMap[func]; // Compara com o configMap (lower)
         })
-        .map(r => r.matricula); 
+        // GARANTIA: Força a 'matricula' (que pode ser número) para string na recursão.
+        .map(r => String(r.matricula)); 
 
     if (subManagerChapas.length === 0) {
         return team; // Condição de parada: sem sub-gestores
@@ -241,7 +244,7 @@ async function loadRecursiveTeam(gestorChapa, configMap) {
     const subTeamPromises = subManagerChapas.map(chapa => loadRecursiveTeam(chapa, configMap));
     const subTeams = await Promise.all(subTeamPromises);
 
-    // 5. Adiciona os times dos sub-gestores ao time principal
+    // 5. Adiciona os times dos sub-gestores (N2, N3...) ao time principal (N1)
     subTeams.forEach(subTeam => {
         team = team.concat(subTeam);
     });
@@ -341,7 +344,9 @@ async function loadModuleData() {
         let timeRes = [];
         if (state.isAdmin) {
             console.log("[Load] Admin detectado. Carregando TODOS os colaboradores...");
-            timeRes = await supabaseRequest('colaboradores?select=*', 'GET');
+            // OTIMIZAÇÃO: Admin também não precisa de todas as colunas
+            const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
+            timeRes = await supabaseRequest(`colaboradores?select=${columns}`, 'GET');
         } else {
             // **AQUI ESTÁ A CORREÇÃO PARA O PROBLEMA 1 (LOOP)**
             console.log(`[Load] 1. Buscando time hierárquico (Recursivo JS) de ${state.userMatricula}...`);
