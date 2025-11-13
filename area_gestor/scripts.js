@@ -20,17 +20,17 @@ const state = {
     permissoes_filiais: null,
     userMatricula: null,
     userNome: 'Usuário',
-    userFuncao: null, // <-- NOVO
-    userNivel: null,  // <-- NOVO
-    userFilial: null, // <-- CORREÇÃO 2: Adicionado para filtro de filial
+    userFuncao: null,
+    userNivel: null,
+    userFilial: null,
     // Cache de dados do módulo
     meuTime: [],
     disponiveis: [],
     gestorConfig: [],
-    todasAsFuncoes: [] // NOVO: Cache para todas as funções
+    todasAsFuncoes: []
 };
 
-// --- Funções de UI (Idênticas aos outros módulos) ---
+// --- Funções de UI ---
 
 function showLoading(show, text = 'Processando...') {
     const loading = document.getElementById('loading');
@@ -81,7 +81,7 @@ function logout() {
     }
 }
 
-// --- Função de Navegação (Atualizada com lógica) ---
+// --- Função de Navegação ---
 function showView(viewId, element) {
     document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
     const viewEl = document.getElementById(viewId);
@@ -97,30 +97,23 @@ function showView(viewId, element) {
         history.pushState(null, '', newHash);
     }
     
-    // Fecha o dropdown de perfil se estiver aberto
     const profileDropdown = document.getElementById('profileDropdown');
     if (profileDropdown) profileDropdown.classList.remove('open');
     
-    // Lógica específica da view
     try {
         switch (viewId) {
             case 'meuTimeView':
-                // Funções que usam os dados carregados no state
                 updateDashboardStats(state.meuTime);
                 populateFilters(state.meuTime);
-                applyFilters(); // Renderiza a tabela inicial
+                applyFilters();
                 break;
             case 'transferirView':
-                // (Ainda a implementar)
                 loadTransferViewData();
                 break;
             case 'atualizarQLPView':
-                // (Ainda a implementar)
                 break;
             case 'configuracoesView':
-                // Renderiza a tabela de config
                 renderGestorConfigTable(state.gestorConfig);
-                // NOVO: Popula o dropdown
                 populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig);
                 break;
         }
@@ -199,90 +192,14 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
     }
 }
 
-// --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
+// --- Funções de Lógica do Módulo ---
 
 /**
- * ** NOVO: Função Recursiva para Carregar Time em Cascata **
- * Busca todos os colaboradores abaixo de um gestor, incluindo sub-gestores.
- * ** ATUALIZADO: para usar colunas minúsculas **
- * ** CORRIGIDO: Adicionado 'visitedChapas' para evitar loops infinitos. **
- */
-async function loadRecursiveTeam(gestorChapa, configMap, visitedChapas) {
-    // --- INÍCIO DA CORREÇÃO ANTI-LOOP ---
-    // Se já visitamos esse gestor nesta busca, paramos para evitar um loop.
-    if (visitedChapas.has(gestorChapa)) {
-        console.warn(`[Cascata] Detectada dependência circular! Gestor ${gestorChapa} já foi visitado. Parando recursão.`);
-        return []; // Previne o loop infinito
-    }
-    visitedChapas.add(gestorChapa); // Marca este gestor como visitado
-    // --- FIM DA CORREÇÃO ---
-
-    let team = [];
-    
-    console.log(`[Cascata] Buscando time de: ${gestorChapa}`);
-    
-    // 1. Busca subordinados diretos (ASSUMINDO COLUNAS minúsculas)
-    const reports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${gestorChapa}`, 'GET');
-    
-    if (!reports || reports.length === 0) {
-        console.log(`[Cascata] ${gestorChapa} não tem subordinados diretos.`);
-        return []; // Condição de parada: gestor sem time
-    }
-
-    console.log(`[Cascata] ${gestorChapa} tem ${reports.length} subordinados diretos.`);
-
-    // 2. Adiciona os subordinados diretos ao time
-    team = team.concat(reports);
-
-    // 3. Identifica quais desses subordinados são também gestores (ASSUMINDO COLUNAS minúsculas)
-    const subManagerChapas = reports
-        .filter(r => {
-            const func = r.funcao ? r.funcao.toLowerCase() : null; // Pega funcao (upper) e converte
-            const isManager = func && configMap[func]; // Compara com o configMap (lower)
-            if (isManager) {
-                console.log(`[Cascata] ${r.nome} (${r.matricula}) é sub-gestor (${r.funcao}).`);
-            }
-            return isManager;
-        })
-        .map(r => r.matricula); // Pega matricula (lower)
-
-    if (subManagerChapas.length === 0) {
-        console.log(`[Cascata] ${gestorChapa} não tem sub-gestores. Fim da cascata.`);
-        return team; // Condição de parada: sem sub-gestores
-    }
-
-    console.log(`[Cascata] ${gestorChapa} tem ${subManagerChapas.length} sub-gestor(es): ${subManagerChapas.join(', ')}`);
-
-    // 4. Busca recursivamente o time de cada sub-gestor
-    // --- CORREÇÃO: Passa o Set 'visitedChapas' adiante na recursão ---
-    const subTeamPromises = subManagerChapas.map(chapa => 
-        loadRecursiveTeam(chapa, configMap, visitedChapas) // Passa o MESMO Set
-    );
-    const subTeamsResults = await Promise.allSettled(subTeamPromises);
-
-    // 5. Adiciona os times dos sub-gestores ao time principal
-    subTeamsResults.forEach((result, index) => {
-        if (result.status === 'fulfilled' && Array.isArray(result.value)) {
-            const subTeam = result.value;
-            console.log(`[Cascata] Sub-gestor ${subManagerChapas[index]} trouxe ${subTeam.length} colaboradores.`);
-            team = team.concat(subTeam);
-        } else {
-            console.error(`[Cascata] Erro ao buscar time do sub-gestor ${subManagerChapas[index]}:`, result.reason);
-        }
-    });
-
-    console.log(`[Cascata] Total acumulado para ${gestorChapa}: ${team.length} colaboradores.`);
-    return team;
-}
-
-
-/**
- * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
- * Chamado uma vez during a inicialização.
- * ** ATUALIZADO: para usar uma lógica NÃO-RECURSIVA no load inicial. **
+ * ** CORREÇÃO APLICADA **
+ * Carrega os dados essenciais do módulo de forma NÃO-RECURSIVA.
+ * Busca subordinados diretos + times dos sub-gestores em 2 etapas.
  */
 async function loadModuleData() {
-    // Se não tiver matrícula, não pode ser gestor, pula o carregamento
     if (!state.userMatricula && !state.isAdmin) {
         console.warn("Usuário sem matrícula, não pode carregar dados de gestor.");
         return;
@@ -291,10 +208,10 @@ async function loadModuleData() {
     showLoading(true, 'Carregando dados do time...');
     
     try {
-        // --- ETAPA 1: Carregar Configurações e Funções (Necessário para a cascata) ---
+        // --- ETAPA 1: Carregar Configurações e Funções ---
         const [configRes, funcoesRes] = await Promise.allSettled([
             supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
-            supabaseRequest('colaboradores?select=funcao', 'GET') // ASSUME lowercase
+            supabaseRequest('colaboradores?select=funcao', 'GET')
         ]);
 
         if (configRes.status === 'fulfilled' && configRes.value) {
@@ -304,102 +221,100 @@ async function loadModuleData() {
         }
         
         if (funcoesRes.status === 'fulfilled' && funcoesRes.value) {
-            const funcoesSet = new Set(funcoesRes.value.map(f => f.funcao)); // ASSUME lowercase
+            const funcoesSet = new Set(funcoesRes.value.map(f => f.funcao));
             state.todasAsFuncoes = [...funcoesSet].filter(Boolean);
         } else {
             console.error("Erro ao carregar funções:", funcoesRes.reason);
         }
 
         // --- ETAPA 2: Preparar Mapa de Configuração ---
-        // Cria um mapa (ex: {'supervisor': true, 'coordenador': true})
         const configMap = state.gestorConfig.reduce((acc, regra) => {
             if (regra.pode_ser_gestor) {
-                // A chave no mapa é minúscula (vem da tabela config, que é minúscula)
                 acc[regra.funcao.toLowerCase()] = true; 
             }
             return acc;
         }, {});
 
-        // --- ETAPA 3: Carregar Disponíveis (em paralelo com o time) ---
-        
-        // Query de Disponíveis (ASSUME lowercase)
-        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; // Pega mais colunas para o filtro
+        // --- ETAPA 3: Carregar Disponíveis (em paralelo) ---
+        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status';
         let filters = []; 
 
-        // --- Lógica de filtro de filial ---
         if (!state.isAdmin) {
             if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-                // Se 'permissoes_filiais' (do app 'usuarios') está preenchido, ele manda.
                 filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`);
             } else if (state.userFilial) {
-                // Senão, usa a filial do próprio gestor (da tabela 'colaboradores')
                 filters.push(`filial=eq.${state.userFilial}`);
             } else {
-                // Se não tem nem um nem outro, filtra por uma filial "impossível" para não vazar dados
-                console.warn("Gestor não-admin sem 'permissoes_filiais' ou 'filial' cadastrada. Nenhum colaborador 'disponível' será mostrado.");
+                console.warn("Gestor sem permissões de filial definidas.");
                 filters.push('filial=eq.IMPOSSIVEL_FILIAL_FILTER');
             }
         }
         
-        // Adiciona filtro para não incluir o próprio gestor
         if (state.userMatricula) {
-            filters.push(`matricula=neq.${state.userMatricula}`); // ASSUME lowercase
+            filters.push(`matricula=neq.${state.userMatricula}`);
         }
 
-        // Combina os filtros
         if (filters.length > 0) {
             disponiveisQuery += `&${filters.join('&')}`;
         }
         
-        // Dispara a busca de 'disponíveis'
         const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
 
-        // --- INÍCIO DA CORREÇÃO ---
-        // --- ETAPA 4: LÓGICA DE CARREGAMENTO DE TIME CORRIGIDA ---
+        // --- ETAPA 4: LÓGICA CORRIGIDA DE CARREGAMENTO DE TIME ---
         
         let timeCompleto = [];
         let subManagerChapas = [];
 
-        // 4a. Busca os subordinados DIRETOS (Nível 1, ex: Marcelo, Ana)
+        // 4a. Busca os subordinados DIRETOS do gestor logado (ex: Ana, Marcelo)
         const directReports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET');
         
         if (directReports && directReports.length > 0) {
-            console.log(`[Load] Encontrados ${directReports.length} subordinados diretos.`);
-            // NÃO adicione ao timeCompleto ainda.
+            console.log(`[Load] Encontrados ${directReports.length} subordinados diretos do gestor.`);
             
-            // 4b. Identifica quais deles são gestores
+            // ** CORREÇÃO CRÍTICA: ADICIONA os subordinados diretos ao time **
+            timeCompleto = [...directReports];
+            
+            // 4b. Identifica quais deles são sub-gestores
             subManagerChapas = directReports
                 .filter(r => {
                     const func = r.funcao ? r.funcao.toLowerCase() : null;
-                    return func && configMap[func]; // Compara com o configMap
+                    const isManager = func && configMap[func];
+                    if (isManager) {
+                        console.log(`[Load] ${r.nome} (${r.matricula}) identificado como sub-gestor.`);
+                    }
+                    return isManager;
                 })
                 .map(r => r.matricula);
         }
 
-        // 4c. Monta a query final
-        // Começa com a chapa do próprio gestor (para pegar os diretos, como Ana e Marcelo)
-        let queryChapas = [`"${state.userMatricula}"`]; 
+        // 4c. Se houver sub-gestores, busca os times deles também (cascata)
         if (subManagerChapas.length > 0) {
-            // Adiciona as chapas dos sub-gestores (Marcelo)
-            queryChapas = queryChapas.concat(subManagerChapas.map(c => `"${c}"`)); 
+            console.log(`[Load] Buscando times dos ${subManagerChapas.length} sub-gestor(es)...`);
+            
+            // Monta query para buscar colaboradores dos sub-gestores
+            const subTeamQuery = `colaboradores?select=*&gestor_chapa=in.(${subManagerChapas.map(c => `"${c}"`).join(',')})`;
+            console.log(`[Load] Query de sub-times: ${subTeamQuery}`);
+            
+            const subTeam = await supabaseRequest(subTeamQuery, 'GET');
+            
+            if (subTeam && subTeam.length > 0) {
+                console.log(`[Load] Encontrados ${subTeam.length} colaboradores nos sub-times.`);
+                // Adiciona os colaboradores dos sub-gestores, evitando duplicatas
+                const chapasExistentes = new Set(timeCompleto.map(c => c.matricula));
+                subTeam.forEach(colab => {
+                    if (!chapasExistentes.has(colab.matricula)) {
+                        timeCompleto.push(colab);
+                        chapasExistentes.add(colab.matricula);
+                    }
+                });
+            }
         }
-
-        // 4d. Busca TODOS os colaboradores (Time do Fábio + Time do Marcelo) de uma vez
-        const finalQuery = `colaboradores?select=*&gestor_chapa=in.(${queryChapas.join(',')})`;
-        console.log(`[Load] Executando query final: ${finalQuery}`);
         
-        const finalTeam = await supabaseRequest(finalQuery, 'GET');
-
-        if (finalTeam && finalTeam.length > 0) {
-            timeCompleto = finalTeam;
-        }
-        // --- FIM DA CORREÇÃO ---
-        
-        // 4e. Define o time no estado
+        // 4d. Define o time no estado
         state.meuTime = timeCompleto;
-        console.log(`[Load] Carregamento de time concluído. Total: ${state.meuTime.length} colaboradores.`);
+        console.log(`[Load] Carregamento concluído. Total: ${state.meuTime.length} colaboradores (${directReports?.length || 0} diretos + ${timeCompleto.length - (directReports?.length || 0)} cascata).`);
 
-        // 4f. Espera a promise de 'disponíveis' que rodou em paralelo
+        // 4e. Espera a promise de 'disponíveis'
         const disponiveisRes = await Promise.allSettled([disponiveisPromise]);
         if (disponiveisRes[0].status === 'fulfilled' && disponiveisRes[0].value) {
             state.disponiveis = disponiveisRes[0].value;
@@ -409,90 +324,68 @@ async function loadModuleData() {
         
     } catch (err) {
         console.error("Erro fatal no loadModuleData:", err);
-        state.meuTime = []; // Garante que o time fique vazio em caso de erro
+        state.meuTime = [];
     } finally {
         showLoading(false);
     }
 }
-
 
 /**
  * Mostra a view de setup pela primeira vez.
  */
 function iniciarDefinicaoDeTime() {
     console.log("Iniciando definição de time...");
-    // Esconde todas as views
     document.querySelectorAll('.view-content').forEach(view => {
         view.classList.remove('active');
-        view.classList.add('hidden'); // Garante que todas sumam
+        view.classList.add('hidden');
     });
     
-    // Mostra a view de setup
     const setupView = document.getElementById('primeiroAcessoView');
     setupView.classList.remove('hidden');
-    setupView.classList.add('active'); // Torna ativa
+    setupView.classList.add('active');
     
-    // Trava a sidebar para forçar o setup
     const sidebar = document.querySelector('.sidebar');
     sidebar.style.pointerEvents = 'none';
     sidebar.style.opacity = '0.7';
 
     let listaDisponiveisFiltrada = state.disponiveis;
     
-    // Só aplica o filtro de hierarquia se o gestor tiver um nível definido
     if (state.userNivel !== null && state.userNivel !== undefined) {
-        
-        // 1. Criar um mapa de Níveis (funcao -> nivel) para consulta rápida
         const mapaNiveis = state.gestorConfig.reduce((acc, regra) => {
-            acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia; // Chave minúscula
+            acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia;
             return acc;
         }, {});
 
-        // 2. Filtrar a lista
         listaDisponiveisFiltrada = state.disponiveis.filter(colaborador => {
-            // ASSUME lowercase
             const colaboradorFuncao = colaborador.funcao;
             const colaboradorStatus = colaborador.status;
             const colaboradorGestor = colaborador.gestor_chapa;
 
-            // --- INÍCIO DA CORREÇÃO ---
-            // Regra 0: Já é um subordinado direto do gestor logado (ex: Ana)
-            // (Esta regra estava correta, mas a 'Ana' não estava na lista de 'disponiveis'
-            // se o gestor_chapa dela já era o do Fábio. Mas agora o loadModuleData falha,
-            // então ela estará em 'disponiveis'. Vamos garantir que ela apareça)
             if (colaboradorGestor === state.userMatricula) {
                 return true;
             }
-            // --- FIM DA CORREÇÃO ---
 
-            // Regra 1: É "Disponível" (Sem Gestor ou Novato)
             if (colaboradorGestor === null || colaboradorStatus === 'novato') {
                 return true;
             }
 
-            // Regra 2: É Líder de Nível Inferior (Hierarquia) (ex: Marcelo)
             if (colaboradorFuncao) {
-                // Compara a funcao (que é UPPERCASE) com o mapa (que é lowercase)
                 const colaboradorNivel = mapaNiveis[colaboradorFuncao.toLowerCase()];
                 
                 if (colaboradorNivel !== undefined && colaboradorNivel !== null) {
-                    // Gestor Nível 2 (Fabio) vê Nível 1 (Marcelo)
-                    // 1 < 2 = true
                     if (colaboradorNivel < state.userNivel) {
-                        return true; // É de nível inferior, permite
+                        return true;
                     }
                 }
             }
             
-            // Se não passou em nenhum, filtra fora
             return false;
         });
 
-        console.log(`Filtro de Hierarquia/Disponível: Gestor Nível ${state.userNivel}. Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
+        console.log(`Filtro de Hierarquia: Gestor Nível ${state.userNivel}. Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
     }
 
-    // Popula as listas
-    renderListasTimes(listaDisponiveisFiltrada, state.meuTime); // <-- USA A LISTA FILTRADA
+    renderListasTimes(listaDisponiveisFiltrada, state.meuTime);
     
     feather.replace();
 }
@@ -507,16 +400,13 @@ function renderListasTimes(disponiveis, meuTime) {
     listaDisponiveisEl.innerHTML = '';
     listaMeuTimeEl.innerHTML = '';
     
-    // Filtra disponíveis para não mostrar quem JÁ ESTÁ no meu time (ASSUME lowercase)
     const chapasMeuTime = new Set(meuTime.map(c => c.matricula));
     const disponiveisFiltrados = disponiveis.filter(c => !chapasMeuTime.has(c.matricula));
 
-    // ASSUME lowercase
     disponiveisFiltrados.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
         listaDisponiveisEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
     
-    // ASSUME lowercase
     meuTime.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
         listaMeuTimeEl.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}] - ${c.funcao || 'N/A'}</option>`;
     });
@@ -530,7 +420,6 @@ function moverColaboradores(origemEl, destinoEl) {
     selecionados.forEach(option => {
         destinoEl.appendChild(option);
     });
-    // Re-ordena a lista de destino
     const options = Array.from(destinoEl.options);
     options.sort((a, b) => a.text.localeCompare(b.text));
     destinoEl.innerHTML = '';
@@ -555,9 +444,8 @@ function filtrarDisponiveis() {
 }
 
 /**
- * --- CORREÇÃO 2: Lógica de Cascata ---
- * Salva o time E TAMBÉM busca a cascata de subordinados dos
- * gestores selecionados.
+ * ** CORREÇÃO APLICADA **
+ * Salva o time direto e depois BUSCA (não salva) a cascata para visualização.
  */
 async function handleSalvarTime() {
     showLoading(true, 'Salvando seu time...');
@@ -575,16 +463,16 @@ async function handleSalvarTime() {
         const promessas = chapasSelecionadas.map(chapa => {
             const payload = {
                 gestor_chapa: state.userMatricula,
-                status: 'ativo' // Tira do status 'novato'
+                status: 'ativo'
             };
             return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
         });
 
         await Promise.all(promessas);
-        mostrarNotificacao('Gestores diretos salvos! Buscando sub-times (cascata)...', 'success');
+        mostrarNotificacao('Time direto salvo! Carregando visualização completa...', 'success');
         
-        // --- ETAPA 2: Buscar a "Cascata" (a correção) ---
-        showLoading(true, 'Buscando times dos gestores selecionados...');
+        // --- ETAPA 2: BUSCAR A VISUALIZAÇÃO COMPLETA (sem salvar cascata) ---
+        showLoading(true, 'Carregando visualização do time...');
 
         // 2a. Pegar o mapa de configuração de gestores (quem é gestor?)
         const configMap = state.gestorConfig.reduce((acc, regra) => {
@@ -594,49 +482,45 @@ async function handleSalvarTime() {
             return acc;
         }, {});
 
-        // 2b. Buscar a cascata para CADA gestor selecionado
-        // --- CORREÇÃO: Passa um NOVO Set para cada gestor, pré-populado com o gestor raiz ---
-        const subTeamPromises = chapasSelecionadas.map(chapa => {
-            // Cada gestor direto recebe um NOVO Set, pré-populado com o gestor raiz (Fabio)
-            const visitedSet = new Set([state.userMatricula]);
-            return loadRecursiveTeam(chapa, configMap, visitedSet);
-        });
-        const subTeamsResults = await Promise.allSettled(subTeamPromises);
+        // 2b. Busca subordinados diretos (acabamos de salvar)
+        const directReports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET');
+        
+        let timeCompleto = directReports || [];
+        
+        // 2c. Identifica sub-gestores entre os diretos
+        const subManagerChapas = timeCompleto
+            .filter(r => {
+                const func = r.funcao ? r.funcao.toLowerCase() : null;
+                return func && configMap[func];
+            })
+            .map(r => r.matricula);
 
-        // 2c. Juntar os resultados
-        let timeCompleto = [];
-        let chapasTimeCompleto = new Set(chapasSelecionadas); // Adiciona os gestores diretos
-
-        // Adiciona os gestores diretos (objetos completos)
-        chapasSelecionadas.forEach(chapa => {
-            // Busca o objeto completo do gestor salvo (seja da lista de disponíveis ou do 'meuTime' se ele estava removendo/readicionando)
-            let colab = state.disponiveis.find(c => c.matricula === chapa) || state.meuTime.find(c => c.matricula === chapa);
-            if (colab) {
-                colab.gestor_chapa = state.userMatricula; // Atualiza localmente
-                colab.status = 'ativo';
-                timeCompleto.push(colab);
-            }
-        });
-
-        // Adiciona as cascatas (sub-times)
-        subTeamsResults.forEach(result => {
-            if (result.status === 'fulfilled' && Array.isArray(result.value)) {
-                result.value.forEach(subordinado => {
-                    // Evita duplicatas se um sub-gestor também foi selecionado
-                    if (!chapasTimeCompleto.has(subordinado.matricula)) {
-                        timeCompleto.push(subordinado);
-                        chapasTimeCompleto.add(subordinado.matricula);
+        // 2d. Se houver sub-gestores, busca os times deles
+        if (subManagerChapas.length > 0) {
+            console.log(`[Setup] Encontrados ${subManagerChapas.length} sub-gestor(es). Buscando seus times...`);
+            
+            const subTeamQuery = `colaboradores?select=*&gestor_chapa=in.(${subManagerChapas.map(c => `"${c}"`).join(',')})`;
+            const subTeam = await supabaseRequest(subTeamQuery, 'GET');
+            
+            if (subTeam && subTeam.length > 0) {
+                console.log(`[Setup] Adicionando ${subTeam.length} colaboradores dos sub-gestores.`);
+                const chapasExistentes = new Set(timeCompleto.map(c => c.matricula));
+                subTeam.forEach(colab => {
+                    if (!chapasExistentes.has(colab.matricula)) {
+                        timeCompleto.push(colab);
                     }
                 });
             }
-        });
-
+        }
+        
         // --- ETAPA 3: Atualizar Estado e Navegar ---
+        console.log(`[Setup] Time completo carregado: ${timeCompleto.length} colaboradores (${chapasSelecionadas.length} diretos + cascata)`);
         
         // 1. Atualiza o estado global
         state.meuTime = timeCompleto;
         
         // 2. Remove os movidos da lista de disponíveis
+        const chapasTimeCompleto = new Set(timeCompleto.map(c => c.matricula));
         state.disponiveis = state.disponiveis.filter(c => !chapasTimeCompleto.has(c.matricula));
         
         // 3. Libera a sidebar
@@ -644,18 +528,18 @@ async function handleSalvarTime() {
         sidebar.style.pointerEvents = 'auto';
         sidebar.style.opacity = '1';
 
-        // 4. Navega para a view principal (SEM RELOAD)
+        mostrarNotificacao(`Time configurado com sucesso! ${timeCompleto.length} colaboradores no total.`, 'success');
+
+        // 4. Navega para a view principal
         window.location.hash = '#meuTime'; 
-        // Chama o showView diretamente para carregar a tabela
         showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
 
     } catch (err) {
         mostrarNotificacao(`Erro ao salvar: ${err.message}`, 'error');
     } finally {
-        showLoading(false); // Esconde o loading
+        showLoading(false);
     }
 }
-
 
 /**
  * Atualiza os 4 cards do dashboard com base nos dados do time.
@@ -663,7 +547,6 @@ async function handleSalvarTime() {
 function updateDashboardStats(data) {
     if (!data) data = [];
     const total = data.length;
-    // ASSUME lowercase
     const ativos = data.filter(c => c.status === 'ativo').length;
     const inativos = data.filter(c => c.status === 'inativo').length;
     const novatos = data.filter(c => c.status === 'novato').length;
@@ -682,7 +565,6 @@ function populateFilters(data) {
     const filialSelect = document.getElementById('filterFilial');
     const funcaoSelect = document.getElementById('filterFuncao');
     
-    // ASSUME lowercase
     const filiais = [...new Set(data.map(c => c.filial).filter(Boolean))].sort();
     const funcoes = [...new Set(data.map(c => c.funcao).filter(Boolean))].sort();
     
@@ -703,9 +585,9 @@ function renderMeuTimeTable(data) {
 
     if (data.length === 0) {
         message.classList.remove('hidden');
-        if (state.meuTime.length === 0) { // Se o cache original está vazio
+        if (state.meuTime.length === 0) {
              tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Seu time ainda não possui colaboradores vinculados.</td></tr>';
-        } else { // Se o cache tem dados, mas o filtro limpou
+        } else {
              tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Nenhum colaborador encontrado para os filtros aplicados.</td></tr>';
         }
         return;
@@ -717,27 +599,25 @@ function renderMeuTimeTable(data) {
     data.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(item => {
         const tr = document.createElement('tr');
         
-        // ASSUME lowercase
         let dtAdmissao = '-';
         if (item.data_admissao) {
              try {
-                // Tenta formatar a data, seja qual for o formato (ISO ou DD/MM/YYYY)
-                let dateStr = item.data_admissao.split(' ')[0]; // Remove timestamp se houver
-                const dateParts = dateStr.split('-'); // Tenta formato ISO
+                let dateStr = item.data_admissao.split(' ')[0];
+                const dateParts = dateStr.split('-');
                 if (dateParts.length === 3) {
                      dtAdmissao = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
                 } else {
-                     dtAdmissao = item.data_admissao; // Mantém o original se não for ISO
+                     dtAdmissao = item.data_admissao;
                 }
              } catch(e) {
-                 dtAdmissao = item.data_admissao; // Fallback
+                 dtAdmissao = item.data_admissao;
              }
         }
         
         const status = item.status || 'ativo';
         let statusClass = 'status-ativo';
         if (status === 'inativo') statusClass = 'status-inativo';
-        if (status === 'novato') statusClass = 'status-aviso'; // Reutilizando a cor 'aviso'
+        if (status === 'novato') statusClass = 'status-aviso';
 
         tr.innerHTML = `
             <td>${item.nome || '-'}</td>
@@ -772,7 +652,6 @@ function applyFilters() {
     const statusFiltro = document.getElementById('filterStatus').value;
     
     const filteredData = state.meuTime.filter(item => {
-        // ASSUME lowercase
         const nomeChapaMatch = nomeFiltro === '' || 
             (item.nome && item.nome.toLowerCase().includes(nomeFiltro)) ||
             (item.matricula && item.matricula.toLowerCase().includes(nomeFiltro));
@@ -800,7 +679,6 @@ function renderGestorConfigTable(data) {
         return;
     }
 
-    // (tabela_gestores_config usa minúsculas, está correto)
     data.sort((a, b) => (a.nivel_hierarquia || 0) - (b.nivel_hierarquia || 0));
 
     data.forEach(item => {
@@ -823,13 +701,8 @@ function renderGestorConfigTable(data) {
     feather.replace();
 }
 
-// ====================================================================
-// NOVAS FUNÇÕES: Lógica da Aba Transferência
-// ====================================================================
+// --- Funções: Lógica da Aba Transferência ---
 
-/**
- * Carrega os dados para a view de Transferência
- */
 async function loadTransferViewData() {
     const selectColaborador = document.getElementById('selectColaboradorTransfer');
     const selectGestor = document.getElementById('selectNovoGestor');
@@ -840,46 +713,35 @@ async function loadTransferViewData() {
         return;
     }
 
-    // 1. Popula colaboradores do time atual (AGORA COM A CASCATA COMPLETA)
     selectColaborador.innerHTML = '<option value="">Selecione um colaborador...</option>';
-    // ASSUME lowercase
     state.meuTime.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
         selectColaborador.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula})</option>`;
     });
 
-    // 2. Popula gestores de destino
     selectGestor.innerHTML = '<option value="">Carregando gestores...</option>';
     selectGestor.disabled = true;
-    btnConfirm.disabled = true; // Desabilita o botão até que ambos sejam selecionados
+    btnConfirm.disabled = true;
 
     try {
-        // Pega funções que podem ser gestor (do cache)
         const funcoesGestor = state.gestorConfig
             .filter(r => r.pode_ser_gestor)
             .filter(r => {
-                // Se o usuário não tiver nível (ex: admin), permite todos
                 if (state.userNivel === null || state.userNivel === undefined) {
                     return true;
                 }
-                // Gestor Nível 2 (Fabio) vê Nível 1 (Marcelo)
-                // 1 < 2 = true
                 return r.nivel_hierarquia < state.userNivel;
             })
-            // O nome da função na tabela config é minúsculo
-            .map(r => `"${r.funcao.toUpperCase()}"`); // Converte para UPPERCASE para bater com a tabela 'colaboradores'
+            .map(r => `"${r.funcao.toUpperCase()}"`);
         
         if (funcoesGestor.length === 0) {
             throw new Error("Nenhum gestor de nível hierárquico inferior encontrado.");
         }
         
-        // 1. Define os filtros base (ASSUME lowercase)
         let queryParts = [
-            `funcao=in.(${funcoesGestor.join(',')})`, // Filtro de Função/Nível (funcao é UPPERCASE)
-            `matricula=neq.${state.userMatricula}`      // Excluir a si mesmo
+            `funcao=in.(${funcoesGestor.join(',')})`,
+            `matricula=neq.${state.userMatricula}`
         ];
 
-        // 2. Adiciona o filtro de FILIAL (se não for admin)
-        // CORREÇÃO 1: Usa a mesma lógica de filtro do loadModuleData
         if (!state.isAdmin) {
             if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
                 const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
@@ -894,7 +756,6 @@ async function loadTransferViewData() {
             }
         }
         
-        // 3. Monta a query final (ASSUME lowercase)
         const query = `colaboradores?select=nome,matricula,funcao,filial&${queryParts.join('&')}`;
         
         const gestores = await supabaseRequest(query, 'GET');
@@ -904,7 +765,6 @@ async function loadTransferViewData() {
         }
 
         selectGestor.innerHTML = '<option value="">Selecione um gestor de destino...</option>';
-        // ASSUME lowercase
         gestores.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(g => {
             selectGestor.innerHTML += `<option value="${g.matricula}">${g.nome} [${g.filial || 'S/F'}] (${g.funcao})</option>`;
         });
@@ -916,15 +776,12 @@ async function loadTransferViewData() {
     }
 }
 
-/**
- * Habilita o botão de confirmar transferência
- */
 function checkTransferButtonState() {
     const selectColaborador = document.getElementById('selectColaboradorTransfer').value;
     const selectGestor = document.getElementById('selectNovoGestor').value;
     const btnConfirm = document.getElementById('btnConfirmTransfer');
     
-    if (!btnConfirm) return; // Proteção caso o elemento não exista
+    if (!btnConfirm) return;
     
     if (selectColaborador && selectGestor) {
         btnConfirm.disabled = false;
@@ -933,9 +790,6 @@ function checkTransferButtonState() {
     }
 }
 
-/**
- * Executa a transferência do colaborador
- */
 async function handleConfirmTransfer() {
     const selectColaborador = document.getElementById('selectColaboradorTransfer');
     const selectGestor = document.getElementById('selectNovoGestor');
@@ -956,24 +810,19 @@ async function handleConfirmTransfer() {
     btnConfirm.disabled = true;
 
     try {
-        // ASSUME lowercase
         const payload = {
             gestor_chapa: novoGestorMatricula
         };
         
         await supabaseRequest(`colaboradores?matricula=eq.${colaboradorMatricula}`, 'PATCH', payload);
 
-        // Sucesso!
         mostrarNotificacao('Colaborador transferido com sucesso!', 'success');
 
-        // Atualiza o estado local (ASSUME lowercase)
         state.meuTime = state.meuTime.filter(c => c.matricula !== colaboradorMatricula);
 
-        // Reseta a view de transferência
         selectColaborador.value = "";
         selectGestor.value = "";
         
-        // Vai para a view "Meu Time" para ver o resultado
         showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
 
     } catch (err) {
@@ -984,26 +833,17 @@ async function handleConfirmTransfer() {
     }
 }
 
+// --- Funções: Lógica da Aba Configurações ---
 
-// ====================================================================
-// NOVAS FUNÇÕES: Lógica da Aba Configurações
-// ====================================================================
-
-/**
- * Popula o dropdown de Funções na aba Configurações.
- */
 function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
     const select = document.getElementById('configFuncaoSelect');
     if (!select) return;
 
-    // A tabela config usa 'funcao' minúscula
     const funcoesConfiguradas = new Set(gestorConfig.map(c => c.funcao.toLowerCase()));
     
-    // 'todasAsFuncoes' vem de 'colaboradores.funcao' (UPPERCASE)
-    // Comparamos o minúsculo de ambas
     const funcoesDisponiveis = todasAsFuncoes.filter(f => !funcoesConfiguradas.has(f.toLowerCase()));
     
-    select.innerHTML = ''; // Limpa
+    select.innerHTML = '';
     
     if (funcoesDisponiveis.length === 0) {
         select.innerHTML = '<option value="">Nenhuma nova função a configurar</option>';
@@ -1012,16 +852,12 @@ function populateConfigFuncaoDropdown(todasAsFuncoes, gestorConfig) {
     
     select.innerHTML = '<option value="">Selecione uma função...</option>';
     funcoesDisponiveis.sort().forEach(funcao => {
-        // O valor salvo no dropdown é o UPPERCASE original
         select.innerHTML += `<option value="${funcao}">${funcao}</option>`;
     });
 }
 
-/**
- * Salva a nova regra de gestão no banco de dados.
- */
 async function handleSalvarConfig() {
-    const funcao = document.getElementById('configFuncaoSelect').value; // (vem UPPERCASE)
+    const funcao = document.getElementById('configFuncaoSelect').value;
     const nivel = document.getElementById('configNivel').value;
     const podeGestor = document.getElementById('configPodeSerGestor').value === 'true';
 
@@ -1031,7 +867,7 @@ async function handleSalvarConfig() {
     }
     
     const payload = {
-        funcao: funcao.toUpperCase(), // Salva em UPPERCASE (para bater com o banco config)
+        funcao: funcao.toUpperCase(),
         pode_ser_gestor: podeGestor,
         nivel_hierarquia: parseInt(nivel)
     };
@@ -1039,7 +875,6 @@ async function handleSalvarConfig() {
     showLoading(true, 'Salvando regra...');
     
     try {
-        // Tabela config usa minúsculas
         const [resultado] = await supabaseRequest('tabela_gestores_config', 'POST', payload, {
             'Prefer': 'return=representation,resolution=merge-duplicates'
         });
@@ -1048,16 +883,12 @@ async function handleSalvarConfig() {
             throw new Error("A API não retornou dados após salvar.");
         }
 
-        // Atualiza o estado local
-        // Remove a antiga, se existir (caso de 'merge-duplicates')
         state.gestorConfig = state.gestorConfig.filter(item => item.funcao.toUpperCase() !== resultado.funcao.toUpperCase());
-        // Adiciona a nova/atualizada
         state.gestorConfig.push(resultado);
 
-        // Re-renderiza a UI
         renderGestorConfigTable(state.gestorConfig);
-        populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig); // Atualiza o dropdown de adicionar
-        document.getElementById('formConfigGestor').reset(); // Limpa o formulário
+        populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig);
+        document.getElementById('formConfigGestor').reset();
 
         mostrarNotificacao('Regra de gestão salva com sucesso!', 'success');
 
@@ -1068,11 +899,7 @@ async function handleSalvarConfig() {
     }
 }
 
-/**
- * Exclui uma regra de gestão.
- */
 async function handleExcluirConfig(funcao) {
-    // 'funcao' (key) vem da tabela config (UPPERCASE)
     if (!funcao || !confirm(`Tem certeza que deseja excluir a regra para a função "${funcao}"?`)) {
         return;
     }
@@ -1080,15 +907,12 @@ async function handleExcluirConfig(funcao) {
     showLoading(true, 'Excluindo regra...');
     
     try {
-        // Usa 'funcao' (UPPERCASE) como a chave para exclusão
         await supabaseRequest(`tabela_gestores_config?funcao=eq.${funcao.toUpperCase()}`, 'DELETE');
 
-        // Atualiza o estado local
         state.gestorConfig = state.gestorConfig.filter(item => item.funcao.toUpperCase() !== funcao.toUpperCase());
 
-        // Re-renderiza a UI
         renderGestorConfigTable(state.gestorConfig);
-        populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig); // Atualiza o dropdown de adicionar
+        populateConfigFuncaoDropdown(state.todasAsFuncoes, state.gestorConfig);
 
         mostrarNotificacao('Regra de gestão excluída com sucesso!', 'success');
 
@@ -1099,12 +923,10 @@ async function handleExcluirConfig(funcao) {
     }
 }
 
-
 // --- Inicialização ---
 async function initializeApp() {
     showLoading(true, 'Conectando...');
     try {
-        // 1. Inicializa o Supabase
         supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             auth: {
                 storage: sessionStorageAdapter,
@@ -1113,7 +935,6 @@ async function initializeApp() {
             }
         });
         
-        // 2. Verifica a Sessão
         const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
         if (sessionError || !session) {
             console.error("Sem sessão, redirecionando para login.", sessionError);
@@ -1124,8 +945,6 @@ async function initializeApp() {
         state.auth = session;
         localStorage.setItem('auth_token', session.access_token);
         
-        // 3. Busca o Perfil do Usuário
-        // (Tabela 'usuarios' usa lowercase)
         const endpoint = `usuarios?auth_user_id=eq.${state.auth.user.id}&select=nome,role,profile_picture_url,permissoes_filiais,matricula,email`;
         const profileResponse = await supabaseRequest(endpoint, 'GET');
         
@@ -1136,11 +955,10 @@ async function initializeApp() {
         const profile = profileResponse[0];
         state.userId = state.auth.user.id;
         state.isAdmin = (profile.role === 'admin');
-        state.userMatricula = profile.matricula || null; // (matricula é lowercase)
+        state.userMatricula = profile.matricula || null;
         state.permissoes_filiais = profile.permissoes_filiais || null;
         state.userNome = profile.nome || session.user.email.split('@')[0];
 
-        // Atualizar UI
         document.getElementById('topBarUserName').textContent = state.userNome;
         document.getElementById('dropdownUserName').textContent = state.userNome;
         document.getElementById('dropdownUserEmail').textContent = profile.email || session.user.email;
@@ -1150,32 +968,26 @@ async function initializeApp() {
         document.getElementById('gestorNameLabel').textContent = `${state.userNome} (Chapa: ${state.userMatricula || 'N/A'})`;
         document.getElementById('dashGestorName').textContent = `${state.userNome} (${state.userMatricula || 'N/A'})`;
         
-        // Mostrar links de Admin se for admin
         if(state.isAdmin) {
             document.getElementById('adminLinks').classList.remove('hidden');
             document.getElementById('adminConfigLink').style.display = 'block';
             document.getElementById('adminUpdateLink').style.display = 'block';
         }
         
-        // 4. Buscar a função e FILIAL do gestor logado (CORREÇÃO 1)
         if (state.userMatricula) {
-            // (Tabela 'colaboradores' usa lowercase)
             const gestorData = await supabaseRequest(`colaboradores?select=funcao,filial&matricula=eq.${state.userMatricula}&limit=1`, 'GET');
             if (gestorData && gestorData[0]) {
-                state.userFuncao = gestorData[0].funcao; // Armazena a função (que é UPPERCASE)
-                state.userFilial = gestorData[0].filial; // Armazena a filial (CORREÇÃO 1)
+                state.userFuncao = gestorData[0].funcao;
+                state.userFilial = gestorData[0].filial;
             }
         }
         
-        // 5. Carrega TODOS os dados (time, disponíveis, config, funções)
         await loadModuleData();
         
-        // 6. Encontrar o nível do gestor (agora que o config foi carregado)
         if (state.userFuncao && state.gestorConfig.length > 0) {
-            // Compara a funcao (UPPERCASE) com a config (UPPERCASE)
             const gestorRegra = state.gestorConfig.find(r => r.funcao.toUpperCase() === state.userFuncao.toUpperCase());
             if (gestorRegra) {
-                state.userNivel = gestorRegra.nivel_hierarquia; // Armazena o nível
+                state.userNivel = gestorRegra.nivel_hierarquia;
             }
         }
         console.log(`Gestor: ${state.userNome}, Funcao: ${state.userFuncao}, Nivel: ${state.userNivel}, Filial: ${state.userFilial}`);
@@ -1183,12 +995,9 @@ async function initializeApp() {
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
         
-        // ATUALIZADO: Decide qual view mostrar
         if (state.meuTime.length === 0 && !state.isAdmin) {
-            // Se o time está vazio E não é admin, força o setup
             iniciarDefinicaoDeTime();
         } else {
-            // Se o time já existe (ou é admin), carrega a view do hash
             handleHashChange();
         }
 
@@ -1215,19 +1024,15 @@ function handleHashChange() {
     const newNavElement = document.querySelector(`a[href="${hash}"]`);
 
     if (document.getElementById(newViewId)) {
-        // *** NOVO CHECK ***
-        // Se o time está vazio, não deixa navegar para "Meu Time"
         if (newViewId === 'meuTimeView' && state.meuTime.length === 0 && !state.isAdmin) {
-            console.warn("Time vazio, forçando setup.");
+            console.warn("Time vazio, forçando setup inicial.");
             iniciarDefinicaoDeTime();
-            return; // Impede a navegação
+            return;
         }
 
-        // Verificar permissão de admin para views restritas
         const isAdminView = newViewId === 'configuracoesView' || newViewId === 'atualizarQLPView';
         if (isAdminView && !state.isAdmin) {
             mostrarNotificacao('Acesso negado. Você precisa ser administrador.', 'error');
-            // Recarrega a view padrão
             showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
             return;
         }
@@ -1247,7 +1052,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     window.addEventListener('hashchange', handleHashChange);
     
-    // Links da Sidebar
     document.querySelectorAll('.sidebar .nav-item[href]').forEach(link => {
         link.addEventListener('click', (e) => {
             const href = link.getAttribute('href');
@@ -1256,18 +1060,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.location.hash !== href) {
                     window.location.hash = href;
                 } else {
-                    // Se já está na view, força a chamada
                     handleHashChange();
                 }
             }
         });
     });
 
-    // Logout
     document.getElementById('logoutButton').addEventListener('click', logout);
-    // (logoutLink já está coberto pelo seletor acima)
     
-    // Dropdown de Perfil
     const profileDropdownButton = document.getElementById('profileDropdownButton');
     const profileDropdown = document.getElementById('profileDropdown');
     if (profileDropdownButton) {
@@ -1282,7 +1082,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Toggle da Sidebar
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.querySelector('.sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -1300,13 +1099,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Listeners para os filtros
     document.getElementById('filterNome').addEventListener('input', applyFilters);
     document.getElementById('filterFilial').addEventListener('change', applyFilters);
     document.getElementById('filterFuncao').addEventListener('change', applyFilters);
     document.getElementById('filterStatus').addEventListener('change', applyFilters);
 
-    // Listeners para a tela de Setup
     document.getElementById('searchDisponiveis').addEventListener('input', filtrarDisponiveis);
     document.getElementById('btnAdicionar').addEventListener('click', () => {
         moverColaboradores(document.getElementById('listaDisponiveis'), document.getElementById('listaMeuTime'));
@@ -1316,10 +1113,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('btnSalvarTime').addEventListener('click', handleSalvarTime);
     
-    // NOVO: Listener para salvar Configuração
     document.getElementById('btnSalvarConfig').addEventListener('click', handleSalvarConfig);
 
-    // NOVO: Listeners para a view de Transferência
     const selColab = document.getElementById('selectColaboradorTransfer');
     const selGestor = document.getElementById('selectNovoGestor');
     const btnTransfer = document.getElementById('btnConfirmTransfer');
