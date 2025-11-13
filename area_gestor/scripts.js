@@ -448,12 +448,19 @@ function iniciarDefinicaoDeTime() {
             const colaboradorStatus = colaborador.status;
             const colaboradorGestor = colaborador.gestor_chapa;
 
+            // --- INÍCIO DA CORREÇÃO ---
+            // Regra 0: Já é um subordinado direto do gestor logado (ex: Ana)
+            if (colaboradorGestor === state.userMatricula) {
+                return true;
+            }
+            // --- FIM DA CORREÇÃO ---
+
             // Regra 1: É "Disponível" (Sem Gestor ou Novato)
             if (colaboradorGestor === null || colaboradorStatus === 'novato') {
                 return true;
             }
 
-            // Regra 2: É Líder de Nível Inferior (Hierarquia)
+            // Regra 2: É Líder de Nível Inferior (Hierarquia) (ex: Marcelo)
             if (colaboradorFuncao) {
                 // Compara a funcao (que é UPPERCASE) com o mapa (que é lowercase)
                 const colaboradorNivel = mapaNiveis[colaboradorFuncao.toLowerCase()];
