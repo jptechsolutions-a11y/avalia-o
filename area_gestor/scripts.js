@@ -272,19 +272,54 @@ async function loadModuleData() {
         const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
 
         
-        // --- ETAPA 4: Carregar Time (Nível 1-5) via Função SQL ---
-        // (Usando o Proxy para chamar o endpoint RPC)
-        console.log(`[Load] 1. Buscando time hierárquico (SQL) de ${state.userMatricula}...`);
+        // --- ETAPA 4: Carregar Time (Nível 1-5) ---
+        // <-- INÍCIO DA CORREÇÃO: Lógica para Admin vs. Gestor -->
         
-        const rpcEndpoint = 'rpc/get_time_hierarquico';
-        const rpcBody = { chapa_gestor_raiz: state.userMatricula };
-        
-        // Usamos POST para RPC via API REST
-        const timeRes = await supabaseRequest(rpcEndpoint, 'POST', rpcBody); 
-        
-        // O proxy retorna o array de dados diretamente
-        state.meuTime = timeRes || [];
-        console.log(`[Load] ...encontrados ${state.meuTime.length} colaboradores (Nível 1-5).`);
+        if (state.isAdmin) {
+            // 1. SE FOR ADMIN: Carrega TUDO
+            console.log("[Load] Admin detectado. Carregando TODOS os colaboradores...");
+            const allColabs = await supabaseRequest('colaboradores?select=*', 'GET');
+            
+            if (!allColabs) {
+                state.meuTime = [];
+            } else {
+                // Criar mapas para processamento manual
+                const gestorMap = allColabs.reduce((acc, c) => {
+                    acc[c.matricula] = c.nome;
+                    return acc;
+                }, {});
+                
+                // O config usa 'funcao' (UPPERCASE)
+                const configMap = state.gestorConfig.reduce((acc, r) => {
+                    acc[r.funcao.toUpperCase()] = r.nivel_hierarquia;
+                    return acc;
+                }, {});
+
+                // Processar e adicionar os campos que o renderizador espera
+                // O 'colaboradores' usa 'funcao' (UPPERCASE)
+                state.meuTime = allColabs.map(c => ({
+                    ...c,
+                    nivel_hierarquico: configMap[c.funcao?.toUpperCase()] || 'N/A',
+                    gestor_imediato_nome: gestorMap[c.gestor_chapa] || 'N/A'
+                }));
+            }
+            console.log(`[Load] Admin: ${state.meuTime.length} colaboradores carregados.`);
+
+        } else {
+            // 2. SE FOR GESTOR (Não-Admin): Usa a função SQL (que corrigimos com LEFT JOIN)
+            console.log(`[Load] 1. Buscando time hierárquico (SQL) de ${state.userMatricula}...`);
+            
+            const rpcEndpoint = 'rpc/get_time_hierarquico';
+            const rpcBody = { chapa_gestor_raiz: state.userMatricula };
+            
+            // Usamos POST para RPC via API REST
+            const timeRes = await supabaseRequest(rpcEndpoint, 'POST', rpcBody); 
+            
+            // O proxy retorna o array de dados diretamente
+            state.meuTime = timeRes || [];
+            console.log(`[Load] ...encontrados ${state.meuTime.length} colaboradores (Nível 1-5).`);
+        }
+        // <-- FIM DA CORREÇÃO -->
 
         
         // 4d. Espera a promise de 'disponíveis' que rodou em paralelo
