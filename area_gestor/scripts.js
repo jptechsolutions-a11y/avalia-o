@@ -322,8 +322,16 @@ async function loadModuleData() {
                 console.warn("Gestor não-admin sem 'permissoes_filiais' ou 'filial'. A lista de disponíveis pode estar vazia.");
                 filters.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
             }
+        } else {
+            // **NOVA LÓGICA (CORREÇÃO JP):**
+            // Se FOR Admin, AINDA TENTAR filtrar pela filial do gestor (state.userFilial)
+            // para a tela de setup. Se ele não tiver filial, aí sim mostra tudo.
+            if (state.userFilial) {
+                 filters.push(`filial.eq.${state.userFilial}`);
+                 console.log(`[Admin Load] Aplicando filtro de filial (filial.eq.${state.userFilial}) para a lista de 'disponíveis'.`);
+            }
+            // Se for Admin E não tiver filial, NENHUM filtro de filial é adicionado (mostra todos).
         }
-        // Fim da Correção 2
 
         if (state.userMatricula) {
             filters.push(`matricula.neq.${state.userMatricula}`); 
