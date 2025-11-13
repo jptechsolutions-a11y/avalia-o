@@ -27,7 +27,11 @@ const state = {
     meuTime: [],
     disponiveis: [],
     gestorConfig: [],
-    todasAsFuncoes: [] 
+-    todasAsFuncoes: [] 
++    todasAsFuncoes: [],
++    todosUsuarios: [], // Cache para fotos de perfil
++    mapaFotos: {}, // Mapa de matricula -> foto
++    subordinadosComTimes: [] // Cache para a nova view
 };
 
 // --- Funções de UI (Idênticas aos outros módulos) ---
@@ -110,6 +114,9 @@ function showView(viewId, element) {
                 populateFilters(state.meuTime);
                 applyFilters(); // Renderiza a tabela inicial
                 break;
++            case 'meusGestoresView':
++                loadMeusGestoresView();
++                break;
             case 'transferirView':
                 loadTransferViewData();
                 break;
@@ -254,13 +261,15 @@ async function loadModuleData() {
     
     try {
         // --- ETAPA 1: Carregar Configs, Nomes de Gestores, e Funções (em paralelo) ---
-        const [configRes, funcoesRes, gestorMapRes] = await Promise.allSettled([
-            supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
-            supabaseRequest('colaboradores?select=funcao', 'GET'),
-            supabaseRequest('colaboradores?select=matricula,nome', 'GET') // Pega TODOS os nomes para o mapa
-        ]);
+    const [configRes, funcoesRes, gestorMapRes, usuariosRes] = await Promise.allSettled([
+        supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
+        supabaseRequest('colaboradores?select=funcao', 'GET'),
+-        supabaseRequest('colaboradores?select=matricula,nome', 'GET') // Pega TODOS os nomes para o mapa
++        supabaseRequest('colaboradores?select=matricula,nome', 'GET'), // Pega TODOS os nomes para o mapa
++        supabaseRequest('usuarios?select=matricula,profile_picture_url', 'GET') // NOVO: Pega fotos de perfil
+    ]);
 
-        // Processa Config
+    // Processa Config
         if (configRes.status === 'fulfilled' && configRes.value) {
             state.gestorConfig = configRes.value;
         } else {
@@ -284,8 +293,19 @@ async function loadModuleData() {
             gestorMap[state.userMatricula] = state.userNome;
         }
 
-        // --- *** NOVA ETAPA (MOVILDA) *** ---
-        // --- ETAPA 1.5: Definir o Nível do Gestor AGORA ---
++        // Processa Fotos de Perfil
++        if (usuariosRes.status === 'fulfilled' && usuariosRes.value) {
++            state.todosUsuarios = usuariosRes.value;
++            state.mapaFotos = state.todosUsuarios.reduce((acc, u) => {
++                if(u.matricula) acc[u.matricula] = u.profile_picture_url;
++                return acc;
++            }, {});
++        } else {
++            console.error("Erro ao carregar fotos de perfil:", usuariosRes.reason);
++        }
++
+    // --- *** NOVA ETAPA (MOVILDA) *** ---
+    // --- ETAPA 1.5: Definir o Nível do Gestor AGORA ---
         // (Isso foi movido de 'initializeApp' para cá, para que 'loadAllTeamMembers' possa usar)
         if (state.userFuncao && state.gestorConfig.length > 0) {
             const gestorRegra = state.gestorConfig.find(r => r.funcao.toUpperCase() === state.userFuncao.toUpperCase());
@@ -395,7 +415,7 @@ async function loadModuleData() {
         showLoading(false);
     }
 }
-
+// ... (O restante da função loadModuleData permanece o mesmo) ...
 
 /**
  * Mostra a view de setup pela primeira vez.
@@ -801,6 +821,191 @@ function renderGestorConfigTable(data) {
 }
 
 // ====================================================================
++// NOVAS FUNÇÕES: Lógica da Aba "Meus Gestores" (Nível 2+)
++// ====================================================================
++
++/**
++ * Carrega e renderiza a view "Meus Gestores"
++ */
++async function loadMeusGestoresView() {
++    showLoading(true, 'Carregando gestores e times...');
++    const container = document.getElementById('gestoresCardsContainer');
++    container.innerHTML = '';
++
++    let gestoresParaExibir = [];
++    const funcoesGestor = new Set(state.gestorConfig.filter(g => g.pode_ser_gestor).map(g => g.funcao.toUpperCase())); // Funções em UPPERCASE
++
++    if (state.isAdmin) {
++        // Admin vê TODOS os gestores (exceto ele mesmo)
++        // Usamos state.meuTime (que no admin é TODOS os colaboradores)
++        gestoresParaExibir = state.meuTime.filter(c => 
++            c.matricula !== state.userMatricula &&
++            c.funcao && funcoesGestor.has(c.funcao.toUpperCase())
++        );
++    } else {
++        // Gestor Nível 2+ vê seus *subordinados diretos* que são gestores.
++        gestoresParaExibir = state.meuTime.filter(c => 
++            c.gestor_chapa === state.userMatricula && // É meu subordinado direto
++            c.nivel_hierarquico !== null && c.nivel_hierarquico !== undefined // E é um gestor (tem nível)
++        );
++    }
++    
++    if (gestoresParaExibir.length === 0) {
++        container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Nenhum gestor subordinado encontrado.</p>';
++        showLoading(false);
++        return;
++    }
++
++    // Agora, para CADA gestor, carrega o time DELE e calcula os stats.
++    const promises = gestoresParaExibir.map(async (gestor) => {
++        // Re-usa a função de carregar time!
++        const timeDoGestor = await loadAllTeamMembers(gestor.matricula, gestor.nivel_hierarquico);
++        
++        const total = timeDoGestor.length;
++        const ativos = timeDoGestor.filter(c => c.status === 'ativo').length;
++        const inativos = timeDoGestor.filter(c => c.status === 'inativo').length;
++        const novatos = timeDoGestor.filter(c => c.status === 'novato').length;
++        
++        return {
++            ...gestor, // dados do gestor (nome, matricula, funcao, filial)
++            foto: state.mapaFotos[gestor.matricula] || 'https://i.imgur.com/80SsE11.png',
++            stats: { total, ativos, inativos, novatos },
++            timeCompleto: timeDoGestor // Armazena o time para o modal
++        };
++    });
++    
++    const resultados = await Promise.allSettled(promises);
++    
++    state.subordinadosComTimes = []; // Limpa e preenche o cache
++    
++    resultados.forEach(res => {
++        if (res.status === 'fulfilled') {
++            state.subordinadosComTimes.push(res.value);
++        } else {
++            console.warn("Falha ao carregar time de um gestor:", res.reason);
++        }
++    });
++
++    // Agora, renderiza os cards
++    renderGestorCards(state.subordinadosComTimes);
++    showLoading(false);
++}
++
++/**
++ * Renderiza os cards dos gestores subordinados
++ */
++function renderGestorCards(gestores) {
++    const container = document.getElementById('gestoresCardsContainer');
++    container.innerHTML = ''; // Limpa
++
++    if (gestores.length === 0) {
++        container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Nenhum gestor encontrado.</p>';
++        return;
++    }
++    
++    gestores.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
++
++    gestores.forEach(gestor => {
++        const card = document.createElement('div');
++        card.className = 'stat-card-dash flex items-start gap-4'; // Reutiliza a classe dos cards
++        card.innerHTML = `
++            <img src="${gestor.foto}" class="w-16 h-16 rounded-full object-cover bg-gray-200 flex-shrink-0">
++            <div class="flex-1">
++                <h4 class="font-bold text-lg text-accent">${gestor.nome || 'N/A'}</h4>
++                <p class="text-sm text-gray-600 -mt-1 mb-2">${gestor.funcao || 'N/A'} (Filial: ${gestor.filial || 'N/A'})</p>
++                <div class="text-xs grid grid-cols-2 gap-1">
++                    <span><i data-feather="users" class="h-3 w-3 inline-block mr-1"></i>Total: <strong>${gestor.stats.total}</strong></span>
++                    <span><i data-feather="user-check" class="h-3 w-3 inline-block mr-1 text-green-600"></i>Ativos: <strong>${gestor.stats.ativos}</strong></span>
++                    <span><i data-feather="user-plus" class="h-3 w-3 inline-block mr-1 text-yellow-600"></i>Novatos: <strong>${gestor.stats.novatos}</strong></span>
++                    <span><i data-feather="user-x" class="h-3 w-3 inline-block mr-1 text-red-600"></i>Inativos: <strong>${gestor.stats.inativos}</strong></span>
++                </div>
++                <button class="btn btn-sm btn-primary mt-3" onclick="showGestorTimeModal('${gestor.matricula}')">
++                    <i data-feather="eye" class="h-4 w-4 mr-1"></i> Ver Time Completo
++                </button>
++            </div>
++        `;
++        container.appendChild(card);
++    });
++    
++    feather.replace();
++}
++
++/**
++ * Abre o modal e renderiza o time do gestor selecionado
++ */
++function showGestorTimeModal(matriculaGestor) {
++    const gestor = state.subordinadosComTimes.find(g => g.matricula === matriculaGestor);
++    if (!gestor) {
++        mostrarNotificacao('Erro: Não foi possível encontrar os dados desse gestor.', 'error');
++        return;
++    }
++
++    document.getElementById('modalGestorTitle').textContent = `Time de ${gestor.nome}`;
++    
++    // Renderiza a tabela
++    renderModalTimeTable(gestor.timeCompleto);
++
++    document.getElementById('gestorTimeModal').style.display = 'flex';
++    feather.replace();
++}
++
++/**
++ * Renderiza a tabela de time para o Modal (versão simplificada)
++ */
++function renderModalTimeTable(data) {
++    const tbody = document.getElementById('modalGestorTableBody');
++    tbody.innerHTML = '';
++
++    if (!data || data.length === 0) {
++        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-gray-500">Este gestor não possui colaboradores vinculados.</td></tr>';
++        return;
++    }
++
++    // Re-processa os nomes dos gestores imediatos (necessário se a função foi chamada isoladamente)
++    const gestorMap = (state.todosUsuarios || []).reduce((acc, c) => { acc[c.matricula] = c.nome; return acc; }, {});
++    if (state.userMatricula && !gestorMap[state.userMatricula]) {
++        gestorMap[state.userMatricula] = state.userNome;
++    }
++    state.subordinadosComTimes.forEach(g => gestorMap[g.matricula] = g.nome); // Adiciona os gestores N-1
++
++    data.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
++
++    const fragment = document.createDocumentFragment();
++    data.forEach(item => {
++        const tr = document.createElement('tr');
++        
++        const gestorImediato = gestorMap[item.gestor_chapa] || item.gestor_chapa || '-';
++        
++        const status = item.status || 'ativo';
++        let statusClass = 'status-ativo';
++        if (status === 'inativo') statusClass = 'status-inativo';
++        if (status === 'novato') statusClass = 'status-aviso';
++
++        tr.innerHTML = `
++            <td>${item.nome || '-'}</td>
++            <td>${item.matricula || '-'}</td>
++            <td>${gestorImediato}</td>
++            <td>${item.funcao || '-'}</td>
++            <td>${item.secao || '-'}</td>
++            <td>${item.filial || '-'}</td>
++            <td><span class="status-badge ${statusClass}">${status}</span></td>
++        `;
++        fragment.appendChild(tr);
++    });
++    tbody.appendChild(fragment);
++    feather.replace();
++}
++
++/**
++ * Fecha o modal do time do gestor
++ */
++function closeGestorTimeModal() {
++    document.getElementById('gestorTimeModal').style.display = 'none';
++    document.getElementById('modalGestorTableBody').innerHTML = ''; // Limpa a tabela
++}
++
++
++// ====================================================================
 // NOVAS FUNÇÕES: Lógica da Aba Transferência
 // ====================================================================
 
@@ -1143,6 +1348,11 @@ async function initializeApp() {
             document.getElementById('adminUpdateLink').style.display = 'block';
         }
         
++        // NOVO: Mostrar link "Meus Gestores" para Nível 2+ ou Admin
++        if (state.isAdmin || (state.userNivel && state.userNivel >= 2)) {
++            document.getElementById('meusGestoresLink').style.display = 'flex';
++        }
++
         // 4. Buscar a função e FILIAL do gestor logado
         if (state.userMatricula) {
             // A query aqui agora usa a matrícula limpa (sem espaços)
@@ -1191,7 +1401,7 @@ function handleHashChange() {
 
     const cleanHash = hash.substring(1);
     const newViewId = cleanHash + 'View';
-    const newNavElement = document.querySelector(`a[href="${hash}"]`);
+        const newNavElement = document.querySelector(`a[href="${hash}"]`);
 
     if (document.getElementById(newViewId)) {
         // ** O CHECK CRÍTICO (CORRIGIDO) **
@@ -1202,6 +1412,13 @@ function handleHashChange() {
             return; // Impede a navegação
         }
 
++        // NOVO: Checagem de segurança para a view "Meus Gestores"
++        if (newViewId === 'meusGestoresView' && !state.isAdmin && (!state.userNivel || state.userNivel < 2)) {
++            mostrarNotificacao('Acesso negado. Esta visão é para Nível 2 ou superior.', 'error');
++            showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
++            return;
++        }
++
         // Verificar permissão de admin para views restritas
         const isAdminView = newViewId === 'configuracoesView' || newViewId === 'atualizarQLPView';
         if (isAdminView && !state.isAdmin) {
