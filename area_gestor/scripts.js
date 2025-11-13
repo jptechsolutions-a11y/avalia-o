@@ -1133,7 +1133,7 @@ async function initializeApp() {
         if (profile.profile_picture_url) {
             document.getElementById('topBarUserAvatar').src = profile.profile_picture_url;
         }
-        document.getElementById('gestorNameLabel').textContent = `${state.userNome} (Chapa: ${state.userMatricula || 'N/A'})`;
+        // document.getElementById('gestorNameLabel').textContent = `${state.userNome} (Chapa: ${state.userMatricula || 'N/A'})`;
         document.getElementById('dashGestorName').textContent = `${state.userNome} (${state.userMatricula || 'N/A'})`;
         
         // Mostrar links de Admin se for admin
