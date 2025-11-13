@@ -317,16 +317,16 @@ async function loadModuleData() {
             if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
                 filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`);
             } else if (state.userFilial) {
-                filters.push(`filial=eq.${state.userFilial}`);
+                filters.push(`filial.eq.${state.userFilial}`);
             } else {
                 console.warn("Gestor não-admin sem 'permissoes_filiais' ou 'filial'. A lista de disponíveis pode estar vazia.");
-                filters.push('filial=eq.IMPOSSIVEL_FILIAL_FILTER');
+                filters.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
             }
         }
         // Fim da Correção 2
 
         if (state.userMatricula) {
-            filters.push(`matricula=neq.${state.userMatricula}`); 
+            filters.push(`matricula.neq.${state.userMatricula}`); 
         }
         if (filters.length > 0) {
             disponiveisQuery += `&${filters.join('&')}`;
@@ -405,58 +405,26 @@ function iniciarDefinicaoDeTime() {
     // já foi filtrado por filial dentro de loadModuleData.
     let listaDisponiveisFiltrada = state.disponiveis;
     
-    // Só aplica o filtro de hierarquia se o gestor tiver um nível definido
-    if (state.userNivel !== null && state.userNivel !== undefined) {
-        
-        // 1. Criar um mapa de Níveis (funcao -> nivel) para consulta rápida
-        const mapaNiveis = state.gestorConfig.reduce((acc, regra) => {
-            acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia; // Chave minúscula
-            return acc;
-        }, {});
+    // --- INÍCIO DA CORREÇÃO 1 ---
+    // Filtra a lista 'state.disponiveis' (que já é da filial do usuário)
+    // para mostrar APENAS quem não tem gestor ou é novato.
+    listaDisponiveisFiltrada = state.disponiveis.filter(colaborador => {
+        const colaboradorStatus = colaborador.status;
+        const colaboradorGestor = colaborador.gestor_chapa;
 
-        // 2. Filtrar a lista
-        listaDisponiveisFiltrada = state.disponiveis.filter(colaborador => {
-            const colaboradorFuncao = colaborador.funcao;
-            const colaboradorStatus = colaborador.status;
-            const colaboradorGestor = colaborador.gestor_chapa;
-
-            // Regra 0: Já é um subordinado direto do gestor logado (ex: Ana)
-            if (colaboradorGestor === state.userMatricula) {
-                return true;
-            }
-
-            // Regra 1: É "Disponível" (Sem Gestor ou Novato)
-            if (colaboradorGestor === null || colaboradorStatus === 'novato') {
-                return true;
-            }
-            
-            // --- INÍCIO DA CORREÇÃO ---
-            // Regra 2: É Líder de Nível Inferior OU Colaborador Regular
-            if (colaboradorFuncao) {
-                const colaboradorNivel = mapaNiveis[colaboradorFuncao.toLowerCase()];
-                
-                if (colaboradorNivel !== undefined && colaboradorNivel !== null) {
-                    // É um líder (tem nível)
-                    if (colaboradorNivel < state.userNivel) {
-                        return true; // É de nível inferior, permite (ex: L2 vê L1)
-                    } else {
-                        return false; // É um líder de nível igual/superior, bloqueia (ex: L2 não vê L2)
-                    }
-                } else {
-                    // É um colaborador regular (Nível undefined)
-                    // Permite que o gestor adicione colaboradores regulares.
-                    return true;
-                }
-            }
-            
-            // Fallback: Se não tem função, é um colaborador regular, permite.
+        // CORREÇÃO 1: Mostrar apenas quem não tem gestor ou é novato.
+        // A filtragem por filial JÁ OCORREU em loadModuleData ao carregar 'state.disponiveis'.
+        if (colaboradorGestor === null || colaboradorStatus === 'novato') {
             return true;
-            // --- FIM DA CORREÇÃO ---
-        });
+        }
+        
+        // Se tiver gestor (e não for novato), não mostra.
+        return false;
+    });
+    // --- FIM DA CORREÇÃO 1 ---
 
-        console.log(`Filtro de Hierarquia/Disponível: Gestor Nível ${state.userNivel}. Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
-    }
-
+    console.log(`Filtro de "Sem Gestor": Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
+    
     // Popula as listas
     renderListasTimes(listaDisponiveisFiltrada, state.meuTime); // <-- USA A LISTA FILTRADA
     
@@ -823,33 +791,39 @@ async function loadTransferViewData() {
         // Pega funções que podem ser gestor (do cache)
         const funcoesGestor = state.gestorConfig
             .filter(r => r.pode_ser_gestor)
-            // Filtra gestores que são Nível ABAIXO do usuário (Nível 1 < Nível 2)
-            // (Assumindo que o Admin (Nível null) pode ver todos)
+            // --- INÍCIO DA CORREÇÃO 2 ---
             .filter(r => {
-                if (state.userNivel === null || state.userNivel === undefined) return true;
-                return r.nivel_hierarquia < state.userNivel; 
+                // CORREÇÃO 2: Mostrar apenas gestores DE MESMO NÍVEL
+                if (state.userNivel === null || state.userNivel === undefined) {
+                    // Admin (nível null) pode ver todos os outros gestores
+                    return true; 
+                }
+                // Compara nível da regra com nível do usuário
+                return r.nivel_hierarquia === state.userNivel; // <-- MUDANÇA APLICADA
             })
+            // --- FIM DA CORREÇÃO 2 ---
             .map(r => `"${r.funcao.toUpperCase()}"`); 
         
         if (funcoesGestor.length === 0) {
-            throw new Error("Nenhum gestor de nível hierárquico inferior encontrado.");
+            throw new Error("Nenhum gestor de nível hierárquico igual ao seu encontrado.");
         }
         
         let queryParts = [
             `funcao=in.(${funcoesGestor.join(',')})`, 
-            `matricula=neq.${state.userMatricula}`      
+            `matricula.neq.${state.userMatricula}`      
         ];
 
         // 2. Adiciona o filtro de FILIAL (se não for admin)
+        // (Esta lógica já estava correta para "mesma filial")
         if (!state.isAdmin) {
             if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
                 const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
                 queryParts.push(filialFilter);
             } else if (state.userFilial) {
-                 const filialFilter = `filial=eq.${state.userFilial}`;
+                 const filialFilter = `filial.eq.${state.userFilial}`;
                  queryParts.push(filialFilter);
             } else {
-                 queryParts.push('filial=eq.IMPOSSIVEL_FILIAL_FILTER');
+                 queryParts.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
             }
         }
         
@@ -857,7 +831,7 @@ async function loadTransferViewData() {
         const gestores = await supabaseRequest(query, 'GET');
 
         if (!gestores || gestores.length === 0) {
-            throw new Error("Nenhum outro gestor (na sua filial e nível) encontrado.");
+            throw new Error("Nenhum outro gestor (na sua filial e mesmo nível) encontrado.");
         }
 
         selectGestor.innerHTML = '<option value="">Selecione um gestor de destino...</option>';
