@@ -400,7 +400,7 @@ async function loadModuleData() {
 /**
  * Mostra a view de setup pela primeira vez.
  */
-function iniciarDefinicaoDeTime() {
+function iniciarDefinicaoDeTime(isPrimeiroAcesso = false) {
     console.log("Iniciando definição de time...");
     // Esconde todas as views
     document.querySelectorAll('.view-content').forEach(view => {
@@ -413,10 +413,12 @@ function iniciarDefinicaoDeTime() {
     setupView.classList.remove('hidden');
     setupView.classList.add('active'); // Torna ativa
     
-    // Trava a sidebar para forçar o setup
-    const sidebar = document.querySelector('.sidebar');
-    sidebar.style.pointerEvents = 'none';
-    sidebar.style.opacity = '0.7';
+    // Trava a sidebar para forçar o setup SOMENTE se for o primeiro acesso
+    if (isPrimeiroAcesso) {
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.style.pointerEvents = 'none';
+        sidebar.style.opacity = '0.7';
+    }
 
     // **NOTA:** state.disponiveis (passado para listaDisponiveisFiltrada)
     // já foi filtrado por filial dentro de loadModuleData.
@@ -424,23 +426,45 @@ function iniciarDefinicaoDeTime() {
     
     // --- INÍCIO DA CORREÇÃO 1 ---
     // Filtra a lista 'state.disponiveis' (que já é da filial do usuário)
-    // para mostrar APENAS quem não tem gestor ou é novato.
-    listaDisponiveisFiltrada = state.disponiveis.filter(colaborador => {
-        const colaboradorStatus = colaborador.status;
-        const colaboradorGestor = colaborador.gestor_chapa;
+    // para mostrar APENAS quem não tem gestor E não é gestor de mesmo nível.
 
-        // CORREÇÃO 1: Mostrar apenas quem não tem gestor ou é novato.
-        // A filtragem por filial JÁ OCORREU em loadModuleData ao carregar 'state.disponiveis'.
-        if (colaboradorGestor === null || colaboradorStatus === 'novato') {
-            return true;
+    // 1. Criar um mapa de Níveis
+    const mapaNiveis = state.gestorConfig.reduce((acc, regra) => {
+        acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia; // Chave minúscula
+        return acc;
+    }, {});
+    
+    listaDisponiveisFiltrada = listaDisponiveisFiltrada.filter(colaborador => {
+        const colaboradorGestor = colaborador.gestor_chapa;
+        const colaboradorStatus = colaborador.status;
+        const colaboradorFuncao = colaborador.funcao;
+
+        // REGRA 1: Deve ser "disponível" (sem gestor ou novato)
+        if (colaboradorGestor !== null && colaboradorStatus !== 'novato') {
+            return false; // Já tem gestor e não é novato, não pode ser adicionado.
+        }
+
+        // Se chegou aqui, é "disponível". Agora, checa a REGRA 2 (não ser gestor de mesmo nível)
+        
+        // REGRA 2: Checar o nível (exceção pedida pelo JP)
+        if (state.userNivel !== null && state.userNivel !== undefined && colaboradorFuncao) {
+            const colaboradorNivel = mapaNiveis[colaboradorFuncao.toLowerCase()];
+            
+            if (colaboradorNivel !== undefined && colaboradorNivel !== null) {
+                // É um gestor (tem nível).
+                if (colaboradorNivel === state.userNivel) {
+                    // É do MESMO nível, então EXCLUI.
+                    return false; 
+                }
+            }
         }
         
-        // Se tiver gestor (e não for novato), não mostra.
-        return false;
+        // Se for "disponível" E (não é gestor OU é gestor de nível diferente), INCLUI.
+        return true;
     });
     // --- FIM DA CORREÇÃO 1 ---
 
-    console.log(`Filtro de "Sem Gestor": Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
+    console.log(`Filtro de "Sem Gestor" e "Nível": Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
     
     // Popula as listas
     renderListasTimes(listaDisponiveisFiltrada, state.meuTime); // <-- USA A LISTA FILTRADA
@@ -1141,7 +1165,7 @@ async function initializeApp() {
         // Se, DEPOIS de rodar a recursão, o time ainda estiver vazio (e não for admin)
         // força o setup.
         if (state.meuTime.length === 0 && !state.isAdmin) {
-            iniciarDefinicaoDeTime();
+            iniciarDefinicaoDeTime(true);
         } else {
             // Se o time já existe, carrega a view do hash
             handleHashChange();
@@ -1188,6 +1212,11 @@ function handleHashChange() {
         }
         viewId = newViewId;
         navElement = newNavElement;
+    } else if (cleanHash === 'adicionarTime') {
+        // NOVO: Link para a view de "Adicionar" (reutiliza a "primeiroAcessoView")
+        viewId = 'primeiroAcessoView';
+        navElement = newNavElement;
+        iniciarDefinicaoDeTime(); // Chama a função de setup (sem travar a sidebar)
     }
     
     // Força a chamada do showView para garantir o carregamento dos dados da view
