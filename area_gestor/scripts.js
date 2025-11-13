@@ -566,9 +566,9 @@ function renderMeuTimeTable(data) {
     if (data.length === 0) {
         message.classList.remove('hidden');
         if (state.meuTime.length === 0) { // Se o cache original está vazio
-             tbody.innerHTML = '<tr><td colspan="9" class="text-center py-10 text-gray-500">Seu time ainda não possui colaboradores vinculados.</td></tr>'; // Colspan 9
+             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Seu time ainda não possui colaboradores vinculados.</td></tr>'; // Colspan 8
         } else { // Se o cache tem dados, mas o filtro limpou
-             tbody.innerHTML = '<tr><td colspan="9" class="text-center py-10 text-gray-500">Nenhum colaborador encontrado para os filtros aplicados.</td></tr>'; // Colspan 9
+             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Nenhum colaborador encontrado para os filtros aplicados.</td></tr>'; // Colspan 8
         }
         return;
     }
@@ -601,15 +601,22 @@ function renderMeuTimeTable(data) {
         
         // Define Nível e Gestor (Vindo do SQL)
         const nivel = item.nivel_hierarquico;
-        let nivelLabel = '';
+        // let nivelLabel = ''; // <-- REMOVIDO
         let rowClass = '';
 
+        // <-- INÍCIO DA CORREÇÃO 2: Forçar nome do gestor Nível 1 -->
+        let gestorImediato = item.gestor_imediato_nome || '-';
+        if (nivel === 1 && !state.isAdmin) {
+            gestorImediato = state.userNome; // Usa o nome do usuário logado
+        }
+        // <-- FIM DA CORREÇÃO 2 -->
+
         if (nivel === 1) {
-            nivelLabel = `<span class="status-badge status-ativo" style="background-color: var(--accent); color: white;">Nível ${nivel} (Direto)</span>`;
+            // nivelLabel = `<span class="status-badge status-ativo" style="background-color: var(--accent); color: white;">Nível ${nivel} (Direto)</span>`; // <-- REMOVIDO
             rowClass = 'direct-report-row';
         } else {
             // Níveis 2, 3, 4, 5...
-            nivelLabel = `<span class="status-badge status-aviso" style="font-weight: 500;">Nível ${nivel} (Indireto)</span>`;
+            // nivelLabel = `<span class="status-badge status-aviso" style="font-weight: 500;">Nível ${nivel} (Indireto)</span>`; // <-- REMOVIDO
             rowClass = 'indirect-report-row';
         }
 
@@ -629,8 +636,8 @@ function renderMeuTimeTable(data) {
         tr.innerHTML = `
             <td ${nomeStyle}>${item.nome || '-'}</td>
             <td>${item.matricula || '-'}</td>
-            <td>${nivelLabel}</td>
-            <td>${item.gestor_imediato_nome || '-'}</td>
+            <!-- <td>${nivelLabel}</td> --> <!-- REMOVIDO -->
+            <td>${gestorImediato}</td> <!-- ATUALIZADO para usar a variável corrigida -->
             <td>${item.funcao || '-'}</td>
             <td>${item.secao || '-'}</td>
             <td>${item.filial || '-'}</td>
@@ -1115,10 +1122,12 @@ function handleHashChange() {
         navElement = newNavElement;
     }
     
-    const currentActive = document.querySelector('.view-content.active');
-    if (!currentActive || currentActive.id !== viewId) {
-        showView(viewId, navElement);
-    }
+    // const currentActive = document.querySelector('.view-content.active');
+    // if (!currentActive || currentActive.id !== viewId) {
+    //     showView(viewId, navElement);
+    // }
+    // <-- CORREÇÃO 3: Força a chamada do showView para garantir o carregamento dos dados da view -->
+    showView(viewId, navElement);
 }
 
 // --- Event Listeners da UI ---
