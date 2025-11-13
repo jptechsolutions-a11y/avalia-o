@@ -203,12 +203,20 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 /**
  * ** NOVO: Função Recursiva para Carregar Time em Cascata **
  * Busca todos os colaboradores abaixo de um gestor, incluindo sub-gestores.
+ * * ** CORREÇÃO (JP): **
+ * A consulta `select=*` anterior era muito lenta e causava timeouts (erros)
+ * para gestores de nível alto (N2+). 
+ * Mudei para `select=` especificando *apenas* as colunas necessárias para
+ * a recursão e para a renderização da tabela. Isso deve resolver o problema
+ * de performance que parecia um "erro".
  */
 async function loadRecursiveTeam(gestorChapa, configMap) {
     let team = [];
     
     // 1. Busca subordinados diretos
-    const reports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${gestorChapa}`, 'GET');
+    // OTIMIZAÇÃO: Seleciona apenas as colunas necessárias.
+    const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
+    const reports = await supabaseRequest(`colaboradores?select=${columns}&gestor_chapa=eq.${gestorChapa}`, 'GET');
     
     if (!reports || reports.length === 0) {
         return []; // Condição de parada: gestor sem time
