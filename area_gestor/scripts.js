@@ -360,52 +360,54 @@ async function loadModuleData() {
         let timeCompleto = [];
         let subManagerChapas = [];
 
-        // 4a. Busca os subordinados DIRETOS (Nível 1, ex: Marcelo, Ana)
+        // 4a. [PRIMEIRA AÇÃO]: Carregar todos os colaboradores DIRETOS (Nível 1)
+        // (colaboradores cujo gestor_chapa é o usuário logado)
+        console.log(`[Load] 1. Buscando subordinados diretos de ${state.userMatricula}...`);
         const directReports = await supabaseRequest(`colaboradores?select=*&gestor_chapa=eq.${state.userMatricula}`, 'GET');
         
         if (directReports && directReports.length > 0) {
-            console.log(`[Load] Encontrados ${directReports.length} subordinados diretos.`);
+            console.log(`[Load] ...encontrados ${directReports.length} subordinados diretos.`);
             
-            // 4b. ADICIONA os diretos ao time
-            // <-- CORREÇÃO (INÍCIO): Aqui é onde armazenamos o Nível 1 (subordinados diretos de Fábio)
+            // Armazena o Nível 1
             timeCompleto = directReports; 
             
-            // 4c. Identifica quais deles são gestores (ex: Marcelo)
+            // Identifica quais deles são gestores (ex: Marcelo)
             subManagerChapas = directReports
                 .filter(r => {
                     const func = r.funcao ? r.funcao.toLowerCase() : null;
                     return func && configMap[func]; // Compara com o configMap
                 })
                 .map(r => r.matricula);
+        } else {
+            console.log(`[Load] ...nenhum subordinado direto encontrado.`);
         }
 
-        // 4d. Se houver sub-gestores (Marcelo), busca o time DELES
+        // 4b. [ÚLTIMA AÇÃO]: Processar os times dos sub-gestores (Nível 2)
         if (subManagerChapas.length > 0) {
-            console.log(`[Load] Buscando times de ${subManagerChapas.length} sub-gestores...`);
+            console.log(`[Load] 2. Buscando times de ${subManagerChapas.length} sub-gestores (Nível 2)...`);
+            
             // Monta a query: gestor_chapa=in.(chapa_marcelo)
             const subTeamQuery = `colaboradores?select=*&gestor_chapa=in.(${subManagerChapas.map(c => `"${c}"`).join(',')})`;
-            
-            // Esta é a query que você mencionou (busca o Nível 2)
             const subTeams = await supabaseRequest(subTeamQuery, 'GET');
             
             if (subTeams && subTeams.length > 0) {
-                console.log(`[Load] ...times de sub-gestores encontrados: ${subTeams.length}`);
+                console.log(`[Load] ...encontrados ${subTeams.length} colaboradores de Nível 2.`);
                 
-                // 4e. ADICIONA (concatena) o time deles ao time principal
-                // <-- CORREÇÃO (FIM): Aqui nós ADICIONAMOS (concat) o Nível 2 ao Nível 1, em vez de substituir.
+                // ADICIONA (concatena) o Nível 2 ao Nível 1
                 timeCompleto = timeCompleto.concat(subTeams);
+            } else {
+                console.log(`[Load] ...nenhum colaborador de Nível 2 encontrado.`);
             }
+        } else {
+            console.log(`[Load] 2. Nenhum sub-gestor encontrado, pulando busca de Nível 2.`);
         }
         // --- FIM DA CORREÇÃO ---
         
-        // 4f. Define o time no estado
+        // 4c. Define o time no estado
         state.meuTime = timeCompleto;
         console.log(`[Load] Carregamento de time concluído. Total: ${state.meuTime.length} colaboradores.`);
 
-        // 4g. Espera a promise de 'disponíveis' que rodou em paralelo
-        console.log(`[Load] Carregamento de time concluído. Total: ${state.meuTime.length} colaboradores.`);
-
-        // 4f. Espera a promise de 'disponíveis' que rodou em paralelo
+        // 4d. Espera a promise de 'disponíveis' que rodou em paralelo
         const disponiveisRes = await Promise.allSettled([disponiveisPromise]);
         if (disponiveisRes[0].status === 'fulfilled' && disponiveisRes[0].value) {
             state.disponiveis = disponiveisRes[0].value;
