@@ -201,55 +201,25 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 // --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
 
 /**
- * ** NOVO: Função Recursiva para Carregar Time em Cascata **
- * Busca todos os colaboradores abaixo de um gestor, incluindo sub-gestores.
- * * ** CORREÇÃO (JP): **
- * A consulta `select=*` anterior era muito lenta e causava timeouts (erros)
- * para gestores de nível alto (N2+). 
- * Mudei para `select=` especificando *apenas* as colunas necessárias para
- * a recursão e para a renderização da tabela. Isso deve resolver o problema
- * de performance que parecia um "erro".
+ * ** CORREÇÃO (JP): **
+ * A função recursiva anterior (`loadRecursiveTeam`) era lenta e causava
+ * timeouts (erros) para gestores N2+.
+ *
+ * Esta nova função (`loadAllTeamMembers`) usa a lógica correta para
+ * esta estrutura de banco de dados: ela busca de uma só vez em todas
+ * as colunas de hierarquia (N1 a N5), o que é muito mais rápido
+ * e eficiente.
  */
-async function loadRecursiveTeam(gestorChapa, configMap) {
-    let team = [];
-    
-    // 1. Busca subordinados diretos
-    // OTIMIZAÇÃO: Seleciona apenas as colunas necessárias.
+async function loadAllTeamMembers(gestorChapa) {
     const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
-    // GARANTIA: Força a 'gestorChapa' (que pode ser número) para string na query.
-    const reports = await supabaseRequest(`colaboradores?select=${columns}&gestor_chapa=eq.${String(gestorChapa)}`, 'GET');
+    const chapaStr = String(gestorChapa); // Garante que a chapa seja string para a query
     
-    if (!reports || reports.length === 0) {
-        return []; // Condição de parada: gestor sem time
-    }
-
-    // 2. Adiciona os subordinados diretos ao time
-    // LÓGICA: A soma (concat) é a chave aqui.
-    team = team.concat(reports);
-
-    // 3. Identifica quais desses subordinados são também gestores
-    const subManagerChapas = reports
-        .filter(r => {
-            const func = r.funcao ? r.funcao.toLowerCase() : null; 
-            return func && configMap[func]; // Compara com o configMap (lower)
-        })
-        // GARANTIA: Força a 'matricula' (que pode ser número) para string na recursão.
-        .map(r => String(r.matricula)); 
-
-    if (subManagerChapas.length === 0) {
-        return team; // Condição de parada: sem sub-gestores
-    }
-
-    // 4. Busca recursivamente o time de cada sub-gestor
-    const subTeamPromises = subManagerChapas.map(chapa => loadRecursiveTeam(chapa, configMap));
-    const subTeams = await Promise.all(subTeamPromises);
-
-    // 5. Adiciona os times dos sub-gestores (N2, N3...) ao time principal (N1)
-    subTeams.forEach(subTeam => {
-        team = team.concat(subTeam);
-    });
-
-    return team;
+    // Busca em TODOS os 5 níveis hierárquicos de uma vez
+    const query = `colaboradores?select=${columns}&or=(gestor_chapa.eq.${chapaStr},gestor_n2_chapa.eq.${chapaStr},gestor_n3_chapa.eq.${chapaStr},gestor_n4_chapa.eq.${chapaStr},gestor_n5_chapa.eq.${chapaStr})`;
+    
+    const team = await supabaseRequest(query, 'GET');
+    
+    return team || [];
 }
 
 
@@ -305,13 +275,9 @@ async function loadModuleData() {
             acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia; 
             return acc;
         }, {});
-        // Mapa 2: (Função -> Pode ser Gestor?)
-        const configMapGestor = state.gestorConfig.reduce((acc, regra) => {
-            if (regra.pode_ser_gestor) {
-                acc[regra.funcao.toLowerCase()] = true; 
-            }
-            return acc;
-        }, {});
+        
+        // REMOVIDO: O configMapGestor não é mais necessário
+        // const configMapGestor = ...
 
 
         // --- ETAPA 3: Carregar Disponíveis (em paralelo com o time) ---
@@ -340,7 +306,7 @@ async function loadModuleData() {
         const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
 
         
-        // --- ETAPA 4: Carregar Time (Recursivo) ---
+        // --- ETAPA 4: Carregar Time (COM A NOVA FUNÇÃO) ---
         let timeRes = [];
         if (state.isAdmin) {
             console.log("[Load] Admin detectado. Carregando TODOS os colaboradores...");
@@ -348,9 +314,9 @@ async function loadModuleData() {
             const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
             timeRes = await supabaseRequest(`colaboradores?select=${columns}`, 'GET');
         } else {
-            // **AQUI ESTÁ A CORREÇÃO PARA O PROBLEMA 1 (LOOP)**
-            console.log(`[Load] 1. Buscando time hierárquico (Recursivo JS) de ${state.userMatricula}...`);
-            timeRes = await loadRecursiveTeam(state.userMatricula, configMapGestor);
+            // **AQUI ESTÁ A CORREÇÃO (JP) **
+            console.log(`[Load] 1. Buscando time hierárquico (Query Otimizada N1-N5) de ${state.userMatricula}...`);
+            timeRes = await loadAllTeamMembers(state.userMatricula);
         }
 
         if (!timeRes) timeRes = [];
@@ -543,8 +509,9 @@ async function handleSalvarTime() {
         mostrarNotificacao('Time direto salvo! Recarregando hierarquia completa (Nível 1-5)...', 'success');
         
         // --- ETAPA 2: Recarregar TUDO (Nível 1-5) ---
-        // Agora que o Nível 1 está salvo, chamamos a loadModuleData
-        // que usará a recursão JS para buscar a hierarquia completa.
+        // ** CORREÇÃO (JP): **
+        // Não precisamos mais da recursão JS aqui. Apenas recarregamos
+        // os dados usando a nova função principal.
         await loadModuleData(); 
         
         // --- ETAPA 3: Atualizar Estado e Navegar ---
