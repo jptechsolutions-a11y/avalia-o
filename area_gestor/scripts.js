@@ -1347,11 +1347,6 @@ async function initializeApp() {
             document.getElementById('adminUpdateLink').style.display = 'block';
         }
         
-        // NOVO: Mostrar link "Meus Gestores" para Nível 2+ ou Admin
-        if (state.isAdmin || (state.userNivel && state.userNivel >= 2)) {
-            document.getElementById('meusGestoresLink').style.display = 'flex';
-        }
-
         // 4. Buscar a função e FILIAL do gestor logado
         if (state.userMatricula) {
             // A query aqui agora usa a matrícula limpa (sem espaços)
@@ -1367,6 +1362,12 @@ async function initializeApp() {
         
         // 6. REMOVIDA: A definição do state.userNivel foi movida para dentro do loadModuleData()
         
+        // *** CORREÇÃO: Movido para DEPOIS do loadModuleData() ***
+        // NOVO: Mostrar link "Meus Gestores" para Nível 2+ ou Admin
+        if (state.isAdmin || (state.userNivel && state.userNivel >= 2)) {
+            document.getElementById('meusGestoresLink').style.display = 'flex';
+        }
+
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
         
