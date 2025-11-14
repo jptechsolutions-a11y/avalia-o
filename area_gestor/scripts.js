@@ -1,6 +1,6 @@
 // Configuração do Supabase (baseado nos seus outros módulos)
 const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIZUIyNTYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
 const SUPABASE_PROXY_URL = '/api/proxy'; // Usando o proxy
 
 // Define o adaptador para sessionStorage
@@ -27,6 +27,7 @@ const state = {
     meuTime: [],
     disponiveis: [],
     gestorConfig: [],
+    funcoesGestor: new Set(), // NOVO: Set com funções de gestor (UPPERCASE)
     todasAsFuncoes: [],
     todosUsuarios: [], // Cache para fotos de perfil
     mapaFotos: {}, // Mapa de matricula -> foto
@@ -34,7 +35,7 @@ const state = {
     // --- NOVOS ESTADOS PARA ORGANOGRAMA ---
     userColaboradorProfile: null, // Perfil completo do usuário logado (da tab colaboradores)
     hierarquiaSuperior: [],     // Array [GestorN1, GestorN2, ...]
-    // --- FIM DOS NOVOS ESTADOS ---
+    subordinateManagerStats: [], // NOVO: Cache para os dados do modal
 };
 
 // --- Funções de UI (Idênticas aos outros módulos) ---
@@ -263,7 +264,7 @@ async function loadModuleData() {
     showLoading(true, 'Carregando dados do time...');
     
     try {
-        // --- ETAPA 1: Carregar Configs, Funções, e Fotos de Perfil (em paralelo) ---
+        // --- ETAPA 1: Carregar Configurações, Funções, e Fotos de Perfil (em paralelo) ---
         const [configRes, funcoesRes, usuariosRes] = await Promise.allSettled([
             supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
             supabaseRequest('colaboradores?select=funcao', 'GET'),
@@ -273,6 +274,12 @@ async function loadModuleData() {
         // Processa Config
         if (configRes.status === 'fulfilled' && configRes.value) {
             state.gestorConfig = configRes.value;
+            // NOVO: Popula o Set de funções de gestor
+            state.funcoesGestor = new Set(
+                configRes.value
+                    .filter(g => g.pode_ser_gestor)
+                    .map(g => g.funcao.toUpperCase()) // Garante UPPERCASE
+            );
         } else {
             console.error("Erro ao carregar config:", configRes.reason);
         }
@@ -879,8 +886,8 @@ async function loadMeusGestoresView() {
     
     // --- PARTE 2: Hierarquia SUBORDINADA (Árvore Completa) ---
     
-    // Define quais funções são de gestores
-    const funcoesGestor = new Set(state.gestorConfig.filter(g => g.pode_ser_gestor).map(g => g.funcao.toUpperCase()));
+    // Define quais funções são de gestores (JA FEITO no loadModuleData)
+    // const funcoesGestor = new Set(state.gestorConfig.filter(g => g.pode_ser_gestor).map(g => g.funcao.toUpperCase()));
 
     let subordinateManagers = [];
     if (state.isAdmin) {
@@ -888,13 +895,13 @@ async function loadMeusGestoresView() {
         // ATUALIZAÇÃO: Pega TODOS os gestores do time (que no admin são TODOS)
         subordinateManagers = state.meuTime.filter(c => 
             c.matricula !== state.userMatricula &&
-            c.funcao && funcoesGestor.has(c.funcao.toUpperCase())
+            c.funcao && state.funcoesGestor.has(c.funcao.toUpperCase())
         );
     } else {
         // Gestor (Nível 5) vê TODOS os gestores abaixo dele (N4, N3, N2...)
         // O state.meuTime JÁ CONTÉM a hierarquia completa para baixo.
         subordinateManagers = state.meuTime.filter(c => 
-            c.funcao && funcoesGestor.has(c.funcao.toUpperCase())
+            c.funcao && state.funcoesGestor.has(c.funcao.toUpperCase())
         );
     }
 
@@ -910,22 +917,32 @@ async function loadMeusGestoresView() {
         // Re-usa a função de carregar time!
         const timeDoGestor = await loadAllTeamMembers(gestor.matricula, gestor.nivel_hierarquico);
         
+        // NOVO: Separa o time em gestores e não-gestores
+        const timeGestores = timeDoGestor.filter(c => c.funcao && state.funcoesGestor.has(c.funcao.toUpperCase()));
+        const timeColaboradores = timeDoGestor.filter(c => !c.funcao || !state.funcoesGestor.has(c.funcao.toUpperCase()));
+
         const stats = {
             total: timeDoGestor.length,
             ativos: timeDoGestor.filter(c => c.status === 'ativo').length,
             inativos: timeDoGestor.filter(c => c.status === 'inativo').length,
             novatos: timeDoGestor.filter(c => c.status === 'novato').length,
+            // NOVO: Salva a contagem de colaboradores diretos (não-gestores)
+            colaboradoresDiretos: timeColaboradores.length 
         };
         
         return {
             ...gestor, // dados do gestor (nome, matricula, funcao, filial)
             foto: state.mapaFotos[gestor.matricula] || 'https://i.imgur.com/80SsE11.png',
             stats: stats,
-            timeCompleto: timeDoGestor // Armazena o time para o modal (se precisarmos no futuro)
+            // NOVO: Salva apenas os colaboradores (não-gestores) para o modal
+            timeCompleto: timeColaboradores 
         };
     });
     
     const orgChartSubordinateData = await Promise.all(subordinateStatPromises);
+    
+    // NOVO: Salva os dados no state para o modal usar
+    state.subordinateManagerStats = orgChartSubordinateData;
 
     // Renderiza os subordinados
     // MUDANÇA: Chama as novas funções de árvore
@@ -957,7 +974,7 @@ function renderOrgChart(data, container) {
         // Monta o card do nó
         html += `
             <div class="org-chart-node ${isCurrentUserClass}">
-                <img src="${fotoUrl}" class="org-node-foto" alt="Foto de ${node.nome}">
+                <img src="${fotoUrl}" class="org-node-foto" alt="Foto de ${node.nome}" onerror="this.src='https://i.imgur.com/80SsE11.png'">
                 <div class="org-node-info">
                     <h4 class="org-node-nome">${node.nome || 'N/A'}</h4>
                     <p class="org-node-funcao">${node.funcao || 'N/A'}</p>
@@ -1070,13 +1087,19 @@ function renderSubordinateTree(nodes, container) {
         return `
             <div class="org-sub-node">
                 <div class="org-chart-node">
-                    <img src="${fotoUrl}" class="org-node-foto" alt="Foto de ${node.nome}">
+                    <img src="${fotoUrl}" class="org-node-foto" alt="Foto de ${node.nome}" onerror="this.src='https://i.imgur.com/80SsE11.png'">
                     <div class="org-node-info">
                         <h4 class="org-node-nome">${node.nome || 'N/A'}</h4>
                         <p class="org-node-funcao">${node.funcao || 'N/A'}</p>
+                        
+                        <!-- NOVO: Botão "Ver Time" -->
+                        <button class="btn btn-sm btn-primary mt-3" onclick="showGestorTimeModal('${node.matricula}')">
+                            <i data-feather="eye" class="h-4 w-4 mr-1"></i>
+                            Ver Time (${node.stats.colaboradoresDiretos})
+                        </button>
                     </div>
                     <div class="org-node-stats">
-                        <div title="Total no Time">
+                        <div title="Total (Gestores + Colaboradores)">
                             <i data-feather="users" class="h-4 w-4"></i>
                             <span>${node.stats.total}</span>
                         </div>
@@ -1619,3 +1642,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
     feather.replace();
 });
+
+
+// ====================================================================
+// NOVAS FUNÇÕES: Modal "Ver Time"
+// ====================================================================
+
+/**
+ * Abre o modal e renderiza o time do gestor selecionado
+ */
+function showGestorTimeModal(matriculaGestor) {
+    const gestor = state.subordinateManagerStats.find(g => g.matricula === matriculaGestor);
+    if (!gestor) {
+        mostrarNotificacao('Erro: Não foi possível encontrar os dados desse gestor.', 'error');
+        return;
+    }
+
+    document.getElementById('modalGestorTitle').textContent = `Colaboradores de ${gestor.nome}`;
+    
+    // Renderiza a tabela
+    // gestor.timeCompleto agora contém APENAS os não-gestores
+    renderModalTimeTable(gestor.timeCompleto); 
+
+    document.getElementById('gestorTimeModal').style.display = 'flex';
+    feather.replace();
+}
+
+/**
+ * Fecha o modal do time do gestor
+ */
+function closeGestorTimeModal() {
+    document.getElementById('gestorTimeModal').style.display = 'none';
+    document.getElementById('modalGestorTableBody').innerHTML = ''; // Limpa a tabela
+}
+
+/**
+ * Renderiza a tabela de time para o Modal (versão simplificada)
+ */
+function renderModalTimeTable(data) {
+    const tbody = document.getElementById('modalGestorTableBody');
+    tbody.innerHTML = '';
+
+    if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-gray-500">Este gestor não possui colaboradores diretos (não-gestores) vinculados.</td></tr>';
+        return;
+    }
+    
+    // Não precisa mais do mapa de gestores, pois só mostramos colaboradores
+    data.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
+
+    const fragment = document.createDocumentFragment();
+    data.forEach(item => {
+        const tr = document.createElement('tr');
+        
+        const status = item.status || 'ativo';
+        let statusClass = 'status-ativo';
+        if (status === 'inativo') statusClass = 'status-inativo';
+        if (status === 'novato') statusClass = 'status-aviso';
+
+        tr.innerHTML = `
+            <td>${item.nome || '-'}</td>
+            <td>${item.matricula || '-'}</td>
+            <td>${item.funcao || '-'}</td>
+            <td>${item.secao || '-'}</td>
+            <td>${item.filial || '-'}</td>
+            <td><span class="status-badge ${statusClass}">${status}</span></td>
+        `;
+        fragment.appendChild(tr);
+    });
+    tbody.appendChild(fragment);
+    feather.replace();
+}
