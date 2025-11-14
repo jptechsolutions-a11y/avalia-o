@@ -249,6 +249,10 @@ async function loadAllTeamMembers(gestorChapa, nivelGestor) {
  * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
  * Chamado uma vez during a inicialização.
  */
+/**
+ * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
+ * Chamado uma vez during a inicialização.
+ */
 async function loadModuleData() {
     // Se não tiver matrícula, não pode ser gestor, pula o carregamento
     if (!state.userMatricula && !state.isAdmin) {
@@ -348,17 +352,14 @@ async function loadModuleData() {
             filialFiltrada = true;
         }
 
+        // #################### INÍCIO DO AJUSTE 1 ####################
         // REGRA 3: Tratar o "fallback"
         if (!filialFiltrada) {
-            if (!state.isAdmin) {
-                // Se NÃO for admin e não tiver filial, não mostrar NINGUÉM.
-                console.warn("[Load Disponíveis] Gestor não-admin sem 'permissoes_filiais' ou 'userFilial'. Lista de disponíveis estará vazia.");
-                filters.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
-            } else {
-                // Se FOR admin e não tiver filial, mostrar TODOS (não adicionar filtro).
-                console.log("[Load Disponíveis] Admin sem 'permissoes_filiais' ou 'userFilial'. Mostrando todos os disponíveis.");
-            }
+            // AJUSTE: Se não tiver filial (admin ou não), não mostra NINGUÉM.
+            console.warn("[Load Disponíveis] Usuário sem 'permissoes_filiais' ou 'userFilial'. Lista de disponíveis estará vazia.");
+            filters.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
         }
+        // #################### FIM DO AJUSTE 1 ####################
 
 
         if (state.userMatricula) {
@@ -1036,17 +1037,17 @@ async function loadTransferViewData() {
         // Pega funções que podem ser gestor (do cache)
         const funcoesGestor = state.gestorConfig
             .filter(r => r.pode_ser_gestor)
-            // --- INÍCIO DA CORREÇÃO 2 ---
+            // #################### INÍCIO DO AJUSTE 2 (NÍVEL) ####################
             .filter(r => {
-                // CORREÇÃO 2: Mostrar apenas gestores DE MESMO NÍVEL
+                // AJUSTE: Força todos (incluindo admins) a só verem o mesmo nível
                 if (state.userNivel === null || state.userNivel === undefined) {
-                    // Admin (nível null) pode ver todos os outros gestores
-                    return true; 
+                    // Admin (ou usuário sem nível) não pode ver outros gestores.
+                    return false; 
                 }
                 // Compara nível da regra com nível do usuário
-                return r.nivel_hierarquia === state.userNivel; // <-- MUDANÇA APLICADA
+                return r.nivel_hierarquia === state.userNivel;
             })
-            // --- FIM DA CORREÇÃO 2 ---
+            // #################### FIM DO AJUSTE 2 (NÍVEL) ######################
             .map(r => `"${r.funcao.toUpperCase()}"`); 
         
         if (funcoesGestor.length === 0) {
@@ -1058,19 +1059,19 @@ async function loadTransferViewData() {
             `matricula.neq.${state.userMatricula}`      
         ];
 
-        // 2. Adiciona o filtro de FILIAL (se não for admin)
-        // (Esta lógica já estava correta para "mesma filial")
-        if (!state.isAdmin) {
-            if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-                const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
-                queryParts.push(filialFilter);
-            } else if (state.userFilial) {
-                 const filialFilter = `filial.eq.${state.userFilial}`;
-                 queryParts.push(filialFilter);
-            } else {
-                 queryParts.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
-            }
+        // #################### INÍCIO DO AJUSTE 3 (FILIAL) ####################
+        // 2. Adiciona o filtro de FILIAL (AJUSTE: aplicado a TODOS, inclusive admin)
+        if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+            queryParts.push(filialFilter);
+        } else if (state.userFilial) {
+             const filialFilter = `filial.eq.${state.userFilial}`;
+             queryParts.push(filialFilter);
+        } else {
+             // Se não tem filial (admin ou não), não pode transferir
+             queryParts.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
         }
+        // #################### FIM DO AJUSTE 3 (FILIAL) ######################
         
         const query = `colaboradores?select=nome,matricula,funcao,filial&${queryParts.join('&')}`;
         const gestores = await supabaseRequest(query, 'GET');
@@ -1090,7 +1091,6 @@ async function loadTransferViewData() {
         selectGestor.innerHTML = `<option value="">${err.message}</option>`;
     }
 }
-
 /**
  * Habilita o botão de confirmar transferência
  */
