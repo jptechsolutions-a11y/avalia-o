@@ -877,7 +877,7 @@ async function loadMeusGestoresView() {
     // 3. Renderiza o organograma Superior
     renderOrgChart(orgChartSuperiorData, superiorContainer); // Passa o container
     
-    // --- PARTE 2: Hierarquia SUBORDINADA (Lógica "antiga" re-integrada) ---
+    // --- PARTE 2: Hierarquia SUBORDINADA (Árvore Completa) ---
     
     // Define quais funções são de gestores
     const funcoesGestor = new Set(state.gestorConfig.filter(g => g.pode_ser_gestor).map(g => g.funcao.toUpperCase()));
@@ -885,15 +885,16 @@ async function loadMeusGestoresView() {
     let subordinateManagers = [];
     if (state.isAdmin) {
         // Admin vê TODOS os gestores (exceto ele mesmo)
+        // ATUALIZAÇÃO: Pega TODOS os gestores do time (que no admin são TODOS)
         subordinateManagers = state.meuTime.filter(c => 
             c.matricula !== state.userMatricula &&
             c.funcao && funcoesGestor.has(c.funcao.toUpperCase())
         );
     } else {
-        // Gestor Nível 2+ vê seus *subordinados diretos* que são gestores.
+        // Gestor (Nível 5) vê TODOS os gestores abaixo dele (N4, N3, N2...)
+        // O state.meuTime JÁ CONTÉM a hierarquia completa para baixo.
         subordinateManagers = state.meuTime.filter(c => 
-            c.gestor_chapa === state.userMatricula && // É meu subordinado direto
-            c.nivel_hierarquico !== null && c.nivel_hierarquico !== undefined // E é um gestor (tem nível)
+            c.funcao && funcoesGestor.has(c.funcao.toUpperCase())
         );
     }
 
@@ -927,7 +928,12 @@ async function loadMeusGestoresView() {
     const orgChartSubordinateData = await Promise.all(subordinateStatPromises);
 
     // Renderiza os subordinados
-    renderSubordinateCards(orgChartSubordinateData, subordinateContainer); // NOVA Função
+    // MUDANÇA: Chama as novas funções de árvore
+    // Constrói a árvore hierárquica a partir da lista plana
+    const subordinateTree = buildHierarchyTree(orgChartSubordinateData, state.userMatricula);
+    
+    // Renderiza a árvore
+    renderSubordinateTree(subordinateTree, subordinateContainer);
 
     showLoading(false);
 }
@@ -990,46 +996,116 @@ function renderOrgChart(data, container) {
 
 
 /**
- * NOVA FUNÇÃO: Renderiza os cards dos gestores subordinados em um grid
+ * NOVA FUNÇÃO: Constrói uma árvore hierárquica a partir de uma lista plana de gestores.
  */
-function renderSubordinateCards(gestores, container) {
-    container.innerHTML = ''; // Limpa
-    container.className = 'stats-grid'; // Usa a classe de grid
+function buildHierarchyTree(managerList, rootMatricula) {
+    const map = {};
+    const tree = [];
 
-    if (gestores.length === 0) {
+    // 1. Create a map of nodes, each with a children array
+    managerList.forEach(manager => {
+        map[manager.matricula] = {
+            ...manager,
+            children: []
+        };
+    });
+
+    // 2. Populate the tree
+    Object.values(map).forEach(node => {
+        if (node.gestor_chapa === rootMatricula) {
+            // This is a direct (N-1) report
+            tree.push(node);
+        } else {
+            // This is a nested (N-2, N-3...) report
+            const parent = map[node.gestor_chapa];
+            if (parent) {
+                parent.children.push(node);
+            }
+            // else: it's an orphan, won't appear (which is fine)
+        }
+    });
+    
+    // Sort children alphabetically at each level
+    const sortChildrenRecursive = (nodes) => {
+         nodes.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+         nodes.forEach(node => {
+             if (node.children.length > 0) {
+                 sortChildrenRecursive(node.children);
+             }
+         });
+    };
+    
+    sortChildrenRecursive(tree);
+    
+    return tree;
+}
+
+/**
+ * NOVA FUNÇÃO: Renderiza a árvore de subordinados no container
+ */
+function renderSubordinateTree(nodes, container) {
+    container.innerHTML = ''; // Limpa
+    container.className = 'org-sub-tree-container'; // Classe base para a árvore
+
+    if (!nodes || nodes.length === 0) {
         // Oculta o título, o container já está limpo
         return;
     }
-    
-    gestores.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
 
-    gestores.forEach(gestor => {
-        const card = document.createElement('div');
-        card.className = 'stat-card-dash flex items-start gap-4'; // Reutiliza a classe dos cards
-        card.innerHTML = `
-            <img src="${gestor.foto}" class="w-16 h-16 rounded-full object-cover bg-gray-200 flex-shrink-0">
-            <div class="flex-1">
-                <h4 class="font-bold text-lg text-accent">${gestor.nome || 'N/A'}</h4>
-                <p class="text-sm text-gray-600 -mt-1 mb-2">${gestor.funcao || 'N/A'} (Filial: ${gestor.filial || 'N/A'})</p>
-                <div class="text-xs grid grid-cols-2 gap-1">
-                    <span><i data-feather="users" class="h-3 w-3 inline-block mr-1"></i>Total: <strong>${gestor.stats.total}</strong></span>
-                    <span><i data-feather="user-check" class="h-3 w-3 inline-block mr-1 text-green-600"></i>Ativos: <strong>${gestor.stats.ativos}</strong></span>
-                    <span><i data-feather="user-plus" class="h-3 w-3 inline-block mr-1 text-yellow-600"></i>Novatos: <strong>${gestor.stats.novatos}</strong></span>
-                    <span><i data-feather="user-x" class="h-3 w-3 inline-block mr-1 text-red-600"></i>Inativos: <strong>${gestor.stats.inativos}</strong></span>
+    // Recursive function to render each node and its children
+    function createNodeHTML(node) {
+        const fotoUrl = node.foto || 'https://i.imgur.com/80SsE11.png';
+        let childrenHTML = '';
+
+        if (node.children && node.children.length > 0) {
+            // Render children recursively
+            childrenHTML = `
+                <div class="org-sub-children">
+                    ${node.children.map(createNodeHTML).join('')}
                 </div>
-                <!-- O modal foi removido, então não precisa de botão -->
+            `;
+        }
+
+        // Card HTML (reusing the superior styles)
+        return `
+            <div class="org-sub-node">
+                <div class="org-chart-node">
+                    <img src="${fotoUrl}" class="org-node-foto" alt="Foto de ${node.nome}">
+                    <div class="org-node-info">
+                        <h4 class="org-node-nome">${node.nome || 'N/A'}</h4>
+                        <p class="org-node-funcao">${node.funcao || 'N/A'}</p>
+                    </div>
+                    <div class="org-node-stats">
+                        <div title="Total no Time">
+                            <i data-feather="users" class="h-4 w-4"></i>
+                            <span>${node.stats.total}</span>
+                        </div>
+                        <div title="Ativos">
+                            <i data-feather="user-check" class="h-4 w-4" style="color: #16a34a;"></i>
+                            <span>${node.stats.ativos}</span>
+                        </div>
+                        <div title="Novatos">
+                            <i data-feather="user-plus" class="h-4 w-4" style="color: #f59e0b;"></i>
+                            <span>${node.stats.novatos}</span>
+                        </div>
+                        <div title="Inativos">
+                            <i data-feather="user-x" class="h-4 w-4" style="color: #dc2626;"></i>
+                            <span>${node.stats.inativos}</span>
+                        </div>
+                    </div>
+                </div>
+                ${childrenHTML}
             </div>
         `;
-        container.appendChild(card);
-    });
-    
+    }
+
+    container.innerHTML = nodes.map(createNodeHTML).join('');
     feather.replace();
 }
 
 
 /**
- * (REMOVIDO) A função 'showGestorTimeModal' e 'renderModalTimeTable' 
- * não são mais usadas, pois a nova view não o utiliza)
+ * (REMOVIDO) A função 'renderSubordinateCards' foi substituída por 'renderSubordinateTree'
  */
 
 
