@@ -1,4 +1,4 @@
-// Configuração do Supabase (baseado nos seus outros módulos)
+// Configuração do Supabase (baseado nos sewus outros módulos)
 const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
 const SUPABASE_PROXY_URL = '/api/proxy'; // Usando o proxy
