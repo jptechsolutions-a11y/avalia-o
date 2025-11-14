@@ -1100,10 +1100,13 @@ async function loadTransferViewData() {
         }
         queryParts.push(filialFilterPart);
 
-        // 3. Combina TUDO com 'and=()'
-        const query = `colaboradores?select=nome,matricula,funcao,filial&and=(${queryParts.join(',')})`;
+        // 3. Combina TUDO com '&' em vez de 'and=()'
+        // A sintaxe and=() falha quando os valores (funcao) contêm vírgulas ou espaços.
+        // const query = `colaboradores?select=nome,matricula,funcao,filial&and=(${queryParts.join(',')})`; // <-- ANTIGO (COM ERRO 400)
+        const query = `colaboradores?select=nome,matricula,funcao,filial&${queryParts.join('&')}`; // <-- NOVO (CORRIGIDO)
+        
         console.log(`[Load Transfer] Query: ${query}`);
-        // #################### FIM DA CORREÇÃO (BUG 500) ######################
+        // #################### FIM DA CORREÇÃO (BUG 400) ######################
         
         const gestores = await supabaseRequest(query, 'GET');
 
