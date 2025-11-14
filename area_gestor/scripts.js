@@ -810,23 +810,27 @@ function renderGestorConfigTable(data) {
 // ====================================================================
 
 /**
- * Carrega e renderiza a view "Meus Gestores" (Organograma Superior)
+ * Carrega e renderiza a view "Meus Gestores" (Organograma Superior E Subordinados)
  */
 async function loadMeusGestoresView() {
     showLoading(true, 'Carregando organograma...');
-    const container = document.getElementById('gestoresCardsContainer');
-    container.innerHTML = ''; // Limpa o container
+    const superiorContainer = document.getElementById('gestoresSuperioresContainer');
+    const subordinateContainer = document.getElementById('gestoresSubordinadosContainer');
+    const subordinateTitle = document.getElementById('gestoresSubordinadosTitle');
+    
+    // Limpa os containers
+    superiorContainer.innerHTML = '';
+    subordinateContainer.innerHTML = '';
     // Adiciona a classe base para o CSS do organograma
-    container.className = 'org-chart-container'; 
+    superiorContainer.className = 'org-chart-container'; 
 
     if (!state.userColaboradorProfile) {
-        container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Não foi possível carregar seu perfil de colaborador.</p>';
+        superiorContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Não foi possível carregar seu perfil de colaborador.</p>';
         showLoading(false);
         return;
     }
     
-    // 1. Monta a lista de Pessoas para exibir
-    // Inclui o próprio usuário e seus superiores (já carregados no state)
+    // --- PARTE 1: Hierarquia SUPERIOR (Como antes) ---
     const allPeople = [
         // Adiciona o usuário logado
         { 
@@ -847,7 +851,6 @@ async function loadMeusGestoresView() {
         })
     ];
     
-    // 2. Busca os stats (resumo do time) para CADA pessoa na lista
     const statPromises = allPeople.map(async (pessoa) => {
         if (!pessoa.matricula) return { ...pessoa, stats: { total: 0, ativos: 0, inativos: 0, novatos: 0 } };
 
@@ -869,18 +872,70 @@ async function loadMeusGestoresView() {
         };
     });
     
-    const orgChartData = await Promise.all(statPromises);
+    const orgChartSuperiorData = await Promise.all(statPromises);
 
-    // 3. Renderiza o organograma
-    renderOrgChart(orgChartData);
+    // 3. Renderiza o organograma Superior
+    renderOrgChart(orgChartSuperiorData, superiorContainer); // Passa o container
+    
+    // --- PARTE 2: Hierarquia SUBORDINADA (Lógica "antiga" re-integrada) ---
+    
+    // Define quais funções são de gestores
+    const funcoesGestor = new Set(state.gestorConfig.filter(g => g.pode_ser_gestor).map(g => g.funcao.toUpperCase()));
+
+    let subordinateManagers = [];
+    if (state.isAdmin) {
+        // Admin vê TODOS os gestores (exceto ele mesmo)
+        subordinateManagers = state.meuTime.filter(c => 
+            c.matricula !== state.userMatricula &&
+            c.funcao && funcoesGestor.has(c.funcao.toUpperCase())
+        );
+    } else {
+        // Gestor Nível 2+ vê seus *subordinados diretos* que são gestores.
+        subordinateManagers = state.meuTime.filter(c => 
+            c.gestor_chapa === state.userMatricula && // É meu subordinado direto
+            c.nivel_hierarquico !== null && c.nivel_hierarquico !== undefined // E é um gestor (tem nível)
+        );
+    }
+
+    if (subordinateManagers.length === 0) {
+        subordinateTitle.style.display = 'none'; // Esconde o título "Gestores Subordinados"
+        subordinateContainer.innerHTML = ''; // Limpa
+    } else {
+         subordinateTitle.style.display = 'block'; // Mostra o título
+    }
+    
+    // Calcula stats para os subordinados
+    const subordinateStatPromises = subordinateManagers.map(async (gestor) => {
+        // Re-usa a função de carregar time!
+        const timeDoGestor = await loadAllTeamMembers(gestor.matricula, gestor.nivel_hierarquico);
+        
+        const stats = {
+            total: timeDoGestor.length,
+            ativos: timeDoGestor.filter(c => c.status === 'ativo').length,
+            inativos: timeDoGestor.filter(c => c.status === 'inativo').length,
+            novatos: timeDoGestor.filter(c => c.status === 'novato').length,
+        };
+        
+        return {
+            ...gestor, // dados do gestor (nome, matricula, funcao, filial)
+            foto: state.mapaFotos[gestor.matricula] || 'https://i.imgur.com/80SsE11.png',
+            stats: stats,
+            timeCompleto: timeDoGestor // Armazena o time para o modal (se precisarmos no futuro)
+        };
+    });
+    
+    const orgChartSubordinateData = await Promise.all(subordinateStatPromises);
+
+    // Renderiza os subordinados
+    renderSubordinateCards(orgChartSubordinateData, subordinateContainer); // NOVA Função
+
     showLoading(false);
 }
 
 /**
  * Renderiza o HTML do organograma (vertical, de cima para baixo)
  */
-function renderOrgChart(data) {
-    const container = document.getElementById('gestoresCardsContainer');
+function renderOrgChart(data, container) {
     container.innerHTML = ''; // Limpa
     
     // A lista `data` contém [User, N1, N2, ...].
@@ -935,12 +990,47 @@ function renderOrgChart(data) {
 
 
 /**
- * (REMOVIDO) A função 'showGestorTimeModal' e 'renderModalTimeTable' 
- * não são mais usadas, pois a view 'Meus Gestores' agora é o organograma.
+ * NOVA FUNÇÃO: Renderiza os cards dos gestores subordinados em um grid
  */
-// function showGestorTimeModal(matriculaGestor) { ... }
-// function renderModalTimeTable(data) { ... }
-// function closeGestorTimeModal() { ... }
+function renderSubordinateCards(gestores, container) {
+    container.innerHTML = ''; // Limpa
+    container.className = 'stats-grid'; // Usa a classe de grid
+
+    if (gestores.length === 0) {
+        // Oculta o título, o container já está limpo
+        return;
+    }
+    
+    gestores.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
+
+    gestores.forEach(gestor => {
+        const card = document.createElement('div');
+        card.className = 'stat-card-dash flex items-start gap-4'; // Reutiliza a classe dos cards
+        card.innerHTML = `
+            <img src="${gestor.foto}" class="w-16 h-16 rounded-full object-cover bg-gray-200 flex-shrink-0">
+            <div class="flex-1">
+                <h4 class="font-bold text-lg text-accent">${gestor.nome || 'N/A'}</h4>
+                <p class="text-sm text-gray-600 -mt-1 mb-2">${gestor.funcao || 'N/A'} (Filial: ${gestor.filial || 'N/A'})</p>
+                <div class="text-xs grid grid-cols-2 gap-1">
+                    <span><i data-feather="users" class="h-3 w-3 inline-block mr-1"></i>Total: <strong>${gestor.stats.total}</strong></span>
+                    <span><i data-feather="user-check" class="h-3 w-3 inline-block mr-1 text-green-600"></i>Ativos: <strong>${gestor.stats.ativos}</strong></span>
+                    <span><i data-feather="user-plus" class="h-3 w-3 inline-block mr-1 text-yellow-600"></i>Novatos: <strong>${gestor.stats.novatos}</strong></span>
+                    <span><i data-feather="user-x" class="h-3 w-3 inline-block mr-1 text-red-600"></i>Inativos: <strong>${gestor.stats.inativos}</strong></span>
+                </div>
+                <!-- O modal foi removido, então não precisa de botão -->
+            </div>
+        `;
+        container.appendChild(card);
+    });
+    
+    feather.replace();
+}
+
+
+/**
+ * (REMOVIDO) A função 'showGestorTimeModal' e 'renderModalTimeTable' 
+ * não são mais usadas, pois a nova view não o utiliza)
+ */
 
 
 // ====================================================================
