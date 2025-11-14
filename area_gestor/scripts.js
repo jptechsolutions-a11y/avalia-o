@@ -1021,45 +1021,76 @@ async function loadTransferViewData() {
         return;
     }
 
-    // 1. Popula colaboradores do time atual (Nível 1-5) FILTRADOS POR FILIAL
+    // 1. Popula colaboradores do time atual (Nível 1-5)
     selectColaborador.innerHTML = '<option value="">Selecione um colaborador...</option>';
-    
-    // CORREÇÃO: Filtrar colaboradores pela mesma lógica de filial
-    let colaboradoresFiltrados = state.meuTime;
-    
-    if (!state.isAdmin) {
-        // Aplica o mesmo filtro de filial usado em outras partes do sistema
-        if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            // REGRA 1: Filtra por 'permissoes_filiais' (array)
-            colaboradoresFiltrados = colaboradoresFiltrados.filter(c => 
-                c.filial && state.permissoes_filiais.includes(c.filial)
-            );
-            console.log(`[Transfer] Filtrando colaboradores por 'permissoes_filiais': ${state.permissoes_filiais.join(',')}`);
-        } else if (state.userFilial) {
-            // REGRA 2: Filtra por 'userFilial' (filial do gestor)
-            colaboradoresFiltrados = colaboradoresFiltrados.filter(c => 
-                c.filial === state.userFilial
-            );
-            console.log(`[Transfer] Filtrando colaboradores por 'userFilial': ${state.userFilial}`);
-        } else {
-            // REGRA 3: Se não tiver filial definida, mostra lista vazia
-            colaboradoresFiltrados = [];
-            console.warn("[Transfer] Gestor sem 'permissoes_filiais' ou 'userFilial'. Lista de colaboradores vazia.");
-        }
-    }
-    
-    colaboradoresFiltrados.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
-        selectColaborador.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula}) [${c.filial || 'S/F'}]</option>`;
+    state.meuTime.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(c => {
+        selectColaborador.innerHTML += `<option value="${c.matricula}">${c.nome} (${c.matricula})</option>`;
     });
-    
-    // Adiciona mensagem se não houver colaboradores disponíveis
-    if (colaboradoresFiltrados.length === 0) {
-        selectColaborador.innerHTML = '<option value="">Nenhum colaborador disponível na sua filial</option>';
-        selectGestor.disabled = true;
-        btnConfirm.disabled = true;
-        mostrarNotificacao('Nenhum colaborador disponível para transferência na sua filial.', 'info');
-        return; // Para a execução aqui
+
+    // 2. Popula gestores de destino
+    selectGestor.innerHTML = '<option value="">Carregando gestores...</option>';
+    selectGestor.disabled = true;
+    btnConfirm.disabled = true; 
+
+    try {
+        // Pega funções que podem ser gestor (do cache)
+        const funcoesGestor = state.gestorConfig
+            .filter(r => r.pode_ser_gestor)
+            // --- INÍCIO DA CORREÇÃO 2 ---
+            .filter(r => {
+                // CORREÇÃO 2: Mostrar apenas gestores DE MESMO NÍVEL
+                if (state.userNivel === null || state.userNivel === undefined) {
+                    // Admin (nível null) pode ver todos os outros gestores
+                    return true; 
+                }
+                // Compara nível da regra com nível do usuário
+                return r.nivel_hierarquia === state.userNivel; // <-- MUDANÇA APLICADA
+            })
+            // --- FIM DA CORREÇÃO 2 ---
+            .map(r => `"${r.funcao.toUpperCase()}"`); 
+        
+        if (funcoesGestor.length === 0) {
+            throw new Error("Nenhum gestor de nível hierárquico igual ao seu encontrado.");
+        }
+        
+        let queryParts = [
+            `funcao=in.(${funcoesGestor.join(',')})`, 
+            `matricula.neq.${state.userMatricula}`      
+        ];
+
+        // 2. Adiciona o filtro de FILIAL (se não for admin)
+        // (Esta lógica já estava correta para "mesma filial")
+        if (!state.isAdmin) {
+            if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+                const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
+                queryParts.push(filialFilter);
+            } else if (state.userFilial) {
+                 const filialFilter = `filial.eq.${state.userFilial}`;
+                 queryParts.push(filialFilter);
+            } else {
+                 queryParts.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
+            }
+        }
+        
+        const query = `colaboradores?select=nome,matricula,funcao,filial&${queryParts.join('&')}`;
+        const gestores = await supabaseRequest(query, 'GET');
+
+        if (!gestores || gestores.length === 0) {
+            throw new Error("Nenhum outro gestor (na sua filial e mesmo nível) encontrado.");
+        }
+
+        selectGestor.innerHTML = '<option value="">Selecione um gestor de destino...</option>';
+        gestores.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).forEach(g => {
+            selectGestor.innerHTML += `<option value="${g.matricula}">${g.nome} [${g.filial || 'S/F'}] (${g.funcao})</option>`;
+        });
+        selectGestor.disabled = false;
+
+    } catch (err) {
+        mostrarNotificacao(`Erro ao carregar gestores: ${err.message}`, 'error');
+        selectGestor.innerHTML = `<option value="">${err.message}</option>`;
     }
+}
+
 /**
  * Habilita o botão de confirmar transferência
  */
