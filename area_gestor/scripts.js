@@ -340,26 +340,33 @@ async function loadModuleData() {
         
         let filialFiltrada = false;
         
+        // #################### INÍCIO DO AJUSTE ####################
+        // O filtro foi trocado de 'in' para 'like' para corresponder
+        // a dados sujos como "[753]" em vez de "753".
+        
         if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            // REGRA 1: Usar 'permissoes_filiais' (array) se existir.
-            filters.push(`filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`);
-            console.log(`[Load Disponíveis] Aplicando filtro por 'permissoes_filiais': ${state.permissoes_filiais.join(',')}`);
+            // REGRA 1: Usa 'permissoes_filiais' (array) se existir.
+            // Gera múltiplos filtros 'like'
+            const orFilters = state.permissoes_filiais.map(f => `filial.like.%${f}%`).join(',');
+            filters.push(`or=(${orFilters})`);
+            console.log(`[Load Disponíveis] Aplicando filtro 'like' por 'permissoes_filiais': ${state.permissoes_filiais.join(',')}`);
             filialFiltrada = true;
+
         } else if (state.userFilial) {
             // REGRA 2: Usar 'userFilial' (filial do próprio gestor) se 'permissoes_filiais' estiver vazio.
-            filters.push(`filial.eq.${state.userFilial}`);
-            console.log(`[Load Disponíveis] Aplicando filtro por 'userFilial': ${state.userFilial}`);
+            // Também usa 'like'
+            filters.push(`filial.like.%${state.userFilial}%`);
+            console.log(`[Load Disponíveis] Aplicando filtro 'like' por 'userFilial': ${state.userFilial}`);
             filialFiltrada = true;
         }
+        // #################### FIM DO AJUSTE ####################
 
-        // #################### INÍCIO DO AJUSTE 1 ####################
         // REGRA 3: Tratar o "fallback"
         if (!filialFiltrada) {
             // AJUSTE: Se não tiver filial (admin ou não), não mostra NINGUÉM.
             console.warn("[Load Disponíveis] Usuário sem 'permissoes_filiais' ou 'userFilial'. Lista de disponíveis estará vazia.");
             filters.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
         }
-        // #################### FIM DO AJUSTE 1 ####################
 
 
         if (state.userMatricula) {
@@ -1061,11 +1068,13 @@ async function loadTransferViewData() {
 
         // #################### INÍCIO DO AJUSTE 3 (FILIAL) ####################
         // 2. Adiciona o filtro de FILIAL (AJUSTE: aplicado a TODOS, inclusive admin)
+        // E usa 'like' em vez de 'in' ou 'eq'
         if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            const filialFilter = `filial.in.(${state.permissoes_filiais.map(f => `"${f}"`).join(',')})`;
-            queryParts.push(filialFilter);
+            const orFilters = state.permissoes_filiais.map(f => `filial.like.%${f}%`).join(',');
+            queryParts.push(`or=(${orFilters})`);
+
         } else if (state.userFilial) {
-             const filialFilter = `filial.eq.${state.userFilial}`;
+             const filialFilter = `filial.like.%${state.userFilial}%`;
              queryParts.push(filialFilter);
         } else {
              // Se não tem filial (admin ou não), não pode transferir
