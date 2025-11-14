@@ -1060,7 +1060,6 @@ async function loadTransferViewData() {
         mostrarNotificacao('Nenhum colaborador disponível para transferência na sua filial.', 'info');
         return; // Para a execução aqui
     }
-
 /**
  * Habilita o botão de confirmar transferência
  */
