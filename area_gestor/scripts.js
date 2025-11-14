@@ -275,8 +275,8 @@ async function loadModuleData() {
             supabaseRequest('colaboradores?select=matricula,nome', 'GET'), // Pega TODOS os nomes para o mapa
             supabaseRequest('usuarios?select=matricula,profile_picture_url', 'GET'), // NOVO: Pega fotos de perfil
             
-            // ATUALIZAÇÃO: Adiciona aspas nas colunas com maiúsculas/espaços
-            supabaseRequest('banco_horas_data?select="CHAPA","Total Geral","VAL_PGTO_BHS"', 'GET') // NOVO: Pega banco de horas
+            // ATUALIZAÇÃO: Corrigido o nome da coluna de "Total Geral" para "TOTAL_EM_HORA"
+            supabaseRequest('banco_horas_data?select="CHAPA","TOTAL_EM_HORA","VAL_PGTO_BHS"', 'GET') // NOVO: Pega banco de horas
         ]);
 
         // Processa Config
@@ -323,7 +323,7 @@ async function loadModuleData() {
                 if (item.CHAPA) { 
                     const normalizedChapa = String(item.CHAPA).trim(); // CORREÇÃO: Normaliza a chave
                     acc[normalizedChapa] = { 
-                        horas: item['Total Geral'] || '0,00',
+                        horas: item['TOTAL_EM_HORA'] || '0,00', // CORRIGIDO
                         valor: item['VAL_PGTO_BHS'] || 'R$ 0,00'
                     };
                 }
