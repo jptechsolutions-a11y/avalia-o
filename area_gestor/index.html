@@ -81,138 +81,6 @@
             width: 100%;
             padding: 0.75rem;
         }
-
-        /* --- NOVOS ESTILOS PARA O ORGANOGRAMA --- */
-        .org-chart-container {
-            display: flex;
-            flex-direction: column; /* Organiza os nós verticalmente */
-            align-items: center; /* Centraliza os nós */
-            padding: 2rem 0;
-            gap: 0; /* Remove o gap do grid, o conector cuidará do espaço */
-        }
-
-        .org-chart-node {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 1.5rem;
-            width: 320px; /* Largura fixa para os cards */
-            text-align: center;
-            position: relative; /* Para o conector */
-            transition: all 0.3s ease;
-        }
-        
-        /* Destaca o nó do usuário atual */
-        .org-chart-node.current-user-node {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(0, 119, 182, 0.2), 0 4px 10px rgba(0,0,0,0.1);
-        }
-
-        .org-node-foto {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 3px solid white;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            margin-top: -3.5rem; /* Puxa a foto para cima, sobrepondo o topo */
-            background-color: #f3f4f6;
-        }
-        
-        .org-chart-node.current-user-node .org-node-foto {
-             border-color: var(--accent);
-        }
-
-        .org-node-info {
-            margin-top: 1rem;
-        }
-
-        .org-node-nome {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--dark);
-        }
-
-        .org-node-funcao {
-            font-size: 0.9rem;
-            font-weight: 500;
-            color: var(--accent);
-            margin-bottom: 1rem;
-        }
-        
-        /* Estilo para os Resumos (Stats) */
-        .org-node-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.75rem 1rem;
-            width: 100%;
-            border-top: 1px solid #e5e7eb;
-            padding-top: 1rem;
-            margin-top: 1rem;
-        }
-
-        .org-node-stats div {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.9rem;
-            color: #4b5563;
-        }
-        
-        .org-node-stats div span {
-             font-weight: 600;
-             color: var(--dark);
-             margin-left: 0.5rem;
-        }
-        
-        .org-node-stats div .feather {
-             flex-shrink: 0;
-        }
-
-        /* Conector Vertical */
-        .org-chart-connector {
-            width: 2px;
-            height: 2.5rem; /* Espaçamento entre os cards */
-            background-color: #cbd5e1;
-        }
-        
-        /* --- NOVOS ESTILOS PARA A ÁRVORE DE SUBORDINADOS --- */
-        
-        /* O container principal da árvore de subordinados */
-        .org-sub-tree-container {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem; /* Espaço entre os gestores N-1 */
-            width: 100%;
-        }
-
-        /* Um nó individual (card + container de filhos) */
-        .org-sub-node {
-            width: 100%;
-        }
-        
-        /* O card em si (reutiliza o estilo do organograma superior) */
-        .org-sub-node .org-chart-node {
-            width: 100%; /* Ocupa a largura disponível na indentação */
-            max-width: 450px; /* Limita a largura dos cards */
-            margin-left: 0; /* Começa alinhado à esquerda */
-        }
-        
-        /* O container para os filhos de um nó */
-        .org-sub-children {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem; /* Espaço entre os filhos */
-            margin-top: 1.5rem;
-            margin-left: 2rem; /* Indentação para a hierarquia */
-            padding-left: 1.5rem; /* Espaço da linha conectora */
-            border-left: 2px solid #cbd5e1; /* Linha conectora vertical */
-        }
-        
     </style>
 </head>
 <body class="bg-gray-100">
@@ -225,7 +93,7 @@
                 <button id="sidebarToggle" class="btn-icon">
                     <i data-feather="menu" class="h-5 w-5"></i>
                 </button>
-                <img src="../icon.png" class="h-8 w-auto" alt="Logo G&G">
+                <img src="../icon.png" class="h-8 w-auto" alt="Logo G&G"> <!-- ATUALIZADO: Caminho do ícone -->
                 <div class="separator"></div>
                 <div class="flex flex-col">
                     <span class="text-sm font-semibold text-white" id="topBarProjectName">Sistema G&G</span>
@@ -249,7 +117,7 @@
                             <span class="block text-sm font-medium text-white" id="dropdownUserName">...</span>
                             <span class="block text-xs text-gray-400" id="dropdownUserEmail">...</span>
                         </div>
-                        <a href="../home.html" class="dropdown-item">
+                        <a href="../home.html" class="dropdown-item"> <!-- ATUALIZADO: Caminho do link -->
                             <i data-feather="home" class="h-4 w-4 mr-2"></i> Voltar (Home G&G)
                         </a>
                         <div class="border-t border-gray-600">
@@ -268,12 +136,19 @@
             <!-- Sidebar (Copiado do banco_horas.html e adaptado) -->
             <aside class="sidebar collapsed">
                 <nav class="p-2 pt-4">
+                    <!-- Label do Gestor (Nome + Chapa) -->
+                    <!-- REMOVIDO CONFORME SOLICITAÇÃO
+                    <div class="px-3 py-2 mb-2 text-center">
+                        <span class="text-xs text-gray-400 block" id="gestorNameLabel">Carregando gestor...</span>
+                    </div>
+                    -->
+
                     <a href="#meuTime" class="nav-item active" title="Meu Time">
                         <i data-feather="users" class="h-5 w-5 mr-3"></i> <span class="nav-text">Meu Time</span>
                     </a>
-                    <!-- ATUALIZADO: Trocado o ícone para 'trending-up' -->
-                    <a href="#meusGestores" id="meusGestoresLink" class="nav-item" title="Meu Organograma" style="display: none;">
-                        <i data-feather="trending-up" class="h-5 w-5 mr-3"></i> <span class="nav-text">Meu Organograma</span>
+                    <!-- NOVO ITEM DE MENU (GERENCIADO VIA JS) -->
+                    <a href="#meusGestores" id="meusGestoresLink" class="nav-item" title="Meus Gestores" style="display: none;">
+                        <i data-feather="briefcase" class="h-5 w-5 mr-3"></i> <span class="nav-text">Meus Gestores</span>
                     </a>
                     <a href="#adicionarTime" class="nav-item" title="Adicionar ao Time">
                         <i data-feather="user-plus" class="h-5 w-5 mr-3"></i> <span class="nav-text">Adicionar ao Time</span>
@@ -317,8 +192,9 @@
                             </div>
                         </div>
 
-                        <!-- Cards de estatísticas -->
-                        <div class="stats-grid">
+                        <!-- ***** INÍCIO DA ATUALIZAÇÃO ***** -->
+                        <!-- Grid de estatísticas atualizado para 5 colunas (ou wrap) -->
+                        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                             <div class="stat-card-dash flex items-start gap-4">
                                 <div class="p-3 rounded-lg bg-blue-100 text-blue-600">
                                     <i data-feather="users" class="h-6 w-6"></i>
@@ -353,6 +229,16 @@
                                 <div class="flex-1">
                                     <div class="stat-number" id="statNovatos">0</div>
                                     <div class="stat-label">Novatos</div>
+                                </div>
+                            </div>
+                            <!-- NOVO CARD: Total Banco de Horas -->
+                            <div class="stat-card-dash flex items-start gap-4">
+                                <div class="p-3 rounded-lg bg-cyan-100 text-cyan-600">
+                                    <i data-feather="clock" class="h-6 w-6"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="stat-number" id="statTotalBancoHoras">0,00</div>
+                                    <div class="stat-label">Total Horas (Time)</div>
                                 </div>
                             </div>
                         </div>
@@ -397,7 +283,8 @@
                                         <tr>
                                             <th>Nome</th>
                                             <th>Chapa</th>
-                                            <th>Gestor Imediato</th>
+                                            <!-- ATUALIZADO: Coluna Gestor removida e Banco de Horas adicionada -->
+                                            <th style="text-align: center;">Banco de Horas</th>
                                             <th>Função</th>
                                             <th>Seção</th>
                                             <th>Filial</th>
@@ -412,29 +299,19 @@
                             </div>
                             <p id="tableMessageMeuTime" class="hidden text-center py-10 text-gray-500">Carregando...</p>
                         </div>
+                        <!-- ***** FIM DA ATUALIZAÇÃO ***** -->
                         
                     </div>
 
-                    <!-- VIEW ATUALIZADA: Meus Gestores (Organograma) -->
+                    <!-- NOVA VIEW: Meus Gestores (Nível 2+) -->
                     <div id="meusGestoresView" class="view-content">
-                        <!-- ATUALIZADO: Título e ícone -->
-                        <h1><i data-feather="trending-up" class="h-7 w-7 text-accent"></i> Meu Organograma</h1>
-                        <p class="text-gray-600 mb-6 -mt-4">Visualize sua hierarquia de gestão e o resumo de cada time.</p>
+                        <h1><i data-feather="briefcase" class="h-7 w-7 text-accent"></i> Meus Gestores</h1>
+                        <p class="text-gray-600 mb-6 -mt-4">Visualize o resumo dos times dos gestores que respondem a você.</p>
                         
-                        <!-- Container para o Organograma SUPERIOR (Vertical) -->
-                        <div id="gestoresSuperioresContainer">
-                            <p class="text-gray-500 col-span-full text-center py-10">Carregando organograma superior...</p>
-                        </div>
-
-                        <!-- Título para a seção de subordinados -->
-                        <h2 id="gestoresSubordinadosTitle" class="text-2xl font-bold text-gray-800 mt-12 mb-6 pb-3 border-b border-gray-300" style="display: none;">
-                            <i data-feather="users" class="h-6 w-6 inline-block mr-2 text-accent"></i>
-                            Gestores Subordinados (Hierarquia Completa)
-                        </h2>
-                        
-                        <!-- Container para os Cards SUBORDINADOS (Grid) -->
-                        <div id="gestoresSubordinadosContainer">
-                            <!-- A árvore de subordinados será injetada aqui -->
+                        <!-- Container para os Cards dos Gestores -->
+                        <div id="gestoresCardsContainer" class="stats-grid">
+                            <!-- Cards serão injetados aqui pelo JS -->
+                            <p class="text-gray-500 col-span-full text-center py-10">Carregando gestores...</p>
                         </div>
                     </div>
 
@@ -548,7 +425,7 @@
                                         <tr>
                                             <th>Função</th>
                                             <th>Pode ser Gestor?</th>
-                                            <th>Nível HierárquGico</th>
+                                            <th>Nível Hierárquico</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
@@ -624,7 +501,33 @@
         <p id="loadingText">Processando...</p>
     </div>
 
-    <!-- (Modal Detalhe Time do Gestor foi removido, pois a nova view não o utiliza) -->
+    <!-- Modal Detalhe Time do Gestor (NOVO) -->
+    <div id="gestorTimeModal" class="modal" style="align-items: flex-start; padding-top: 5vh; display: none;">
+        <div class="modal-content" style="width: 1000px; max-width: 95vw;">
+            <span class="modal-close" onclick="closeGestorTimeModal()">&times;</span>
+            <h3 id="modalGestorTitle">Time de...</h3>
+            <div id="modalGestorTableContainer" class="table-container mt-6">
+                <table class="tabela">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Chapa</th>
+                            <th>Gestor Imediato</th>
+                            <!-- ATUALIZADO: Coluna Banco de Horas -->
+                            <th style="text-align: center;">Banco de Horas</th>
+                            <th>Função</th>
+                            <th>Seção</th>
+                            <th>Filial</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalGestorTableBody">
+                        <!-- Conteúdo injetado via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <!-- JS DO SISTEMA -->
     <script src="scripts.js"></script>
