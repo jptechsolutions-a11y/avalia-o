@@ -333,48 +333,53 @@ async function loadModuleData() {
 
         // --- ETAPA 3: Carregar Disponíveis (em paralelo com o time) ---
         let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; 
-        let filters = []; 
         
-        // **RE-CORREÇÃO DA LÓGICA DE FILIAL (JP)**
-        // A lógica de filtro de filial deve priorizar 'permissoes_filiais'
-        
-        let filialFiltrada = false;
-        
-        // #################### INÍCIO DO AJUSTE ####################
-        // O filtro foi trocado de 'in' para 'like' para corresponder
-        // a dados sujos como "[753]" em vez de "753".
+        // #################### INÍCIO DO AJUSTE (BUG 500) ####################
+        let filterParts = []; // Todos os filtros irão aqui
+        let filialFilterPart = null; // O filtro de filial
         
         if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            // REGRA 1: Usa 'permissoes_filiais' (array) se existir.
-            // Gera múltiplos filtros 'like'
-            const orFilters = state.permissoes_filiais.map(f => `filial.like.%${f}%`).join(',');
-            filters.push(`or=(${orFilters})`);
+            if (state.permissoes_filiais.length === 1) {
+                // Caso 1: Apenas UMA filial (ex: 753)
+                filialFilterPart = `filial.like.%${state.permissoes_filiais[0]}%`;
+            } else {
+                // Caso 2: Múltiplas filiais (ex: 753, 743)
+                // Sintaxe: or(filial.like.%753%,filial.like.%743%)
+                filialFilterPart = `or(${state.permissoes_filiais.map(f => `filial.like.%${f}%`).join(',')})`;
+            }
             console.log(`[Load Disponíveis] Aplicando filtro 'like' por 'permissoes_filiais': ${state.permissoes_filiais.join(',')}`);
-            filialFiltrada = true;
 
         } else if (state.userFilial) {
-            // REGRA 2: Usar 'userFilial' (filial do próprio gestor) se 'permissoes_filiais' estiver vazio.
-            // Também usa 'like'
-            filters.push(`filial.like.%${state.userFilial}%`);
+            // Caso 3: Fallback para a filial do usuário
+            filialFilterPart = `filial.like.%${state.userFilial}%`;
             console.log(`[Load Disponíveis] Aplicando filtro 'like' por 'userFilial': ${state.userFilial}`);
-            filialFiltrada = true;
-        }
-        // #################### FIM DO AJUSTE ####################
-
-        // REGRA 3: Tratar o "fallback"
-        if (!filialFiltrada) {
-            // AJUSTE: Se não tiver filial (admin ou não), não mostra NINGUÉM.
+        
+        } else {
+            // Caso 4: Sem filial (Admin ou erro)
+            filialFilterPart = 'filial.eq.IMPOSSIVEL_FILIAL_FILTER';
             console.warn("[Load Disponíveis] Usuário sem 'permissoes_filiais' ou 'userFilial'. Lista de disponíveis estará vazia.");
-            filters.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
         }
+        
+        // Adiciona o filtro de filial
+        filterParts.push(filialFilterPart);
 
-
+        // Adiciona o filtro de matrícula
         if (state.userMatricula) {
-            filters.push(`matricula.neq.${state.userMatricula}`); 
+            filterParts.push(`matricula.neq.${state.userMatricula}`); 
         }
-        if (filters.length > 0) {
-            disponiveisQuery += `&${filters.join('&')}`;
+
+        // Combina TUDO com 'and=()'
+        if (filterParts.length > 0) {
+            // Se tiver múltiplos filtros, usa and=()
+            if (filterParts.length > 1) {
+                 disponiveisQuery += `&and=(${filterParts.join(',')})`;
+            } else {
+                 // Se for só um filtro, não precisa do 'and'
+                 disponiveisQuery += `&${filterParts[0]}`;
+            }
         }
+        // #################### FIM DO AJUSTE (BUG 500) ####################
+        
         const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
 
         
@@ -1044,45 +1049,44 @@ async function loadTransferViewData() {
         // Pega funções que podem ser gestor (do cache)
         const funcoesGestor = state.gestorConfig
             .filter(r => r.pode_ser_gestor)
-            // #################### INÍCIO DO AJUSTE 2 (NÍVEL) ####################
             .filter(r => {
                 // AJUSTE: Força todos (incluindo admins) a só verem o mesmo nível
                 if (state.userNivel === null || state.userNivel === undefined) {
-                    // Admin (ou usuário sem nível) não pode ver outros gestores.
                     return false; 
                 }
-                // Compara nível da regra com nível do usuário
                 return r.nivel_hierarquia === state.userNivel;
             })
-            // #################### FIM DO AJUSTE 2 (NÍVEL) ######################
             .map(r => `"${r.funcao.toUpperCase()}"`); 
         
         if (funcoesGestor.length === 0) {
             throw new Error("Nenhum gestor de nível hierárquico igual ao seu encontrado.");
         }
         
+        // #################### INÍCIO DO AJUSTE (BUG 500) ####################
         let queryParts = [
             `funcao=in.(${funcoesGestor.join(',')})`, 
             `matricula.neq.${state.userMatricula}`      
         ];
 
-        // #################### INÍCIO DO AJUSTE 3 (FILIAL) ####################
-        // 2. Adiciona o filtro de FILIAL (AJUSTE: aplicado a TODOS, inclusive admin)
-        // E usa 'like' em vez de 'in' ou 'eq'
+        // 2. Adiciona o filtro de FILIAL (com 'like' e 'or')
+        let filialFilterPart = null;
         if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            const orFilters = state.permissoes_filiais.map(f => `filial.like.%${f}%`).join(',');
-            queryParts.push(`or=(${orFilters})`);
-
+            if (state.permissoes_filiais.length === 1) {
+                filialFilterPart = `filial.like.%${state.permissoes_filiais[0]}%`;
+            } else {
+                filialFilterPart = `or(${state.permissoes_filiais.map(f => `filial.like.%${f}%`).join(',')})`;
+            }
         } else if (state.userFilial) {
-             const filialFilter = `filial.like.%${state.userFilial}%`;
-             queryParts.push(filialFilter);
+             filialFilterPart = `filial.like.%${state.userFilial}%`;
         } else {
-             // Se não tem filial (admin ou não), não pode transferir
-             queryParts.push('filial.eq.IMPOSSIVEL_FILIAL_FILTER');
+             filialFilterPart = 'filial.eq.IMPOSSIVEL_FILIAL_FILTER';
         }
-        // #################### FIM DO AJUSTE 3 (FILIAL) ######################
+        queryParts.push(filialFilterPart);
+
+        // 3. Combina TUDO com 'and=()'
+        const query = `colaboradores?select=nome,matricula,funcao,filial&and=(${queryParts.join(',')})`;
+        // #################### FIM DO AJUSTE (BUG 500) ######################
         
-        const query = `colaboradores?select=nome,matricula,funcao,filial&${queryParts.join('&')}`;
         const gestores = await supabaseRequest(query, 'GET');
 
         if (!gestores || gestores.length === 0) {
