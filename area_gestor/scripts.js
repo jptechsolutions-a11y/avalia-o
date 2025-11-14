@@ -274,7 +274,9 @@ async function loadModuleData() {
             supabaseRequest('colaboradores?select=funcao', 'GET'),
             supabaseRequest('colaboradores?select=matricula,nome', 'GET'), // Pega TODOS os nomes para o mapa
             supabaseRequest('usuarios?select=matricula,profile_picture_url', 'GET'), // NOVO: Pega fotos de perfil
-            supabaseRequest('banco_horas_data?select=CHAPA,Total Geral,VAL_PGTO_BHS', 'GET') // NOVO: Pega banco de horas
+            
+            // ATUALIZAÇÃO: Adiciona aspas nas colunas com maiúsculas/espaços
+            supabaseRequest('banco_horas_data?select="CHAPA","Total Geral","VAL_PGTO_BHS"', 'GET') // NOVO: Pega banco de horas
         ]);
 
         // Processa Config
@@ -317,6 +319,7 @@ async function loadModuleData() {
             console.log(`[Load] Banco de Horas data received: ${bancoHorasRes.value.length} records.`); // DEBUG
             state.bancoHorasMap = bancoHorasRes.value.reduce((acc, item) => {
                 // A tabela banco_horas usa CHAPA (string)
+                // ATUALIZAÇÃO: Acessa as colunas com os nomes exatos (maiúsculas/espaços)
                 if (item.CHAPA) { 
                     const normalizedChapa = String(item.CHAPA).trim(); // CORREÇÃO: Normaliza a chave
                     acc[normalizedChapa] = { 
