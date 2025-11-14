@@ -388,10 +388,20 @@
                         <h1><i data-feather="trending-up" class="h-7 w-7 text-accent"></i> Meu Organograma</h1>
                         <p class="text-gray-600 mb-6 -mt-4">Visualize sua hierarquia de gestão e o resumo de cada time.</p>
                         
-                        <!-- Container para os Cards (agora será o organograma) -->
-                        <!-- A classe 'org-chart-container' será adicionada pelo JS -->
-                        <div id="gestoresCardsContainer">
-                            <p class="text-gray-500 col-span-full text-center py-10">Carregando organograma...</p>
+                        <!-- Container para o Organograma SUPERIOR (Vertical) -->
+                        <div id="gestoresSuperioresContainer">
+                            <p class="text-gray-500 col-span-full text-center py-10">Carregando organograma superior...</p>
+                        </div>
+
+                        <!-- Título para a seção de subordinados -->
+                        <h2 id="gestoresSubordinadosTitle" class="text-2xl font-bold text-gray-800 mt-12 mb-6 pb-3 border-b border-gray-300" style="display: none;">
+                            <i data-feather="users" class="h-6 w-6 inline-block mr-2 text-accent"></i>
+                            Gestores Subordinados
+                        </h2>
+                        
+                        <!-- Container para os Cards SUBORDINADOS (Grid) -->
+                        <div id="gestoresSubordinadosContainer">
+                            <!-- Cards dos subordinados (em grid) serão injetados aqui -->
                         </div>
                     </div>
 
