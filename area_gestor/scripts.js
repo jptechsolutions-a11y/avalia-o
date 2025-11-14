@@ -30,7 +30,11 @@ const state = {
     todasAsFuncoes: [],
     todosUsuarios: [], // Cache para fotos de perfil
     mapaFotos: {}, // Mapa de matricula -> foto
-    subordinadosComTimes: [] // Cache para a nova view
+    
+    // --- NOVOS ESTADOS PARA ORGANOGRAMA ---
+    userColaboradorProfile: null, // Perfil completo do usuário logado (da tab colaboradores)
+    hierarquiaSuperior: [],     // Array [GestorN1, GestorN2, ...]
+    // --- FIM DOS NOVOS ESTADOS ---
 };
 
 // --- Funções de UI (Idênticas aos outros módulos) ---
@@ -114,6 +118,7 @@ function showView(viewId, element) {
                 applyFilters(); // Renderiza a tabela inicial
                 break;
             case 'meusGestoresView':
+                // AGORA CHAMA A FUNÇÃO DE RENDERIZAÇÃO DO ORGANOGRAMA
                 loadMeusGestoresView();
                 break;
             case 'transferirView':
@@ -211,9 +216,7 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 // --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
 
 /**
- * ** CORREÇÃO (JP): **
- * A função agora constrói a query dinamicamente com base no nível do gestor,
- * conforme solicitado.
+ * Busca todos os colaboradores abaixo de um gestor, em cascata N1-N5.
  */
 async function loadAllTeamMembers(gestorChapa, nivelGestor) {
     const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
@@ -226,12 +229,10 @@ async function loadAllTeamMembers(gestorChapa, nivelGestor) {
     
     // Se o nível não for definido (ou for admin), busca em todas as 5 colunas
     if (nivelGestor === null || nivelGestor === undefined || nivelGestor > 5) {
-        console.log(`[Load] Nível não definido ou admin. Buscando em todas as ${colunasGestor.length} colunas.`);
         orConditions = colunasGestor.map(col => `${col}.eq.${chapaStr}`);
     } else {
         // Nível 1 busca 1 coluna, Nível 2 busca 2 colunas, etc.
         const niveisParaBuscar = Math.max(1, nivelGestor); // Garante pelo menos N1
-        console.log(`[Load] Gestor Nível ${nivelGestor}. Buscando nas ${niveisParaBuscar} primeiras colunas.`);
         orConditions = colunasGestor.slice(0, niveisParaBuscar).map(col => `${col}.eq.${chapaStr}`);
     }
 
@@ -241,7 +242,6 @@ async function loadAllTeamMembers(gestorChapa, nivelGestor) {
     }
 
     const query = `colaboradores?select=${columns}&or=(${orConditions.join(',')})`;
-    console.log(`[Load] Query: ${query}`);
     
     const team = await supabaseRequest(query, 'GET');
     
@@ -250,12 +250,8 @@ async function loadAllTeamMembers(gestorChapa, nivelGestor) {
 
 
 /**
- * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
- * Chamado uma vez during a inicialização.
- */
-/**
- * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
- * Chamado uma vez during a inicialização.
+* Carrega os dados essenciais do módulo (config, time, disponíveis, funções e hierarquia superior)
+ * Chamado uma vez durante a inicialização.
  */
 async function loadModuleData() {
     // Se não tiver matrícula, não pode ser gestor, pula o carregamento
@@ -267,16 +263,14 @@ async function loadModuleData() {
     showLoading(true, 'Carregando dados do time...');
     
     try {
-        // --- ETAPA 1: Carregar Configs, Nomes de Gestores, e Funções (em paralelo) ---
-        const [configRes, funcoesRes, gestorMapRes, usuariosRes] = await Promise.allSettled([
+        // --- ETAPA 1: Carregar Configs, Funções, e Fotos de Perfil (em paralelo) ---
+        const [configRes, funcoesRes, usuariosRes] = await Promise.allSettled([
             supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
             supabaseRequest('colaboradores?select=funcao', 'GET'),
-            supabaseRequest('colaboradores?select=matricula,nome', 'GET'), // Pega TODOS os nomes para o mapa
-            supabaseRequest('usuarios?select=matricula,profile_picture_url', 'GET') // NOVO: Pega fotos de perfil
+            supabaseRequest('usuarios?select=matricula,profile_picture_url', 'GET') // Pega fotos de perfil
         ]);
 
         // Processa Config
-    // Processa Config
         if (configRes.status === 'fulfilled' && configRes.value) {
             state.gestorConfig = configRes.value;
         } else {
@@ -290,15 +284,6 @@ async function loadModuleData() {
         } else {
             console.error("Erro ao carregar funções:", funcoesRes.reason);
         }
-        
-        // Processa Nomes de Gestores
-        const gestorMap = (gestorMapRes.status === 'fulfilled' && gestorMapRes.value) 
-            ? gestorMapRes.value.reduce((acc, c) => { acc[c.matricula] = c.nome; return acc; }, {}) 
-            : {};
-        // Adiciona o próprio usuário ao mapa
-        if (state.userMatricula && !gestorMap[state.userMatricula]) {
-            gestorMap[state.userMatricula] = state.userNome;
-        }
 
         // Processa Fotos de Perfil
         if (usuariosRes.status === 'fulfilled' && usuariosRes.value) {
@@ -311,9 +296,7 @@ async function loadModuleData() {
             console.error("Erro ao carregar fotos de perfil:", usuariosRes.reason);
         }
 
-        // --- *** NOVA ETAPA (MOVILDA) *** ---
-    // --- ETAPA 1.5: Definir o Nível do Gestor AGORA ---
-        // (Isso foi movido de 'initializeApp' para cá, para que 'loadAllTeamMembers' possa usar)
+        // --- ETAPA 2: Definir o Nível do Gestor LOGADO ---
         if (state.userFuncao && state.gestorConfig.length > 0) {
             const gestorRegra = state.gestorConfig.find(r => r.funcao.toUpperCase() === state.userFuncao.toUpperCase());
             if (gestorRegra) {
@@ -321,97 +304,36 @@ async function loadModuleData() {
             }
         }
         console.log(`[Load] Gestor: ${state.userNome}, Funcao: ${state.userFuncao}, Nivel: ${state.userNivel}`);
-        // --- *** FIM DA NOVA ETAPA *** ---
 
 
-        // --- ETAPA 2: Preparar Mapas de Configuração ---
+        // --- ETAPA 3: Carregar Time (Hierarquia *Abaixo*) ---
+        let timeRes = [];
+        if (state.isAdmin) {
+            console.log("[Load] Admin detectado. Carregando TODOS os colaboradores...");
+            const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
+            timeRes = await supabaseRequest(`colaboradores?select=${columns}`, 'GET');
+        } else if (state.userMatricula) {
+            console.log(`[Load] 1. Buscando time hierárquico (Nível ${state.userNivel || 'N/A'}) de ${state.userMatricula}...`);
+            timeRes = await loadAllTeamMembers(state.userMatricula, state.userNivel);
+        }
+
+        if (!timeRes) timeRes = [];
+        console.log(`[Load] ...encontrados ${timeRes.length} colaboradores (time abaixo).`);
+        
+        // --- ETAPA 4: Processar o Time (Adicionar Nível e Nome do Gestor) ---
         // Mapa 1: (Função -> Nível)
         const configMapNivel = state.gestorConfig.reduce((acc, regra) => {
             acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia; 
             return acc;
         }, {});
-        
-        // REMOVIDO: O configMapGestor não é mais necessário
-        // const configMapGestor = ...
 
-
-        // --- ETAPA 3: Carregar Disponíveis (em paralelo com o time) ---
-        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; 
-        
-        // #################### INÍCIO DA CORREÇÃO (BUG 500) ####################
-        // Troca de 'like' para 'eq' (igualdade exata)
-        // ####################
-        
-        let filterParts = []; // Todos os filtros irão aqui
-        let filialFilterPart = null; // O filtro de filial
-        
-        if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-            if (state.permissoes_filiais.length === 1) {
-                // Caso 1: Apenas UMA filial (ex: 753)
-                // ANTES: filial.like.%...%
-                filialFilterPart = `filial.eq.${state.permissoes_filiais[0]}`; // CORRIGIDO
-            } else {
-                // Caso 2: Múltiplas filiais (ex: 753, 743)
-                // ANTES: or(filial.like...)
-                filialFilterPart = `or(${state.permissoes_filiais.map(f => `filial.eq.${f}`).join(',')})`; // CORRIGIDO
-            }
-            console.log(`[Load Disponíveis] Aplicando filtro 'eq' por 'permissoes_filiais': ${state.permissoes_filiais.join(',')}`);
-
-        } else if (state.userFilial) {
-            // Caso 3: Fallback para a filial do usuário
-            // ANTES: filial.like.%...%
-            filialFilterPart = `filial.eq.${state.userFilial}`; // CORRIGIDO
-            console.log(`[Load Disponíveis] Aplicando filtro 'eq' por 'userFilial': ${state.userFilial}`);
-        
-        } else {
-            // Caso 4: Sem filial (Admin ou erro)
-            filialFilterPart = 'filial.eq.IMPOSSIVEL_FILIAL_FILTER'; // [D]
-            console.warn("[Load Disponíveis] Usuário sem 'permissoes_filiais' ou 'userFilial'. Lista de disponíveis estará vazia.");
-        }
-        
-        // Adiciona o filtro de filial
-        filterParts.push(filialFilterPart); // [E]
-
-        // Adiciona o filtro de matrícula
-        if (state.userMatricula) {
-            filterParts.push(`matricula.neq.${state.userMatricula}`); // [F]
+        // Mapa 2: (Matricula -> Nome) - Apenas do time carregado
+        const gestorMap = timeRes.reduce((acc, c) => { acc[c.matricula] = c.nome; return acc; }, {});
+        // Adiciona o próprio usuário ao mapa
+        if (state.userMatricula && !gestorMap[state.userMatricula]) {
+            gestorMap[state.userMatricula] = state.userNome;
         }
 
-        // Combina TUDO com 'and=()'
-        if (filterParts.length > 0) {
-            // Se tiver múltiplos filtros, usa and=()
-            if (filterParts.length > 1) { // [G]
-                 disponiveisQuery += `&and=(${filterParts.join(',')})`;
-            } else {
-                 // Se for só um filtro, não precisa do 'and'
-                 disponiveisQuery += `&${filterParts[0]}`; // [H]
-            }
-        }
-        
-        // #################### FIM DA CORREÇÃO (BUG 500) ####################
-        
-        console.log(`[Load Disponíveis] Query final: ${disponiveisQuery}`);
-        const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
-
-        
-        // --- ETAPA 4: Carregar Time (COM A NOVA FUNÇÃO DINÂMICA) ---
-        let timeRes = [];
-        if (state.isAdmin) {
-            console.log("[Load] Admin detectado. Carregando TODOS os colaboradores...");
-            // OTIMIZAÇÃO: Admin também não precisa de todas as colunas
-            const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
-            timeRes = await supabaseRequest(`colaboradores?select=${columns}`, 'GET');
-        } else {
-            // **AQUI ESTÁ A MUDANÇA (JP) **
-            console.log(`[Load] 1. Buscando time hierárquico (Nível ${state.userNivel || 'N/A'}) de ${state.userMatricula}...`);
-            // Passa o nível do usuário para a função de busca
-            timeRes = await loadAllTeamMembers(state.userMatricula, state.userNivel);
-        }
-
-        if (!timeRes) timeRes = [];
-        console.log(`[Load] ...encontrados ${timeRes.length} colaboradores.`);
-
-        // --- ETAPA 5: Processar o Time (Adicionar Nível e Nome do Gestor) ---
         state.meuTime = timeRes.map(c => {
             const nivel_hierarquico = configMapNivel[c.funcao?.toLowerCase()] || null;
             const gestor_imediato_nome = gestorMap[c.gestor_chapa] || 'N/A';
@@ -423,13 +345,73 @@ async function loadModuleData() {
             };
         });
 
-        // --- ETAPA 6: Finalizar "Disponíveis" ---
-        const disponiveisRes = await Promise.allSettled([disponiveisPromise]);
-        if (disponiveisRes[0].status === 'fulfilled' && disponiveisRes[0].value) {
-            state.disponiveis = disponiveisRes[0].value;
+        // --- ETAPA 5: Carregar "Disponíveis" (para Adicionar/Transferir) ---
+        let disponiveisQuery = 'colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,status'; 
+        let filterParts = [];
+        let filialFilterPart = null;
+        
+        if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            if (state.permissoes_filiais.length === 1) {
+                filialFilterPart = `filial.eq.${state.permissoes_filiais[0]}`;
+            } else {
+                filialFilterPart = `or(${state.permissoes_filiais.map(f => `filial.eq.${f}`).join(',')})`;
+            }
+        } else if (state.userFilial) {
+            filialFilterPart = `filial.eq.${state.userFilial}`;
+        } else {
+            filialFilterPart = 'filial.eq.IMPOSSIVEL_FILIAL_FILTER';
+        }
+        
+        filterParts.push(filialFilterPart);
+
+        if (state.userMatricula) {
+            filterParts.push(`matricula.neq.${state.userMatricula}`);
+        }
+
+        if (filterParts.length > 0) {
+            if (filterParts.length > 1) {
+                 disponiveisQuery += `&and=(${filterParts.join(',')})`;
+            } else {
+                 disponiveisQuery += `&${filterParts[0]}`;
+            }
+        }
+        
+        const disponiveisPromise = supabaseRequest(disponiveisQuery, 'GET');
+        
+        // --- ETAPA 6: Carregar Hierarquia *Superior* (Para Organograma) ---
+        const superiorMatriculas = [
+            state.userColaboradorProfile?.gestor_chapa,
+            state.userColaboradorProfile?.gestor_n2_chapa,
+            state.userColaboradorProfile?.gestor_n3_chapa,
+            state.userColaboradorProfile?.gestor_n4_chapa,
+            state.userColaboradorProfile?.gestor_n5_chapa,
+        ].filter(Boolean); // Remove nulos/undefined
+
+        let superioresPromise = Promise.resolve([]); // Resolve como vazio por padrão
+        if (superiorMatriculas.length > 0) {
+            const hierarquiaQuery = `colaboradores?select=matricula,nome,funcao,filial,gestor_chapa,gestor_n2_chapa,gestor_n3_chapa,gestor_n4_chapa,gestor_n5_chapa&matricula=in.(${superiorMatriculas.join(',')})`;
+            superioresPromise = supabaseRequest(hierarquiaQuery, 'GET');
+        }
+
+        // --- ETAPA 7: Aguardar Disponíveis e Hierarquia Superior ---
+        const [disponiveisResult, superioresResult] = await Promise.allSettled([disponiveisPromise, superioresPromise]);
+
+        if (disponiveisResult.status === 'fulfilled' && disponiveisResult.value) {
+            state.disponiveis = disponiveisResult.value;
             console.log(`[Load Disponíveis] Sucesso: ${state.disponiveis.length} disponíveis encontrados.`);
         } else {
-            console.error("Erro ao carregar disponíveis:", disponiveisRes[0].reason);
+            console.error("Erro ao carregar disponíveis:", disponiveisResult.reason);
+        }
+
+        if (superioresResult.status === 'fulfilled' && superioresResult.value) {
+            const superiorMap = superioresResult.value.reduce((acc, mgr) => { acc[mgr.matricula] = mgr; return acc; }, {});
+            // Garante a ordem correta [N1, N2, ...]
+            state.hierarquiaSuperior = superiorMatriculas
+                .map(matricula => superiorMap[matricula])
+                .filter(Boolean); // Remove qualquer um que não foi encontrado
+            console.log(`[Load Hierarquia] Sucesso: ${state.hierarquiaSuperior.length} gestores superiores encontrados.`);
+        } else {
+            console.error("Erro ao carregar hierarquia superior:", superioresResult.reason);
         }
         
     } catch (err) {
@@ -439,7 +421,6 @@ async function loadModuleData() {
         showLoading(false);
     }
 }
-// ... (O restante da função loadModuleData permanece o mesmo) ...
 
 /**
  * Mostra a view de setup pela primeira vez.
@@ -464,14 +445,8 @@ function iniciarDefinicaoDeTime(isPrimeiroAcesso = false) {
         sidebar.style.opacity = '0.7';
     }
 
-    // **NOTA:** state.disponiveis (passado para listaDisponiveisFiltrada)
-    // já foi filtrado por filial dentro de loadModuleData.
     let listaDisponiveisFiltrada = state.disponiveis;
     
-    // --- INÍCIO DA CORREÇÃO 1 ---
-    // Filtra a lista 'state.disponiveis' (que já é da filial do usuário)
-    // para mostrar APENAS quem não tem gestor E não é gestor de mesmo nível.
-
     // 1. Criar um mapa de Níveis
     const mapaNiveis = state.gestorConfig.reduce((acc, regra) => {
         acc[regra.funcao.toLowerCase()] = regra.nivel_hierarquia; // Chave minúscula
@@ -506,7 +481,6 @@ function iniciarDefinicaoDeTime(isPrimeiroAcesso = false) {
         // Se for "disponível" E (não é gestor OU é gestor de nível diferente), INCLUI.
         return true;
     });
-    // --- FIM DA CORREÇÃO 1 ---
 
     console.log(`Filtro de "Sem Gestor" e "Nível": Disponíveis ${state.disponiveis.length} -> Filtrados ${listaDisponiveisFiltrada.length}`);
     
@@ -573,7 +547,6 @@ function filtrarDisponiveis() {
 
 /**
  * Salva o time (Nível 1) e recarrega a hierarquia completa (Nível 1-5).
- * ** ATUALIZADO PARA CHAMAR A FUNÇÃO RPC DE CASCATA **
  */
 async function handleSalvarTime() {
     showLoading(true, 'Salvando seu time (Nível 1)...');
@@ -589,22 +562,18 @@ async function handleSalvarTime() {
 
     try {
         // --- ETAPA 1: Salvar os gestores/colaboradores diretos (Nível 1) ---
-        // O Trigger BEFORE 'set_gestor_hierarchy' vai rodar aqui para cada um,
-        // atualizando a hierarquia DELES (ex: Marcelo).
         const promessasPatch = chapasSelecionadas.map(chapa => {
             const payload = {
                 gestor_chapa: state.userMatricula, 
                 status: 'ativo'
             };
-            // ATENÇÃO: A query para PATCH deve usar a PKey (matricula)
             return supabaseRequest(`colaboradores?matricula=eq.${chapa}`, 'PATCH', payload);
         });
 
         await Promise.all(promessasPatch);
         mostrarNotificacao('Time direto salvo! Atualizando hierarquia de subordinados (N2-N5)...', 'success');
         
-        // --- ETAPA 2: Chamar RPC para atualizar a CASCATA (Ex: Juliano e Felipe) ---
-        // Isso é o que faltava.
+        // --- ETAPA 2: Chamar RPC para atualizar a CASCATA ---
         showLoading(true, 'Atualizando cascata N2-N5...');
         
         const promessasRPC = chapasSelecionadas.map(chapa => {
@@ -620,8 +589,7 @@ async function handleSalvarTime() {
         mostrarNotificacao('Hierarquia em cascata atualizada! Recarregando time...', 'success');
 
 
-        // --- ETAPA 3: Recarregar TUDO (Nível 1-5) ---
-        // A busca dinâmica agora vai funcionar, pois os dados no DB estão corretos.
+        // --- ETAPA 3: Recarregar TUDO (Nível 1-5 e Nível Superior) ---
         await loadModuleData(); 
         
         // --- ETAPA 4: Atualizar Estado e Navegar ---
@@ -680,7 +648,6 @@ function populateFilters(data) {
 
 /**
  * Renderiza a tabela principal de "Meu Time"
- * ** ATUALIZADO: para ler os dados da nova query plana **
  */
 function renderMeuTimeTable(data) {
     const tbody = document.getElementById('tableBodyMeuTime');
@@ -702,9 +669,6 @@ function renderMeuTimeTable(data) {
     // --- LÓGICA DE HIERARQUIA (Nível 1-5) ---
         
     // 1. Ordenar os dados:
-    //    - Nível (da função)
-    //    - Nome do gestor
-    //    - Nome do colaborador
     data.sort((a, b) => {
         // A (Nível) vs B (Nível)
         if (a.nivel_hierarquico !== b.nivel_hierarquico) {
@@ -778,9 +742,6 @@ function renderMeuTimeTable(data) {
             background-color: #f9fafb; /* Um cinza bem leve */
             font-size: 0.875rem;
         }
-        .direct-report-row {
-             /* font-weight: 600; */ /* Opcional: Destaca Nível 1 */
-        }
     `;
     document.head.appendChild(styleEl);
 }
@@ -845,188 +806,141 @@ function renderGestorConfigTable(data) {
 }
 
 // ====================================================================
-// NOVAS FUNÇÕES: Lógica da Aba "Meus Gestores" (Nível 2+)
+// FUNÇÕES ATUALIZADAS: Lógica da Aba "Meus Gestores" (Organograma)
 // ====================================================================
 
 /**
- * Carrega e renderiza a view "Meus Gestores"
+ * Carrega e renderiza a view "Meus Gestores" (Organograma Superior)
  */
 async function loadMeusGestoresView() {
-    showLoading(true, 'Carregando gestores e times...');
+    showLoading(true, 'Carregando organograma...');
     const container = document.getElementById('gestoresCardsContainer');
-    container.innerHTML = '';
+    container.innerHTML = ''; // Limpa o container
+    // Adiciona a classe base para o CSS do organograma
+    container.className = 'org-chart-container'; 
 
-    let gestoresParaExibir = [];
-    const funcoesGestor = new Set(state.gestorConfig.filter(g => g.pode_ser_gestor).map(g => g.funcao.toUpperCase())); // Funções em UPPERCASE
-
-    if (state.isAdmin) {
-        // Admin vê TODOS os gestores (exceto ele mesmo)
-        // Usamos state.meuTime (que no admin é TODOS os colaboradores)
-        gestoresParaExibir = state.meuTime.filter(c => 
-            c.matricula !== state.userMatricula &&
-            c.funcao && funcoesGestor.has(c.funcao.toUpperCase())
-        );
-    } else {
-        // Gestor Nível 2+ vê seus *subordinados diretos* que são gestores.
-        gestoresParaExibir = state.meuTime.filter(c => 
-            c.gestor_chapa === state.userMatricula && // É meu subordinado direto
-            c.nivel_hierarquico !== null && c.nivel_hierarquico !== undefined // E é um gestor (tem nível)
-        );
-    }
-    
-    if (gestoresParaExibir.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Nenhum gestor subordinado encontrado.</p>';
+    if (!state.userColaboradorProfile) {
+        container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Não foi possível carregar seu perfil de colaborador.</p>';
         showLoading(false);
         return;
     }
+    
+    // 1. Monta a lista de Pessoas para exibir
+    // Inclui o próprio usuário e seus superiores (já carregados no state)
+    const allPeople = [
+        // Adiciona o usuário logado
+        { 
+            ...state.userColaboradorProfile, 
+            nome: state.userNome, // Garante o nome da tabela 'usuarios'
+            isCurrentUser: true,  // Flag para destacar
+            nivel_hierarquico: state.userNivel // Nível do usuário
+        },
+        // Adiciona os superiores
+        ...state.hierarquiaSuperior.map(superior => {
+            // Calcula o nível de cada superior
+            const regra = state.gestorConfig.find(r => r.funcao.toUpperCase() === superior.funcao?.toUpperCase());
+            return {
+                ...superior,
+                isCurrentUser: false,
+                nivel_hierarquico: regra ? regra.nivel_hierarquia : null
+            };
+        })
+    ];
+    
+    // 2. Busca os stats (resumo do time) para CADA pessoa na lista
+    const statPromises = allPeople.map(async (pessoa) => {
+        if (!pessoa.matricula) return { ...pessoa, stats: { total: 0, ativos: 0, inativos: 0, novatos: 0 } };
 
-    // Agora, para CADA gestor, carrega o time DELE e calcula os stats.
-    const promises = gestoresParaExibir.map(async (gestor) => {
-        // Re-usa a função de carregar time!
-        const timeDoGestor = await loadAllTeamMembers(gestor.matricula, gestor.nivel_hierarquico);
+        // Re-usa a função de carregar time (para baixo)
+        const time = await loadAllTeamMembers(pessoa.matricula, pessoa.nivel_hierarquico);
         
-        const total = timeDoGestor.length;
-        const ativos = timeDoGestor.filter(c => c.status === 'ativo').length;
-        const inativos = timeDoGestor.filter(c => c.status === 'inativo').length;
-        const novatos = timeDoGestor.filter(c => c.status === 'novato').length;
+        // Calcula os stats
+        const stats = {
+            total: time.length,
+            ativos: time.filter(c => c.status === 'ativo').length,
+            inativos: time.filter(c => c.status === 'inativo').length,
+            novatos: time.filter(c => c.status === 'novato').length,
+        };
         
         return {
-            ...gestor, // dados do gestor (nome, matricula, funcao, filial)
-            foto: state.mapaFotos[gestor.matricula] || 'https://i.imgur.com/80SsE11.png',
-            stats: { total, ativos, inativos, novatos },
-            timeCompleto: timeDoGestor // Armazena o time para o modal
+            ...pessoa, 
+            foto: state.mapaFotos[pessoa.matricula] || 'https://i.imgur.com/80SsE11.png',
+            stats: stats,
         };
     });
     
-    const resultados = await Promise.allSettled(promises);
-    
-    state.subordinadosComTimes = []; // Limpa e preenche o cache
-    
-    resultados.forEach(res => {
-        if (res.status === 'fulfilled') {
-            state.subordinadosComTimes.push(res.value);
-        } else {
-            console.warn("Falha ao carregar time de um gestor:", res.reason);
-        }
-    });
+    const orgChartData = await Promise.all(statPromises);
 
-    // Agora, renderiza os cards
-    renderGestorCards(state.subordinadosComTimes);
+    // 3. Renderiza o organograma
+    renderOrgChart(orgChartData);
     showLoading(false);
 }
 
 /**
- * Renderiza os cards dos gestores subordinados
+ * Renderiza o HTML do organograma (vertical, de cima para baixo)
  */
-function renderGestorCards(gestores) {
+function renderOrgChart(data) {
     const container = document.getElementById('gestoresCardsContainer');
     container.innerHTML = ''; // Limpa
-
-    if (gestores.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Nenhum gestor encontrado.</p>';
-        return;
-    }
     
-    gestores.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
+    // A lista `data` contém [User, N1, N2, ...].
+    // Queremos renderizar de N... (topo) para User (base).
+    const dataOrdenada = data.reverse(); 
 
-    gestores.forEach(gestor => {
-        const card = document.createElement('div');
-        card.className = 'stat-card-dash flex items-start gap-4'; // Reutiliza a classe dos cards
-        card.innerHTML = `
-            <img src="${gestor.foto}" class="w-16 h-16 rounded-full object-cover bg-gray-200 flex-shrink-0">
-            <div class="flex-1">
-                <h4 class="font-bold text-lg text-accent">${gestor.nome || 'N/A'}</h4>
-                <p class="text-sm text-gray-600 -mt-1 mb-2">${gestor.funcao || 'N/A'} (Filial: ${gestor.filial || 'N/A'})</p>
-                <div class="text-xs grid grid-cols-2 gap-1">
-                    <span><i data-feather="users" class="h-3 w-3 inline-block mr-1"></i>Total: <strong>${gestor.stats.total}</strong></span>
-                    <span><i data-feather="user-check" class="h-3 w-3 inline-block mr-1 text-green-600"></i>Ativos: <strong>${gestor.stats.ativos}</strong></span>
-                    <span><i data-feather="user-plus" class="h-3 w-3 inline-block mr-1 text-yellow-600"></i>Novatos: <strong>${gestor.stats.novatos}</strong></span>
-                    <span><i data-feather="user-x" class="h-3 w-3 inline-block mr-1 text-red-600"></i>Inativos: <strong>${gestor.stats.inativos}</strong></span>
+    let html = '';
+
+    dataOrdenada.forEach((node, index) => {
+        const isCurrentUserClass = node.isCurrentUser ? 'current-user-node' : '';
+        const fotoUrl = node.foto || 'https://i.imgur.com/80SsE11.png';
+        
+        // Monta o card do nó
+        html += `
+            <div class="org-chart-node ${isCurrentUserClass}">
+                <img src="${fotoUrl}" class="org-node-foto" alt="Foto de ${node.nome}">
+                <div class="org-node-info">
+                    <h4 class="org-node-nome">${node.nome || 'N/A'}</h4>
+                    <p class="org-node-funcao">${node.funcao || 'N/A'}</p>
                 </div>
-                <button class="btn btn-sm btn-primary mt-3" onclick="showGestorTimeModal('${gestor.matricula}')">
-                    <i data-feather="eye" class="h-4 w-4 mr-1"></i> Ver Time Completo
-                </button>
+                <!-- Resumo (Stats) -->
+                <div class="org-node-stats">
+                    <div title="Total no Time">
+                        <i data-feather="users" class="h-4 w-4"></i>
+                        <span>${node.stats.total}</span>
+                    </div>
+                    <div title="Ativos">
+                        <i data-feather="user-check" class="h-4 w-4" style="color: #16a34a;"></i>
+                        <span>${node.stats.ativos}</span>
+                    </div>
+                    <div title="Novatos">
+                        <i data-feather="user-plus" class="h-4 w-4" style="color: #f59e0b;"></i>
+                        <span>${node.stats.novatos}</span>
+                    </div>
+                    <div title="Inativos">
+                        <i data-feather="user-x" class="h-4 w-4" style="color: #dc2626;"></i>
+                        <span>${node.stats.inativos}</span>
+                    </div>
+                </div>
             </div>
         `;
-        container.appendChild(card);
+        
+        // Adiciona o conector, exceto após o último nó
+        if (index < dataOrdenada.length - 1) {
+            html += `<div class="org-chart-connector"></div>`;
+        }
     });
     
+    container.innerHTML = html;
     feather.replace();
 }
 
-/**
- * Abre o modal e renderiza o time do gestor selecionado
- */
-function showGestorTimeModal(matriculaGestor) {
-    const gestor = state.subordinadosComTimes.find(g => g.matricula === matriculaGestor);
-    if (!gestor) {
-        mostrarNotificacao('Erro: Não foi possível encontrar os dados desse gestor.', 'error');
-        return;
-    }
-
-    document.getElementById('modalGestorTitle').textContent = `Time de ${gestor.nome}`;
-    
-    // Renderiza a tabela
-    renderModalTimeTable(gestor.timeCompleto);
-
-    document.getElementById('gestorTimeModal').style.display = 'flex';
-    feather.replace();
-}
 
 /**
- * Renderiza a tabela de time para o Modal (versão simplificada)
+ * (REMOVIDO) A função 'showGestorTimeModal' e 'renderModalTimeTable' 
+ * não são mais usadas, pois a view 'Meus Gestores' agora é o organograma.
  */
-function renderModalTimeTable(data) {
-    const tbody = document.getElementById('modalGestorTableBody');
-    tbody.innerHTML = '';
-
-    if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-gray-500">Este gestor não possui colaboradores vinculados.</td></tr>';
-        return;
-    }
-
-    // Re-processa os nomes dos gestores imediatos (necessário se a função foi chamada isoladamente)
-    const gestorMap = (state.todosUsuarios || []).reduce((acc, c) => { acc[c.matricula] = c.nome; return acc; }, {});
-    if (state.userMatricula && !gestorMap[state.userMatricula]) {
-        gestorMap[state.userMatricula] = state.userNome;
-    }
-    state.subordinadosComTimes.forEach(g => gestorMap[g.matricula] = g.nome); // Adiciona os gestores N-1
-
-    data.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
-
-    const fragment = document.createDocumentFragment();
-    data.forEach(item => {
-        const tr = document.createElement('tr');
-        
-        const gestorImediato = gestorMap[item.gestor_chapa] || item.gestor_chapa || '-';
-        
-        const status = item.status || 'ativo';
-        let statusClass = 'status-ativo';
-        if (status === 'inativo') statusClass = 'status-inativo';
-        if (status === 'novato') statusClass = 'status-aviso';
-
-        tr.innerHTML = `
-            <td>${item.nome || '-'}</td>
-            <td>${item.matricula || '-'}</td>
-            <td>${gestorImediato}</td>
-            <td>${item.funcao || '-'}</td>
-            <td>${item.secao || '-'}</td>
-            <td>${item.filial || '-'}</td>
-            <td><span class="status-badge ${statusClass}">${status}</span></td>
-        `;
-        fragment.appendChild(tr);
-    });
-    tbody.appendChild(fragment);
-    feather.replace();
-}
-
-/**
- * Fecha o modal do time do gestor
- */
-function closeGestorTimeModal() {
-    document.getElementById('gestorTimeModal').style.display = 'none';
-    document.getElementById('modalGestorTableBody').innerHTML = ''; // Limpa a tabela
-}
+// function showGestorTimeModal(matriculaGestor) { ... }
+// function renderModalTimeTable(data) { ... }
+// function closeGestorTimeModal() { ... }
 
 
 // ====================================================================
@@ -1074,9 +988,6 @@ async function loadTransferViewData() {
             throw new Error("Nenhum gestor de nível hierárquico igual ao seu encontrado.");
         }
         
-        // #################### INÍCIO DA CORREÇÃO (BUG 500) ####################
-        // Troca de 'like' para 'eq' (igualdade exata)
-        // ####################
         let queryParts = [
             `funcao=in.(${funcoesGestor.join(',')})`, 
             `matricula.neq.${state.userMatricula}`      
@@ -1086,27 +997,20 @@ async function loadTransferViewData() {
         let filialFilterPart = null;
         if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
             if (state.permissoes_filiais.length === 1) {
-                // ANTES: filial.like...
-                filialFilterPart = `filial.eq.${state.permissoes_filiais[0]}`; // CORRIGIDO
+                filialFilterPart = `filial.eq.${state.permissoes_filiais[0]}`;
             } else {
-                // ANTES: or(filial.like...)
-                filialFilterPart = `or(${state.permissoes_filiais.map(f => `filial.eq.${f}`).join(',')})`; // CORRIGIDO
+                filialFilterPart = `or(${state.permissoes_filiais.map(f => `filial.eq.${f}`).join(',')})`;
             }
         } else if (state.userFilial) {
-             // ANTES: filial.like...
-             filialFilterPart = `filial.eq.${state.userFilial}`; // CORRIGIDO
+             filialFilterPart = `filial.eq.${state.userFilial}`;
         } else {
              filialFilterPart = 'filial.eq.IMPOSSIVEL_FILIAL_FILTER';
         }
         queryParts.push(filialFilterPart);
 
-        // 3. Combina TUDO com '&' em vez de 'and=()'
-        // A sintaxe and=() falha quando os valores (funcao) contêm vírgulas ou espaços.
-        // const query = `colaboradores?select=nome,matricula,funcao,filial&and=(${queryParts.join(',')})`; // <-- ANTIGO (COM ERRO 400)
-        const query = `colaboradores?select=nome,matricula,funcao,filial&${queryParts.join('&')}`; // <-- NOVO (CORRIGIDO)
+        const query = `colaboradores?select=nome,matricula,funcao,filial&${queryParts.join('&')}`;
         
         console.log(`[Load Transfer] Query: ${query}`);
-        // #################### FIM DA CORREÇÃO (BUG 400) ######################
         
         const gestores = await supabaseRequest(query, 'GET');
 
@@ -1158,17 +1062,6 @@ async function handleConfirmTransfer() {
         return;
     }
     
-    // ATENÇÃO: Esta é uma operação complexa.
-    // Mudar o 'gestor_chapa' requer recalcular
-    // gestor_n2_chapa, gestor_n3_chapa, etc. para o colaborador
-    // E para TODOS os seus subordinados (a cascata abaixo dele).
-    
-    // TODO: Esta operação deve, idealmente, ser feita no backend
-    // (via uma SQL Function) para garantir a integridade da hierarquia.
-    
-    // Por agora, vamos apenas atualizar o NÍVEL 1 (imediato)
-    // e recarregar os dados.
-
     const colaboradorNome = selectColaborador.options[selectColaborador.selectedIndex].text;
     const gestorNome = selectGestor.options[selectGestor.selectedIndex].text;
     
@@ -1178,12 +1071,11 @@ async function handleConfirmTransfer() {
     try {
         const payload = {
             gestor_chapa: novoGestorMatricula
-            // O TRIGGER 'set_gestor_hierarchy' VAI ATUALIZAR N2-N5 DESTE COLABORADOR
         };
         
         await supabaseRequest(`colaboradores?matricula=eq.${colaboradorMatricula}`, 'PATCH', payload);
         
-        // --- NOVO: CHAMA A FUNÇÃO RPC PARA ATUALIZAR OS FILHOS DELE ---
+        // --- CHAMA A FUNÇÃO RPC PARA ATUALIZAR OS FILHOS DELE ---
         await supabaseRequest(
             'rpc/atualizar_subordinados',
             'POST',
@@ -1193,10 +1085,7 @@ async function handleConfirmTransfer() {
         // Sucesso!
         mostrarNotificacao('Colaborador transferido e hierarquia atualizada! Recarregando...', 'success');
 
-        // Atualiza o estado local (Removendo o colaborador do time antigo)
-        state.meuTime = state.meuTime.filter(c => c.matricula !== colaboradorMatricula);
-        
-        // RECARREGA OS DADOS (para garantir que a hierarquia Nível 1-5 esteja 100% correta)
+        // RECARREGA OS DADOS (para garantir que a hierarquia Nível 1-5 e Superior esteja 100% correta)
         await loadModuleData();
 
         // Reseta a view de transferência
@@ -1355,12 +1244,7 @@ async function initializeApp() {
         const profile = profileResponse[0];
         state.userId = state.auth.user.id;
         state.isAdmin = (profile.role === 'admin');
-        
-        // --- ESTA É A CORREÇÃO ---
-        // Garante que a matrícula vinda da tabela 'usuarios' não tenha espaços
         state.userMatricula = profile.matricula ? String(profile.matricula).trim() : null; 
-        // --- FIM DA CORREÇÃO ---
-        
         state.permissoes_filiais = profile.permissoes_filiais || null;
         state.userNome = profile.nome || session.user.email.split('@')[0];
 
@@ -1371,7 +1255,6 @@ async function initializeApp() {
         if (profile.profile_picture_url) {
             document.getElementById('topBarUserAvatar').src = profile.profile_picture_url;
         }
-        // document.getElementById('gestorNameLabel').textContent = `${state.userNome} (Chapa: ${state.userMatricula || 'N/A'})`;
         document.getElementById('dashGestorName').textContent = `${state.userNome} (${state.userMatricula || 'N/A'})`;
         
         // Mostrar links de Admin se for admin
@@ -1381,37 +1264,48 @@ async function initializeApp() {
             document.getElementById('adminUpdateLink').style.display = 'block';
         }
         
-        // 4. Buscar a função e FILIAL do gestor logado
+        // 4. Buscar a função, FILIAL e HIERARQUIA SUPERIOR do gestor logado
         if (state.userMatricula) {
-            // A query aqui agora usa a matrícula limpa (sem espaços)
-            const gestorData = await supabaseRequest(`colaboradores?select=funcao,filial&matricula=eq.${state.userMatricula}&limit=1`, 'GET');
+            // ** ATUALIZAÇÃO: Busca todas as colunas de gestor **
+            const gestorQuery = `colaboradores?select=funcao,filial,gestor_chapa,gestor_n2_chapa,gestor_n3_chapa,gestor_n4_chapa,gestor_n5_chapa&matricula=eq.${state.userMatricula}&limit=1`;
+            const gestorData = await supabaseRequest(gestorQuery, 'GET');
+            
             if (gestorData && gestorData[0]) {
+                state.userColaboradorProfile = gestorData[0]; // Salva o perfil completo
                 state.userFuncao = gestorData[0].funcao; 
                 state.userFilial = gestorData[0].filial; 
             }
         }
         
-        // 5. Carrega TODOS os dados (a definição do nível agora está AQUI DENTRO)
+        // 5. Carrega TODOS os dados (time, disponíveis, config, funções e hierarquia superior)
         await loadModuleData();
         
-        // 6. REMOVIDA: A definição do state.userNivel foi movida para dentro do loadModuleData()
+        // 6. Define o nível do gestor (agora que o config foi carregado)
+        if (state.userFuncao && state.gestorConfig.length > 0) {
+            const gestorRegra = state.gestorConfig.find(r => r.funcao.toUpperCase() === state.userFuncao.toUpperCase());
+            if (gestorRegra) {
+                state.userNivel = gestorRegra.nivel_hierarquia; // Armazena o nível
+            }
+        }
+        // Atualiza o perfil do usuário no state com seu próprio nível
+        if(state.userColaboradorProfile) {
+            state.userColaboradorProfile.nivel_hierarquia = state.userNivel;
+        }
+
+        console.log(`[Init] Gestor: ${state.userNome}, Funcao: ${state.userFuncao}, Nivel: ${state.userNivel}, Filial: ${state.userFilial}`);
         
-        // *** CORREÇÃO: Movido para DEPOIS do loadModuleData() ***
-        // NOVO: Mostrar link "Meus Gestores" para Nível 2+ ou Admin
-        if (state.isAdmin || (state.userNivel && state.userNivel >= 2)) {
+        // Mostrar link "Meus Gestores" para Nível 2+ ou Admin
+        if (state.isAdmin || (state.userNivel && state.userNivel >= 1)) { // MUDANÇA: Nível 1 também vê
             document.getElementById('meusGestoresLink').style.display = 'flex';
         }
 
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
         
-        // ** O CHECK CRÍTICO (CORRIGIDO) **
-        // Se, DEPOIS de rodar a recursão, o time ainda estiver vazio (e não for admin)
-        // força o setup.
+        // Decide qual view mostrar
         if (state.meuTime.length === 0 && !state.isAdmin) {
             iniciarDefinicaoDeTime(true);
         } else {
-            // Se o time já existe, carrega a view do hash
             handleHashChange();
         }
 
@@ -1435,10 +1329,9 @@ function handleHashChange() {
 
     const cleanHash = hash.substring(1);
     const newViewId = cleanHash + 'View';
-        const newNavElement = document.querySelector(`a[href="${hash}"]`);
+    const newNavElement = document.querySelector(`a[href="${hash}"]`);
 
     if (document.getElementById(newViewId)) {
-        // ** O CHECK CRÍTICO (CORRIGIDO) **
         // Se o time está vazio, não deixa navegar para "Meu Time"
         if (newViewId === 'meuTimeView' && state.meuTime.length === 0 && !state.isAdmin) {
             console.warn("Time vazio, forçando setup.");
@@ -1446,9 +1339,10 @@ function handleHashChange() {
             return; // Impede a navegação
         }
 
-        // NOVO: Checagem de segurança para a view "Meus Gestores"
-        if (newViewId === 'meusGestoresView' && !state.isAdmin && (!state.userNivel || state.userNivel < 2)) {
-            mostrarNotificacao('Acesso negado. Esta visão é para Nível 2 ou superior.', 'error');
+        // Checagem de segurança para a view "Meus Gestores"
+        // MUDANÇA: Nível 1 também pode ver
+        if (newViewId === 'meusGestoresView' && !state.isAdmin && (!state.userNivel || state.userNivel < 1)) {
+            mostrarNotificacao('Acesso negado. Você precisa ter um nível hierárquico definido.', 'error');
             showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
             return;
         }
@@ -1457,14 +1351,12 @@ function handleHashChange() {
         const isAdminView = newViewId === 'configuracoesView' || newViewId === 'atualizarQLPView';
         if (isAdminView && !state.isAdmin) {
             mostrarNotificacao('Acesso negado. Você precisa ser administrador.', 'error');
-            // Recarrega a view padrão
             showView('meuTimeView', document.querySelector('a[href="#meuTime"]'));
             return;
         }
         viewId = newViewId;
         navElement = newNavElement;
     } else if (cleanHash === 'adicionarTime') {
-        // NOVO: Link para a view de "Adicionar" (reutiliza a "primeiroAcessoView")
         viewId = 'primeiroAcessoView';
         navElement = newNavElement;
         iniciarDefinicaoDeTime(); // Chama a função de setup (sem travar a sidebar)
@@ -1489,7 +1381,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.location.hash !== href) {
                     window.location.hash = href;
                 } else {
-                    // Se já está na view, força a chamada
                     handleHashChange();
                 }
             }
@@ -1498,7 +1389,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Logout
     document.getElementById('logoutButton').addEventListener('click', logout);
-    // (logoutLink já está coberto pelo seletor acima)
     
     // Dropdown de Perfil
     const profileDropdownButton = document.getElementById('profileDropdownButton');
