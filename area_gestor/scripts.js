@@ -1094,7 +1094,16 @@ async function handleConfirmTransfer() {
         return;
     }
     
-  
+    // ATENÇÃO: Esta é uma operação complexa.
+    // Mudar o 'gestor_chapa' requer recalcular
+    // gestor_n2_chapa, gestor_n3_chapa, etc. para o colaborador
+    // E para TODOS os seus subordinados (a cascata abaixo dele).
+    
+    // TODO: Esta operação deve, idealmente, ser feita no backend
+    // (via uma SQL Function) para garantir a integridade da hierarquia.
+    
+    // Por agora, vamos apenas atualizar o NÍVEL 1 (imediato)
+    // e recarregar os dados.
 
     const colaboradorNome = selectColaborador.options[selectColaborador.selectedIndex].text;
     const gestorNome = selectGestor.options[selectGestor.selectedIndex].text;
