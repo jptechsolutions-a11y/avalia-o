@@ -180,6 +180,39 @@
             background-color: #cbd5e1;
         }
         
+        /* --- NOVOS ESTILOS PARA A ÁRVORE DE SUBORDINADOS --- */
+        
+        /* O container principal da árvore de subordinados */
+        .org-sub-tree-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem; /* Espaço entre os gestores N-1 */
+            width: 100%;
+        }
+
+        /* Um nó individual (card + container de filhos) */
+        .org-sub-node {
+            width: 100%;
+        }
+        
+        /* O card em si (reutiliza o estilo do organograma superior) */
+        .org-sub-node .org-chart-node {
+            width: 100%; /* Ocupa a largura disponível na indentação */
+            max-width: 450px; /* Limita a largura dos cards */
+            margin-left: 0; /* Começa alinhado à esquerda */
+        }
+        
+        /* O container para os filhos de um nó */
+        .org-sub-children {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem; /* Espaço entre os filhos */
+            margin-top: 1.5rem;
+            margin-left: 2rem; /* Indentação para a hierarquia */
+            padding-left: 1.5rem; /* Espaço da linha conectora */
+            border-left: 2px solid #cbd5e1; /* Linha conectora vertical */
+        }
+        
     </style>
 </head>
 <body class="bg-gray-100">
@@ -396,12 +429,12 @@
                         <!-- Título para a seção de subordinados -->
                         <h2 id="gestoresSubordinadosTitle" class="text-2xl font-bold text-gray-800 mt-12 mb-6 pb-3 border-b border-gray-300" style="display: none;">
                             <i data-feather="users" class="h-6 w-6 inline-block mr-2 text-accent"></i>
-                            Gestores Subordinados
+                            Gestores Subordinados (Hierarquia Completa)
                         </h2>
                         
                         <!-- Container para os Cards SUBORDINADOS (Grid) -->
                         <div id="gestoresSubordinadosContainer">
-                            <!-- Cards dos subordinados (em grid) serão injetados aqui -->
+                            <!-- A árvore de subordinados será injetada aqui -->
                         </div>
                     </div>
 
@@ -515,7 +548,7 @@
                                         <tr>
                                             <th>Função</th>
                                             <th>Pode ser Gestor?</th>
-                                            <th>Nível Hierárquico</th>
+                                            <th>Nível HierárquGico</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
