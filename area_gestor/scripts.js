@@ -314,14 +314,19 @@ async function loadModuleData() {
 
         // NOVO: Processa Banco de Horas
         if (bancoHorasRes.status === 'fulfilled' && bancoHorasRes.value) {
+            console.log(`[Load] Banco de Horas data received: ${bancoHorasRes.value.length} records.`); // DEBUG
             state.bancoHorasMap = bancoHorasRes.value.reduce((acc, item) => {
                 // A tabela banco_horas usa CHAPA (string)
-                acc[item.CHAPA] = {
-                    horas: item['Total Geral'] || '0,00',
-                    valor: item['VAL_PGTO_BHS'] || 'R$ 0,00'
-                };
+                if (item.CHAPA) { 
+                    const normalizedChapa = String(item.CHAPA).trim(); // CORREÇÃO: Normaliza a chave
+                    acc[normalizedChapa] = { 
+                        horas: item['Total Geral'] || '0,00',
+                        valor: item['VAL_PGTO_BHS'] || 'R$ 0,00'
+                    };
+                }
                 return acc;
             }, {});
+            console.log(`[Load] Banco de Horas map created with ${Object.keys(state.bancoHorasMap).length} entries.`); // DEBUG
         } else {
             console.error("Erro ao carregar banco de horas:", bancoHorasRes.reason);
             state.bancoHorasMap = {};
@@ -406,8 +411,15 @@ async function loadModuleData() {
         state.meuTime = timeRes.map(c => {
             const nivel_hierarquico = configMapNivel[c.funcao?.toLowerCase()] || null;
             const gestor_imediato_nome = gestorMap[c.gestor_chapa] || 'N/A';
-            // NOVO: Buscar dados do banco de horas
-            const banco = bancoHorasMap[c.matricula] || { horas: '0,00', valor: 'R$ 0,00' };
+            
+            // CORREÇÃO: Normaliza a matrícula para a busca
+            const normalizedMatricula = String(c.matricula).trim();
+            const banco = bancoHorasMap[normalizedMatricula] || { horas: '0,00', valor: 'R$ 0,00' }; 
+            
+            // Debugging log for the first 3 items
+            if (timeRes.indexOf(c) < 3) {
+                 console.log(`[Debug] Mapping: Colab Matricula '${c.matricula}' -> Trimmed '${normalizedMatricula}'. Found in Map:`, bancoHorasMap[normalizedMatricula] ? 'YES' : 'NO');
+            }
             
             return {
                 ...c,
