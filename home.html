@@ -469,11 +469,22 @@
                 const user = session.user;
                 currentAuthUserId = user.id; 
                 
-                const { data: profile, error: profileError } = await supabaseClient
-                    .from('usuarios')
-                    .select('nome, role, email, matricula, profile_picture_url, id') 
-                    .eq('auth_user_id', user.id)
-                    .single();
+                // **** CORREÇÃO DA FOTO: Usando supabaseRequest (proxy) ****
+                const endpoint = `usuarios?auth_user_id=eq.${user.id}&select=nome,role,email,matricula,profile_picture_url,id`;
+                let profile = null;
+                let profileError = null;
+
+                try {
+                    const profileResponse = await supabaseRequest(endpoint, 'GET');
+                    if (profileResponse && profileResponse[0]) {
+                        profile = profileResponse[0];
+                    } else {
+                        profileError = { message: "Perfil não encontrado (via proxy)." };
+                    }
+                } catch (err) {
+                    profileError = err;
+                }
+                // **** FIM DA CORREÇÃO ****
 
                 if (profileError) {
                     console.warn("Erro ao buscar perfil, usando dados de auth:", profileError.message);
