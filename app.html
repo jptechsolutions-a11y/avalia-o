@@ -50,9 +50,7 @@
                             <span class="block text-sm font-medium text-white" id="dropdownUserName">...</span>
                             <span class="block text-xs text-gray-400" id="dropdownUserEmail">...</span>
                         </div>
-                        <a href="#perfil" class="dropdown-item" onclick="window.GG.showView('perfilView', document.querySelector('a[href=\'#perfil\']'))">
-                            <i data-feather="user" class="h-4 w-4 mr-2"></i> Meu Perfil
-                        </a>
+                        <!-- REMOVIDO: Link "Meu Perfil" -->
                         <a href="#configuracoes" class="dropdown-item" onclick="window.GG.showView('configuracoesView', document.querySelector('a[href=\'#configuracoes\']'))">
                             <i data-feather="settings" class="h-4 w-4 mr-2"></i> Configurações
                         </a>
@@ -95,9 +93,7 @@
                     <a href="#configuracoes" class="nav-item" title="Configurações" onclick="window.GG.showView('configuracoesView', this)">
                         <i data-feather="settings" class="h-5 w-5 mr-3"></i> <span class="nav-text">Configurações</span>
                     </a>
-                    <a href="#perfil" class="nav-item" title="Meu Perfil" onclick="window.GG.showView('perfilView', this)">
-                        <i data-feather="user" class="h-5 w-5 mr-3"></i> <span class="nav-text">Meu Perfil</span>
-                    </a>
+                    <!-- REMOVIDO: Link "Meu Perfil" -->
                     <a href="#" id="logoutLink" class="nav-item" title="Sair" onclick="window.GG.logout()">
                         <i data-feather="log-out" class="h-5 w-5 mr-3 text-red-400"></i> <span class="nav-text text-red-400">Sair</span>
                     </a>
@@ -134,7 +130,7 @@
             <strong>Colaborador:</strong> Analise o histórico de desempenho individual de um colaborador específico.
         </li>
         <li>
-            <strong>Configurações:</strong> (Acesso Admin) Gerencie usuários, indicadores, metas e o cadastro de pessoal.
+            <strong>Configurações:</strong> (Acesso Admin) Gerencie indicadores, metas e o cadastro de pessoal.
         </li>
     </ul>
     <p class="mt-4 text-gray-700">Use o menu ao lado para navegar entre as seções.</p>
@@ -326,10 +322,9 @@
                             <div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Acesso restrito a administradores.</div>
                             
                             <div class="config-tabs">
-                                <button class="config-tab-item active" onclick="window.GG.showConfigTab('usuarios', this)">
-                                    <i data-feather="users"></i> Gerenciar Usuários
-                                </button>
-                                <button class="config-tab-item" onclick="window.GG.showConfigTab('indicadores', this)">
+                                <!-- REMOVIDO: Botão da aba "Gerenciar Usuários" -->
+                                <!-- ATUALIZADO: "indicadores" agora é o "active" -->
+                                <button class="config-tab-item active" onclick="window.GG.showConfigTab('indicadores', this)">
                                     <i data-feather="bar-chart-2"></i> Gerenciar Indicadores
                                 </button>
                                 <button class="config-tab-item" onclick="window.GG.showConfigTab('pessoal', this)">
@@ -337,31 +332,11 @@
                                 </button>
                             </div>
                             
-                            <!-- ABA 1: GERENCIAR USUÁRIOS -->
-                            <div id="configTabUsuarios" class="config-tab-content active">
-                                <div class="info-card">
-                                    <h3><i data-feather="user-plus"></i> Solicitações de Acesso Pendentes</h3>
-                                    <div class="table-container">
-                                        <table class="tabela" id="tabela-solicitacoes-admin">
-                                            <thead><tr><th>Nome</th><th>E-mail</th><th>Motivo</th><th>Data</th><th>Ações</th></tr></thead>
-                                            <tbody><tr><td colspan="5" style="text-align:center;">Carregando...</td></tr></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                                
-                                <div class="info-card">
-                                    <h3><i data-feather="users"></i> Gerenciar Usuários do Sistema</h3>
-                                    <div class="table-container">
-                                        <table class="tabela" id="tabela-usuarios-admin">
-                                            <thead><tr><th>Nome</th><th>E-mail</th><th>Matrícula</th><th>Permissão</th><th>Filial</th><th>Status</th><th>Ações</th></tr></thead>
-                                            <tbody><tr><td colspan="7" style="text-align:center;">Carregando...</td></tr></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
+                            <!-- REMOVIDO: ABA 1: GERENCIAR USUÁRIOS -->
                             
                             <!-- ABA 2: GERENCIAR INDICADORES -->
-                            <div id="configTabIndicadores" class="config-tab-content">
+                            <!-- ATUALIZADO: "indicadores" agora é o "active" -->
+                            <div id="configTabIndicadores" class="config-tab-content active">
                                 <div class="info-card">
                                     <h3><i class="fas fa-plus-circle"></i> Cadastrar Novo Indicador</h3>
                                     <form id="form-add-indicador" onsubmit="event.preventDefault(); window.GG.salvarIndicador();">
@@ -552,44 +527,7 @@
                         </div>
                     </div>
                     
-                    <!-- Conteúdo: Perfil -->
-                    <div id="perfilView" class="view-content">
-                         <h1><i class="fas fa-user-circle"></i> Meu Perfil</h1>
-                        <div class="bg-white p-6 rounded-lg shadow-md max-w-3xl mx-auto info-card">
-                            <form id="perfilForm" onsubmit="event.preventDefault(); window.GG.handlePerfilFormSubmit();">
-                                <div class="flex flex-col sm:flex-row items-center mb-6 pb-6 border-b">
-                                    <img id="perfilPicturePreview" src="https://i.imgur.com/80SsE11.png" alt="Foto Perfil" class="w-24 h-24 rounded-full object-cover mb-4 sm:mb-0 sm:mr-6 border border-gray-200 shadow-sm">
-                                    <div class="text-center sm:text-left">
-                                        <label for="perfilPicture" class="btn btn-primary btn-small cursor-pointer">
-                                            <i data-feather="upload" class="h-4 w-4 mr-2"></i> Alterar Foto
-                                        </label>
-                                        <input type="file" id="perfilPicture" accept="image/jpeg, image/png, image/gif" class="hidden" onchange="window.GG.previewProfilePicture(event)">
-                                        <p class="text-xs text-gray-500 mt-2">Envie JPG, PNG ou GIF (Máx 2MB).</p>
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                    <div class="form-group">
-                                        <label for="perfilNome">Nome Completo:</label>
-                                        <input type="text" id="perfilNome" required class="w-full">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="perfilMatricula">Matrícula (Opcional):</label>
-                                        <input type="text" id="perfilMatricula" class="w-full" placeholder="Sua matrícula na empresa">
-                                    </div>
-                                </div>
-                                <div class="form-group mb-4">
-                                    <label for="perfilEmail">E-mail (Login):</label>
-                                    <input type="email" id="perfilEmail" required class="w-full bg-gray-100 cursor-not-allowed" disabled title="E-mail de login não pode ser alterado aqui">
-                                </div>
-                                <div id="perfilAlert" class="mt-4"></div>
-                                <div class="flex justify-end gap-4 mt-6">
-                                    <button type="submit" class="btn btn-success">
-                                        <i data-feather="save" class="h-4 w-4 mr-2"></i> Salvar Alterações
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
+                    <!-- REMOVIDO: Conteúdo: Perfil -->
 
                 </div>
             </main>
