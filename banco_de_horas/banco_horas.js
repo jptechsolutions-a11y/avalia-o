@@ -431,27 +431,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ui.profileDropdown) ui.profileDropdown.classList.remove('open');
         
         
-        // **** NOVO: Bloco de setup único ****
-        // Roda a configuração inicial (filtros, histórico) APENAS UMA VEZ
-        // Isso agora depende de 'state.allData' ter sido carregado
-        if (!state.setupCompleto && state.auth && state.allData.length > 0) {
-            console.log("Executando setup de inicialização único...");
-            // Essas funções carregam dados essenciais na primeira vez
-            listenToMetadata(); // Data da última atualização
-            renderTableHeader(); // Cabeçalho da tabela de acompanhamento
-            populateFilterDatalists(); // Listas de filtros (para ambas as views)
-            loadHistoryData(); // Cache de histórico (para modais e dashboard)
-            
-            state.setupCompleto = true; // Marca como feito para não repetir
-        }
-        // **** FIM DO BLOCO ****
+        // **** REMOVIDO: Bloco de setup único (movido para 'main') ****
         
         
         // Carrega dados específicos da view
         try {
             switch (viewId) {
                 case 'dashboardView':
-                    initializeDashboard(); // Chama a função do dashboard
+                    // ** ATENÇÃO: initializeDashboard() agora é chamado em 'main'
+                    // se for a view padrão. Se for navegação, precisa ser
+                    // chamado aqui. Vamos garantir que ele seja chamado
+                    // se a view for 'dashboardView'.
+                    initializeDashboard(); 
                     break;
                 case 'acompanhamentoView':
                     // O setup já foi feito, agora só aplica os filtros da tabela
@@ -1088,7 +1079,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // NOVO: Navega para o dashboard e o recarrega
             window.location.hash = '#dashboard';
-            handleHashChange(); // Força o recarregamento da view do dashboard
+            // **** CORREÇÃO (Problema 2): Força o recarregamento do dashboard após importação ****
+            await initializeDashboard(); 
+            // Em vez de só mudar o hash, chama a função de inicialização
+            // handleHashChange(); 
             
             showLoading(false);
             mostrarNotificacao(result.message || "Dados importados com sucesso!", 'success');
@@ -1138,23 +1132,9 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function initializeDashboard() {
         
-        // ADICIONADO: Check se os dados estão prontos
-        if (state.allData.length === 0) {
-             showLoading(true, 'Aguardando carregamento de dados...');
-             // Tenta recarregar se algo deu muito errado
-             if (!state.setupCompleto) {
-                 console.warn("Dashboard chamado antes do setup. Forçando recarga.");
-                 await loadInitialData();
-                 populateFilterDatalists();
-                 loadHistoryData();
-                 state.setupCompleto = true;
-             }
-             if (state.allData.length === 0) {
-                 mostrarNotificacao("Nenhum dado de banco de horas carregado.", 'error');
-                 showLoading(false);
-                 return;
-             }
-        }
+        // **** CORREÇÃO (Problema 2): Removido o bloco if (state.allData.length === 0) ****
+        // 'main' agora garante que os dados estão carregados antes de chamar isso.
+
         showLoading(true, 'Processando dashboard...');
         
         try {
@@ -1164,44 +1144,62 @@ document.addEventListener('DOMContentLoaded', () => {
             const secao = ui.filterSecaoDash.value;
             const funcao = ui.filterFuncaoDash.value;
 
-            // 2. Filtra os dados do state.allData
+            // **** INÍCIO DA CORREÇÃO (Problema 3 & 4) ****
+            // 2. Prepara dados filtrados e não-filtrados
             let filteredData = state.allData;
+            let historyData = state.dashboardHistory;
 
-            // Aplica filtros de permissão
+            let permissionsFilteredData = state.allData; // Para o Ranking
+            let permissionsFilteredHistory = state.dashboardHistory; // Para o Ranking
+
+            // Aplica filtros de permissão (para TUDO)
             if (!state.isAdmin) {
+                let permissionFilter;
                 if (Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
-                    filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.CODFILIAL));
+                    permissionFilter = item => state.permissoes_filiais.includes(item.CODFILIAL);
                 } else if (state.userMatricula) {
-                    filteredData = filteredData.filter(item => item.CHAPA === state.userMatricula);
+                    permissionFilter = item => item.CHAPA === state.userMatricula;
                 } else {
-                    filteredData = []; // Não vê nada
+                    permissionFilter = () => false; // Não vê nada
                 }
+                
+                filteredData = filteredData.filter(permissionFilter);
+                permissionsFilteredData = permissionsFilteredData.filter(permissionFilter);
+                historyData = historyData.filter(permissionFilter);
+                permissionsFilteredHistory = permissionsFilteredHistory.filter(permissionFilter);
             }
             
-            // Aplica filtros da UI do Dashboard
-            if (regional) filteredData = filteredData.filter(item => item.REGIONAL === regional);
-            if (filial) filteredData = filteredData.filter(item => item.CODFILIAL === filial);
-            if (secao) filteredData = filteredData.filter(item => item.SECAO === secao);
-            if (funcao) filteredData = filteredData.filter(item => item.FUNCAO === funcao);
+            // Aplica filtros da UI do Dashboard (SOMENTE em filteredData e historyData)
+            if (regional) {
+                filteredData = filteredData.filter(item => item.REGIONAL === regional);
+                historyData = historyData.filter(item => item.REGIONAL === regional);
+            }
+            if (filial) {
+                filteredData = filteredData.filter(item => item.CODFILIAL === filial);
+                historyData = historyData.filter(item => item.CODFILIAL === filial);
+            }
+            if (secao) {
+                filteredData = filteredData.filter(item => item.SECAO === secao);
+                historyData = historyData.filter(item => item.SECAO === secao);
+            }
+            if (funcao) {
+                filteredData = filteredData.filter(item => item.FUNCAO === funcao);
+                historyData = historyData.filter(item => item.FUNCAO === funcao);
+            }
+            // **** FIM DA CORREÇÃO (Problema 3) ****
             
-            // 3. Salva os dados filtrados
             state.dashboardData = filteredData;
             
-            // 3. O histórico já foi carregado em 'loadHistoryData' (state.dashboardHistory)
-            // Apenas filtramos o histórico para bater com os filtros da UI
-            let historyData = state.dashboardHistory;
-            if (regional) historyData = historyData.filter(item => item.REGIONAL === regional);
-            if (filial) historyData = historyData.filter(item => item.CODFILIAL === filial);
-            if (secao) historyData = historyData.filter(item => item.SECAO === secao);
-            if (funcao) historyData = historyData.filter(item => item.FUNCAO === funcao);
-
             // 4. Processa e renderiza os componentes
             processDashboardTotals(filteredData, historyData);
             processDashboardCharts(filteredData);
-            processDashboardTable(filteredData, historyData); // NOVO: Passa o histórico
-            processDashboardComparisonChart(filteredData, historyData); // NOVO
+            // **** INÍCIO DA CORREÇÃO (Problema 4) ****
+            // Passa os dados filtrados APENAS por permissão para o Ranking
+            processDashboardTable(permissionsFilteredData, permissionsFilteredHistory); 
+            // **** FIM DA CORREÇÃO (Problema 4) ****
+            processDashboardComparisonChart(filteredData, historyData);
             
-            feather.replace(); // Para os ícones de tendência de alta/baixa
+            feather.replace();
 
         } catch (err) {
             console.error("Erro ao inicializar dashboard:", err);
@@ -1424,6 +1422,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Agrega dados por Filial e renderiza a tabela de ranking.
+     * **** CORREÇÃO (Problema 4): Esta função agora recebe 'data' e 'historyData'
+     * que SÃO filtrados apenas por permissão, não pelos filtros da UI.
      */
     function processDashboardTable(data, historyData) {
         const groups = data.reduce((acc, item) => {
@@ -1446,7 +1446,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc;
         }, {});
 
-        // NOVO: Agrega dados do histórico
+        // NOVO: Agrega dados do histórico (que também foi pré-filtrado por permissão)
         const historyGroups = historyData.reduce((acc, item) => {
             const key = item.CODFILIAL || 'N/A';
             const valor = parseValor(item.VAL_PGTO_BHS);
@@ -1628,7 +1628,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (state.auth) {
                 // --- SESSÃO VÁLIDA ---
-                handleHashChange(); // Agora isso vai usar os dados pré-carregados
+                
+                // **** CORREÇÃO (Problema 2): Força o setup e o load do dashboard ****
+                // Manually trigger the setup that was in showView
+                if (!state.setupCompleto && state.allData.length > 0) {
+                    console.log("Executando setup de inicialização (forçado no main)...");
+                    listenToMetadata();
+                    renderTableHeader();
+                    populateFilterDatalists();
+                    await loadHistoryData(); // Make sure this is awaited
+                    state.setupCompleto = true;
+                }
+
+                // E FORCE LOAD THE DEFAULT VIEW'S DATA
+                const hash = window.location.hash || '#dashboard';
+                if (hash === '#dashboard') {
+                    await initializeDashboard(); // Force dashboard data processing
+                }
+                // ***************************************************************
+                
+                handleHashChange(); // Agora isso vai apenas mostrar a view
                 window.addEventListener('hashchange', handleHashChange);
 
                 // --- Listeners ---
@@ -1646,6 +1665,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.preventDefault();
                     if (window.location.hash !== '#dashboard') {
                         window.location.hash = '#dashboard';
+                    } else {
+                        initializeDashboard(); // Força recarga se já estiver na view
                     }
                 });
                 document.querySelector('a[href="#acompanhamento"]').addEventListener('click', (e) => {
