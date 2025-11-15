@@ -19,7 +19,10 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
     
     if (!authToken) {
         console.error("Token JWT não encontrado no localStorage, deslogando.");
-        logout();
+        // ATUALIZAÇÃO: Verifica se 'logout' existe antes de chamar
+        if (typeof logout === 'function') {
+            logout();
+        }
         throw new Error("Sessão expirada. Faça login novamente.");
     }
     
@@ -79,10 +82,52 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
     } catch (error) {
         console.error("Erro na função supabaseRequest:", error.message);
         if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
-            if(typeof logout === 'function') logout(); 
+             // ATUALIZAÇÃO: Verifica se 'logout' existe antes de chamar
+            if (typeof logout === 'function') {
+                logout();
+            }
         }
         throw error; 
     }
+}
+
+/**
+ * ** CORREÇÃO (JP): **
+ * A função agora constrói a query dinamicamente com base no nível do gestor,
+ * conforme solicitado.
+ * * ATUALIZAÇÃO: Movido para o topo para corrigir o ReferenceError
+ */
+async function loadAllTeamMembers(gestorChapa, nivelGestor) {
+    const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
+    const chapaStr = String(gestorChapa);
+    
+    // Array base de colunas de gestor
+    const colunasGestor = ['gestor_chapa', 'gestor_n2_chapa', 'gestor_n3_chapa', 'gestor_n4_chapa', 'gestor_n5_chapa'];
+    
+    let orConditions = [];
+    
+    // Se o nível não for definido (ou for admin), busca em todas as 5 colunas
+    if (nivelGestor === null || nivelGestor === undefined || nivelGestor > 5) {
+        console.log(`[Load] Nível não definido ou admin. Buscando em todas as ${colunasGestor.length} colunas.`);
+        orConditions = colunasGestor.map(col => `${col}.eq.${chapaStr}`);
+    } else {
+        // Nível 1 busca 1 coluna, Nível 2 busca 2 colunas, etc.
+        const niveisParaBuscar = Math.max(1, nivelGestor); // Garante pelo menos N1
+        console.log(`[Load] Gestor Nível ${nivelGestor}. Buscando nas ${niveisParaBuscar} primeiras colunas.`);
+        orConditions = colunasGestor.slice(0, niveisParaBuscar).map(col => `${col}.eq.${chapaStr}`);
+    }
+
+    // Se por algum motivo o nível for 0 ou inválido, garante pelo menos o N1
+    if (orConditions.length === 0) {
+         orConditions.push(`gestor_chapa.eq.${chapaStr}`);
+    }
+
+    const query = `colaboradores?select=${columns}&or=(${orConditions.join(',')})`;
+    console.log(`[Load] Query: ${query}`);
+    
+    const team = await supabaseRequest(query, 'GET');
+    
+    return team || [];
 }
 // --- FIM DA ATUALIZAÇÃO ---
 
@@ -272,8 +317,8 @@ async function loadModuleData() {
             // ATUALIZAÇÃO: Corrigido o nome da coluna de "Total Geral" para "TOTAL_EM_HORA"
             supabaseRequest('banco_horas_data?select="CHAPA","TOTAL_EM_HORA","VAL_PGTO_BHS"', 'GET'), // NOVO: Pega banco de horas
             
-            // NOVO: Pega o último histórico
-            supabaseRequest('banco_horas_history?select=data&order=created_at.desc&limit=1', 'GET')
+            // ATUALIZAÇÃO: Corrigido o endpoint para remover o '?'
+            supabaseRequest('banco_horas_history&select=data&order=created_at.desc&limit=1', 'GET') // NOVO: Pega o último histórico
         ]);
 
         // Processa Config
@@ -333,6 +378,7 @@ async function loadModuleData() {
         }
 
         // NOVO: Processa Histórico do Banco de Horas
+        // ATUALIZAÇÃO: Adicionado 'reason' para logar o erro 400
         if (bancoHorasHistoryRes.status === 'fulfilled' && bancoHorasHistoryRes.value && bancoHorasHistoryRes.value[0]) {
             const historyData = bancoHorasHistoryRes.value[0].data; // Isto é um array JSON
             if (Array.isArray(historyData)) {
@@ -350,7 +396,8 @@ async function loadModuleData() {
                  console.log(`[Load] Histórico do Banco de Horas map created with ${Object.keys(state.bancoHorasHistoryMap).length} entries.`); // DEBUG
             }
         } else {
-             console.warn("Nenhum histórico de banco de horas encontrado para comparação.");
+             // ATUALIZAÇÃO: Loga o motivo da falha (ex: "relation does not exist")
+             console.warn("Nenhum histórico de banco de horas encontrado para comparação.", bancoHorasHistoryRes.reason || 'Resposta vazia');
              state.bancoHorasHistoryMap = {};
         }
 
