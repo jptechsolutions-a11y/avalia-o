@@ -1,6 +1,6 @@
 // Configuração do Supabase (baseado nos seus outros módulos)
 const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIJoIkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
 const SUPABASE_PROXY_URL = '/api/proxy'; // Usando o proxy
 
 // Define o adaptador para sessionStorage
@@ -11,6 +11,81 @@ const sessionStorageAdapter = {
 };
 
 let supabaseClient = null;
+
+// --- INÍCIO DA ATUALIZAÇÃO: Função movida para o topo ---
+// --- Função de Requisição (Proxy) ---
+async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
+    const authToken = localStorage.getItem('auth_token'); 
+    
+    if (!authToken) {
+        console.error("Token JWT não encontrado no localStorage, deslogando.");
+        logout();
+        throw new Error("Sessão expirada. Faça login novamente.");
+    }
+    
+    const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
+    
+    const config = {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`, 
+            ...headers 
+        }
+    };
+
+    if (!config.headers['Prefer']) {
+        config.headers['Prefer'] = 'return=representation';
+    }
+
+    if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+        config.body = JSON.stringify(body);
+    }
+
+    try {
+        const response = await fetch(url, config);
+
+        if (!response.ok) {
+            let errorData = { message: `Erro ${response.status}: ${response.statusText}` };
+            try { 
+                errorData = await response.json(); 
+            } catch(e) {}
+            
+            console.error("Erro Supabase (via Proxy):", errorData);
+            const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
+            
+            if (response.status === 401) {
+                throw new Error("Não autorizado. Sua sessão pode ter expirada.");
+            }
+            // Log do erro 500 para depuração
+            if (response.status === 500) {
+                 console.error(`[supabaseRequest] Erro 500! Endpoint: ${endpoint}`, errorData);
+            }
+            throw new Error(detailedError);
+        }
+
+        if (config.headers['Prefer'] === 'count=exact') {
+            const countRange = response.headers.get('content-range'); 
+            const count = countRange ? countRange.split('/')[1] : '0';
+            return { count: parseInt(count || '0', 10) };
+        }
+
+        if (response.status === 204 || response.headers.get('content-length') === '0' ) {
+            return null; 
+        }
+
+        return await response.json(); 
+
+    } catch (error) {
+        console.error("Erro na função supabaseRequest:", error.message);
+        if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
+            if(typeof logout === 'function') logout(); 
+        }
+        throw error; 
+    }
+}
+// --- FIM DA ATUALIZAÇÃO ---
+
 
 // Estado global básico
 const state = {
@@ -137,6 +212,10 @@ function showView(viewId, element) {
     
     feather.replace();
 }
+
+// --- Função de Requisição (Proxy) ---
+// ... ATUALIZAÇÃO: A função foi movida para o topo ...
+
 
 // --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
 
