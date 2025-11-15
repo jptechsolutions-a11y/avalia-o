@@ -81,6 +81,33 @@
             width: 100%;
             padding: 0.75rem;
         }
+
+        /* INÍCIO DA ATUALIZAÇÃO: Estilos para Banco de Horas e Tendência */
+        .diff-up {
+            color: #dc2626; /* Vermelho (piorou) */
+        }
+        .diff-down {
+            color: #16a34a; /* Verde (melhorou) */
+        }
+        .diff-same {
+            color: #6b7280; /* Cinza */
+        }
+        .diff-new {
+            color: #0077B6; /* Azul (novo) */
+        }
+        .banco-horas-valor {
+            font-size: 0.8rem;
+            color: #6b7280; /* text-gray-500 */
+            font-family: monospace;
+            display: block; /* Faz o valor quebrar a linha */
+        }
+        .banco-horas-principal {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px; /* Espaço entre a hora e a seta */
+        }
+        /* FIM DA ATUALIZAÇÃO */
     </style>
 </head>
 <body class="bg-gray-100">
