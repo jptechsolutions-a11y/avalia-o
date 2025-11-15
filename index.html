@@ -9,6 +9,28 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Estilo para o ícone de ver senha -->
+    <style>
+        .password-wrapper {
+            position: relative;
+        }
+        .password-toggle-icon {
+            position: absolute;
+            top: 50%;
+            right: 14px; /* Ajusta a posição para dentro do input */
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #6b7280; /* text-gray-500 */
+        }
+        .password-toggle-icon:hover {
+            color: #023047; /* var(--dark) */
+        }
+        /* Ajuste para inputs de formulário (padding-right) para não sobrepor o ícone */
+        .auth-card .form-group input[type="password"],
+        .auth-card .form-group input[type="text"] {
+            padding-right: 40px; /* Adiciona espaço para o ícone */
+        }
+    </style>
 </head>
 <body class="login-body">
 
@@ -26,34 +48,31 @@
                     <div class="auth-header" style="text-align: center;">
                         <!-- Logo com classes de estilo do controlebaixaconsumo -->
                         <img src="icon.png" alt="Logo G&G" class="block w-40 h-auto mb-6 mx-auto object-contain">
-                        <h2 id="formTitle">Acesso ao Sistema</h2>
-                        <!-- MANTIDO: Subtítulo original do sistema de avaliação -->
-                        <p id="formSubtitle">Avaliação de Desempenho G&G</p>
+                        <!-- ATUALIZADO (Tarefa 2) -->
+                        <h2 id="formTitle">Sistema G&G</h2>
+                        <p id="formSubtitle">Gestão & Gerenciamento Integrado</p>
                     </div>
 
                     <div id="loginAlert"></div>
 
-                    <!-- Formulário de Login (agora usa 'loginForm' como ID) -->
-                    <!-- REVERTIDO: 'loginForm' substituído por 'emailForm' para bater com o JS original -->
                     <form id="emailForm" class="auth-form">
                         <div class="form-group" style="margin-bottom: 20px;">
                             <label for="email" class="font-semibold text-gray-700" style="display: none;">E-mail:</label>
                             <input type="email" id="email" placeholder="E-mail" required class="w-full">
                         </div>
-                        <div class="form-group" style="margin-bottom: 20px;">
+                        
+                        <!-- ATUALIZADO (Tarefa 3) - Adicionado wrapper e ícone -->
+                        <div class="form-group password-wrapper" style="margin-bottom: 20px;">
                             <label for="password" class="font-semibold text-gray-700" style="display: none;">Senha:</label>
                             <input type="password" id="password" placeholder="Senha" required class="w-full">
+                            <i id="passwordToggle" data-feather="eye" class="password-toggle-icon"></i>
                         </div>
                         
-                        <!-- REMOVIDO: Bloco de seleção de filial -->
-
                         <button id="emailSubmitBtn" type="submit" class="btn-gradient">
                             ENTRAR
                         </button>
                     </form>
                     
-                    <!-- REVERTIDO: Links de rodapé para usar HASH (funcionalidade original) -->
-                    <!-- CORREÇÃO: Classes dos links padronizadas com o controlebaixaconsumo -->
                     <div class="mt-6 text-center text-sm">
                         <a href="#forgot" id="forgotLink" class="text-blue-600 hover:underline">Esqueceu sua senha?</a>
                         <span class="mx-2 text-gray-400">|</span>
@@ -63,10 +82,10 @@
 
                 <!-- Card de Solicitação de Acesso (RESTAURADO da versão original) -->
                 <div class="auth-card" id="requestAccessCard" style="display: none;">
-                    <!-- CORREÇÃO: Adicionado style="text-align: center;" -->
                     <div class="auth-header" style="text-align: center;">
                         <img src="icon.png" alt="Logo G&G" class="block w-40 h-auto mb-6 mx-auto object-contain">
-                        <h2 id="formTitleRequest">Solicitar Acesso</h2>
+                        <!-- ATUALIZADO (Tarefa 2) -->
+                        <h2 id="formTitleRequest">Solicitar Acesso ao Sistema G&G</h2>
                         <p id="formSubtitleRequest">Preencha seus dados para solicitar a criação da sua conta.</p>
                     </div>
                     
@@ -86,11 +105,6 @@
                             <textarea id="requestMotivo" placeholder="Ex: Sou gestor da filial X e preciso de acesso para avaliar..." required class="w-full" rows="3"></textarea>
                         </div>
                         
-                        <!-- 
-                          **** CORREÇÃO DE ESTILO APLICADA AQUI ****
-                          Trocado "class="btn btn-primary w-full" style="...""
-                          para "class="btn-gradient"" para igualar ao botão de login.
-                        -->
                         <button id="requestSubmitBtn" type="submit" class="btn-gradient">
                             Enviar Solicitação
                         </button>
@@ -103,24 +117,24 @@
                 </div>
             </div>
 
-            <!-- COLUNA DA DIREITA (INFORMAÇÕES) - Idêntica ao controlebaixaconsumo -->
-            <div class="auth-info-grid">
+            <!-- COLUNA DA DIREITA (INFORMAÇÕES) -->
+            <!-- ATUALIZADO (Tarefa 1 & 4) - Adicionado text-center -->
+            <div class="auth-info-grid text-center">
                 <div class="info-card info-card-gradient">
-                    <!-- Título do avalia-o -->
-                    <h3 class="text-2xl font-bold mb-3">CONTROLE EFICIENTE, AVALIAÇÃO PRECISA.</h3>
-                    <p>Gerencie as avaliações de desempenho com precisão, agilidade e total rastreabilidade.</p>
+                    <h3 class="text-2xl font-bold mb-3">Plataforma Integrada G&G</h3>
+                    <p>Acesse todos os sistemas de gestão em um só lugar.</p>
                 </div>
 
                 <div class="info-card info-card-white">
-                    <h4>FLUXO SIMPLIFICADO</h4>
-                    <h5>GESTÃO DE AVALIAÇÕES EM ETAPAS</h5>
+                    <h4>MÓDULOS DISPONÍVEIS</h4>
+                    <h5>RESUMO DOS SISTEMAS</h5>
                     
-                    <ul class="list-none space-y-2">
-                        <!-- Texto do avalia-o -->
-                        <li><span style="color: var(--secondary);">&#10004;</span> <span class="font-semibold">Avaliação:</span> Gestor registra a avaliação e feedback.</li>
-                        <li><span style="color: var(--secondary);">&#10004;</span> <span class="font-semibold">Cálculo:</span> Sistema gera a pontuação e classificação.</li>
-                        <li><span style="color: var(--secondary);">&#10004;</span> <span class="font-semibold">Histórico:</span> Dados armazenados para relatórios e PDI.</li>
-                        <li><span style="color: var(--secondary);">&#10004;</span> <span class="font-semibold">Gestão:</span> Administre indicadores e resultados.</li>
+                    <!-- Lista centralizada, mas texto alinhado à esquerda -->
+                    <ul class="list-none space-y-2 inline-block text-left mx-auto mt-4">
+                        <li><span style="color: var(--secondary);">&#10004;</span> <span class="font-semibold">Avaliação de Desempenho:</span> Registre e consulte avaliações.</li>
+                        <li><span style="color: var(--secondary);">&#10004;</span> <span class="font-semibold">Banco de Horas:</span> Gerencie e importe o saldo de horas.</li>
+                        <li><span style="color: var(--secondary);">&#10004;</span> <span class="font-semibold">Pendência de Documentos:</span> Acompanhe assinaturas pendentes.</li>
+                        <li><span style="color: var(--secondary);">&#10004;</span> <span class="font-semibold">Área do Gestor:</span> Gerencie hierarquias e times.</li>
                     </ul>
                 </div>
             </div>
@@ -133,9 +147,28 @@
         © 2025 - Sistema G&G | Desenvolvido por <span style="font-weight: 700;">@ Juliano Patrick </span>
     </footer>
 
-    <!-- REMOVIDO: Modais (a lógica antiga usa troca de cards) -->
-
    <script src="login.js?v=2"></script>
+    
+    <!-- ATUALIZADO (Tarefa 3) - Script para "Ver Senha" -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const passwordInput = document.getElementById('password');
+            const passwordToggle = document.getElementById('passwordToggle');
+
+            if (passwordToggle && passwordInput) {
+                passwordToggle.addEventListener('click', () => {
+                    // Verifica o tipo atual
+                    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                    passwordInput.setAttribute('type', type);
+                    
+                    // Muda o ícone
+                    passwordToggle.setAttribute('data-feather', type === 'password' ? 'eye' : 'eye-off');
+                    feather.replace(); // Re-renderiza o ícone
+                });
+            }
+        });
+    </script>
+    
     <script>
         feather.replace();
     </script>
