@@ -39,9 +39,8 @@
             justify-content: center;
             margin-bottom: 1rem;
         }
-        /* Estilo específico para o novo card de Pendências (usando o accent) */
         .card-icon-pendencias {
-            background: linear-gradient(135deg, #FF6F61 0%, #D83B5E 100%); /* Um gradiente de vermelho/rosa para alerta */
+            background: linear-gradient(135deg, #FF6F61 0%, #D83B5E 100%);
             color: white;
             border-radius: 0.75rem;
             padding: 1rem;
@@ -53,7 +52,6 @@
         .card-hover:hover .card-icon-pendencias {
             box-shadow: 0 10px 20px rgba(255, 111, 97, 0.2);
         }
-        /* NOVO: Estilo para o Card "Área do Gestor" (usando a cor --accent) */
         .card-icon-gestor {
             background: linear-gradient(135deg, var(--accent) 0%, var(--dark) 100%);
             color: white;
@@ -68,52 +66,175 @@
             box-shadow: 0 10px 20px rgba(0, 119, 182, 0.2);
         }
         
-        /* NOVOS ESTILOS PARA OS NOVOS CARDS */
-        .card-icon-perfil {
-            background: linear-gradient(135deg, #6d28d9 0%, #4f46e5 100%); /* Roxo/Indigo */
-            color: white;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1rem;
+        /* --- ESTILOS ADICIONADOS PARA MODAIS E DROPDOWN --- */
+        
+        /* Dropdown (copiado de style.css) */
+        #profileDropdownButton {
+            transition: background-color 0.2s ease;
         }
-         .card-hover:hover .card-icon-perfil {
-            box-shadow: 0 10px 20px rgba(109, 40, 217, 0.2);
+        .dropdown-menu {
+            display: none; 
+            position: absolute;
+            top: 120%; 
+            right: 0;
+            width: 240px;
+            background: #1e293b; 
+            border: 1px solid #334155; 
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            z-index: 1010;
+            overflow: hidden;
+        }
+        #profileDropdown.open .dropdown-menu { display: block; }
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem; 
+            font-size: 0.9rem;
+            color: #e2e8f0; 
+            transition: background-color 0.2s ease;
+            cursor: pointer;
+        }
+        .dropdown-item:hover {
+            background-color: #334155; 
+            color: white;
+        }
+        .dropdown-item .feather {
+            color: #94a3b8; 
+            margin-right: 0.75rem;
+        }
+
+        /* Modals (copiado de style.css) */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0, 0, 0, 0.5); 
+            justify-content: center; align-items: flex-start; /* Alinha no topo */
+            z-index: 1001; padding: 5vh 20px 20px; overflow-y: auto;
+        }
+        .modal-content {
+            background: white; padding: 28px; border-radius: 10px; max-width: 95vw; width: 600px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); animation: popIn 0.3s ease-out;
+            color: var(--dark);
+        }
+        @keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1;}
+        .modal-close:hover { color: black; }
+        .modal h3 { margin-top: 0; color: var(--dark); font-size: 1.3em;}
+
+        /* Forms, Botões, Alertas, Tabelas (copiado de style.css) */
+        .form-group { margin-bottom: 10px; }
+        .form-group label { margin-bottom: 6px; font-weight: 500; color: #4b5563; font-size: 0.85rem; display: block; }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 10px 14px;
+            border: 1px solid #d1d5db; 
+            border-radius: 6px;
+            font-size: 0.95rem;
+            background: #ffffff;
+            transition: all 0.2s ease;
+            width: 100%;
+            color: var(--dark);
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 119, 182, 0.1);
+            background: white;
+        }
+        .form-group input[disabled], .form-group input[readonly] {
+            background-color: #f3f4f6;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px 20px;
+            margin-bottom: 15px;
         }
         
-        .card-icon-admin {
-            background: linear-gradient(135deg, #f59e0b 0%, #e11d48 100%); /* Amarelo/Rosa */
-            color: white;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1rem;
+        .btn {
+            padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.9rem; font-weight: 600; transition: all 0.2s ease;
+            display: inline-flex; align-items: center; justify-content: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid transparent;
         }
-         .card-hover:hover .card-icon-admin {
-            box-shadow: 0 10px 20px rgba(225, 29, 72, 0.2);
+        .btn .feather { margin-right: 8px; }
+        .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+        .btn-success { background: var(--primary); color: white; border-color: var(--primary); }
+        .btn-danger { background: #dc2626; color: white; border-color: #dc2626; }
+        .btn-secondary { background: white; color: #4b5563; border-color: #d1d5db; }
+        .btn:hover { transform: translateY(-1px); filter: brightness(1.1); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn-secondary:hover { background-color: #f9fafb; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; background: #9ca3af; border-color: #9ca3af; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+        .alert { padding: 12px 16px; margin: 16px 0; border-radius: 6px; font-weight: 500; font-size: 0.9rem; border: 1px solid transparent; }
+        .alert-success { background-color: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+        .alert-error { background-color: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+
+        .table-container { border-radius: 10px; overflow: auto; border: 1px solid #e5e7eb; background: white; }
+        table.tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .tabela th, .tabela td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #e5e7eb; white-space: nowrap; font-size: 0.9rem; }
+        .tabela th { background-color: #f9fafb; font-weight: 600; color: #374151; }
+        .tabela tbody tr:hover { background-color: #f3f4f6; } 
+        .tabela .actions { text-align: right; } .tabela .actions button { margin-left: 5px;}
+
+        .status-badge {
+            display: inline-block; padding: 3px 10px; font-size: 0.75rem; font-weight: 700;
+            border-radius: 50px; text-transform: uppercase; letter-spacing: 0.5px;
         }
+        .status-ativo { background-color: #f0fdf4; color: #15803d; }
+        .status-inativo { background-color: #fef2f2; color: #b91c1c; }
+
+        .loading { display: none; flex-direction: column; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+            background: rgba(0, 0, 0, 0.5); color: white; z-index: 5000; }
+        .spinner { border: 3px solid rgba(255, 255, 255, 0.2); 
+            border-top: 3px solid #ffffff; 
+            border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
     </style>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen p-6 text-white">
 
     <header class="absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
         <img src="icon.png" alt="Logo G&G" class="h-10 w-auto">
-        <button onclick="logout()" class="flex items-center gap-2 text-gray-400 hover:text-white transition-colors duration-200">
-            <i data-feather="log-out" class="h-5 w-5"></i>
-            Sair
-        </button>
+        
+        <!-- ATUALIZADO: Dropdown de Perfil (substitui o botão Sair) -->
+        <div id="profileDropdown" class="relative">
+            <button id="profileDropdownButton" class="flex items-center gap-2 rounded-full hover:bg-gray-700 p-1 pr-2">
+                <img id="topBarUserAvatar" src="https://i.imgur.com/80SsE11.png" class="w-8 h-8 rounded-full object-cover bg-gray-600">
+                <span id="topBarUserName" class="text-sm font-medium text-white hidden md:block">Usuário</span>
+                <i data-feather="chevron-down" class="h-4 w-4 text-gray-400 hidden md:block"></i>
+            </button>
+            <div id="profileDropdownMenu" class="dropdown-menu">
+                <div class="px-4 py-3 border-b border-gray-600">
+                    <span class="block text-sm font-medium text-white" id="dropdownUserName">...</span>
+                    <span class="block text-xs text-gray-400" id="dropdownUserEmail">...</span>
+                </div>
+                <a onclick="openPerfilModal()" class="dropdown-item">
+                    <i data-feather="user" class="h-4 w-4 mr-2"></i> Meu Perfil
+                </a>
+                <a id="admin-menu-usuarios" onclick="openAdminModal()" class="dropdown-item" style="display: none;">
+                    <i data-feather="users" class="h-4 w-4 mr-2"></i> Gerenciar Usuários
+                </a>
+                <div class="border-t border-gray-600">
+                    <a onclick="logout()" class="dropdown-item text-red-400">
+                        <i data-feather="log-out" class="h-4 w-4 mr-2"></i> Sair
+                    </a>
+                </div>
+            </div>
+        </div>
+        <!-- FIM DA ATUALIZAÇÃO -->
+
     </header>
 
     <main class="text-center">
         <h1 class="text-4xl font-bold mb-4">Bem-vindo, <span id="userName">Usuário</span>.</h1>
         <p class="text-xl text-gray-300 mb-12">Selecione o sistema que deseja acessar:</p>
 
-        <!-- MUDANÇA: Grid atualizado para 3 colunas em 'lg' -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+        <!-- MUDANÇA: Grid atualizado para 4 colunas em 'lg' -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
             
             <!-- Card 1: Avaliação de Desempenho -->
             <a href="app.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
@@ -155,25 +276,8 @@
                 <span class="font-semibold" style="color: var(--accent);">Acessar Sistema &rarr;</span>
             </a>
             
-            <!-- NOVO CARD 5: Meu Perfil -->
-            <a href="app.html#perfil" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
-                <div class="card-icon-perfil">
-                    <i data-feather="user" class="h-8 w-8"></i>
-                </div>
-                <h2 class="text-2xl font-semibold mb-2">Meu Perfil</h2>
-                <p class="text-gray-400 mb-6">Atualize seu nome, foto de perfil e matrícula no sistema.</p>
-                <span class="font-semibold" style="color: #8b5cf6;">Acessar Perfil &rarr;</span>
-            </a>
-            
-            <!-- NOVO CARD 6: Gerenciar Usuários (Admin) -->
-            <a id="admin-card-usuarios" href="app.html#configuracoes" class="card-hover bg-gray-800 rounded-xl p-8 text-left" style="display: none;">
-                <div class="card-icon-admin">
-                    <i data-feather="users" class="h-8 w-8"></i>
-                </div>
-                <h2 class="text-2xl font-semibold mb-2">Gerenciar Usuários</h2>
-                <p class="text-gray-400 mb-6">(Admin) Aprove acessos, edite permissões e status dos usuários.</p>
-                <span class="font-semibold" style="color: #f59e0b;">Acessar Config. &rarr;</span>
-            </a>
+            <!-- REMOVIDO: Card 5 (Meu Perfil) -->
+            <!-- REMOVIDO: Card 6 (Gerenciar Usuários) -->
 
         </div>
     </main>
@@ -181,12 +285,157 @@
     <footer class="absolute bottom-0 p-6 text-gray-500 text-sm">
         &copy; 2025 - Sistema G&G | Desenvolvido por @ Juliano Patrick
     </footer>
+    
+    <!-- Container de Notificações -->
+    <div id="notificationContainer" style="position: fixed; top: 84px; right: 20px; display: flex; flex-direction: column; gap: 12px; z-index: 2000;"></div>
+    
+    <!-- Tela de Loading -->
+    <div class="loading" id="loading"><div class="spinner"></div><p id="loadingText">Processando...</p></div>
 
+    <!-- 
+    ====================================================================
+    NOVOS MODAIS ADICIONADOS
+    ====================================================================
+    -->
+
+    <!-- Modal: Meu Perfil -->
+    <div id="perfilModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closePerfilModal()">&times;</span>
+            <h3><i data-feather="user" class="inline-block h-5 w-5 mr-2"></i> Meu Perfil</h3>
+            
+             <form id="perfilForm" class="mt-4">
+                <div class="flex flex-col sm:flex-row items-center mb-6 pb-6 border-b">
+                    <img id="perfilPicturePreview" src="https://i.imgur.com/80SsE11.png" alt="Foto Perfil" class="w-24 h-24 rounded-full object-cover mb-4 sm:mb-0 sm:mr-6 border border-gray-200 shadow-sm">
+                    <div class="text-center sm:text-left">
+                        <label for="perfilPicture" class="btn btn-primary btn-sm cursor-pointer">
+                            <i data-feather="upload" class="h-4 w-4 mr-2"></i> Alterar Foto
+                        </label>
+                        <input type="file" id="perfilPicture" accept="image/jpeg, image/png, image/gif" class="hidden" onchange="previewProfilePicture(event)">
+                        <p class="text-xs text-gray-500 mt-2">Envie JPG, PNG ou GIF (Máx 2MB).</p>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="perfilNome">Nome Completo:</label>
+                        <input type="text" id="perfilNome" required class="w-full">
+                    </div>
+                    <div class="form-group">
+                        <label for="perfilMatricula">Matrícula (Opcional):</label>
+                        <input type="text" id="perfilMatricula" class="w-full" placeholder="Sua matrícula na empresa">
+                    </div>
+                </div>
+                <div class="form-group mb-4">
+                    <label for="perfilEmail">E-mail (Login):</label>
+                    <input type="email" id="perfilEmail" required class="w-full bg-gray-100 cursor-not-allowed" disabled>
+                </div>
+                <div id="perfilAlert" class="mt-4"></div>
+                <div class="flex justify-end gap-4 mt-6">
+                    <button type="button" class="btn btn-secondary" onclick="closePerfilModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i data-feather="save" class="h-4 w-4 mr-2"></i> Salvar Alterações
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal: Gerenciar Usuários (Admin) -->
+    <div id="adminModal" class="modal">
+       <div class="modal-content" style="width: 1000px; max-width: 95vw;">
+        <span class="modal-close" onclick="closeAdminModal()">&times;</span>
+        <h3><i data-feather="users" class="inline-block h-5 w-5 mr-2"></i> Gerenciar Usuários</h3>
+        
+        <div class="mt-4">
+            <h4 class="font-semibold text-lg text-gray-800 mb-2">Solicitações de Acesso Pendentes</h4>
+            <div class="table-container">
+                <table class="tabela" id="tabela-solicitacoes-admin">
+                    <thead><tr><th>Nome</th><th>E-mail</th><th>Motivo</th><th>Data</th><th>Ações</th></tr></thead>
+                    <tbody id="solicitacoesTBody"><tr><td colspan="5" style="text-align:center;">Carregando...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="mt-6">
+            <h4 class="font-semibold text-lg text-gray-800 mb-2">Gerenciar Usuários do Sistema</h4>
+            <div class="table-container">
+                <table class="tabela" id="tabela-usuarios-admin">
+                    <thead><tr><th>Nome</th><th>E-mail</th><th>Matrícula</th><th>Permissão</th><th>Status</th><th>Ações</th></tr></thead>
+                    <tbody id="usuariosTBody"><tr><td colspan="6" style="text-align:center;">Carregando...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+       </div>
+    </div>
+    
+     <!-- Modal: Edição de Usuário (Admin) -->
+     <div id="userEditModal" class="modal">
+       <div class="modal-content" style="width: 600px; max-width: 95vw; z-index: 1002;"> <!-- z-index maior -->
+        <span class="modal-close" onclick="closeUserEditModal()">&times;</span>
+        <h3>Editar Usuário</h3>
+        <form id="userEditForm">
+            <input type="hidden" id="modal-user-id">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-user-nome">Nome</label>
+                    <input type="text" id="modal-user-nome" required>
+                </div>
+                <div class="form-group">
+                    <label for="modal-user-email">E-mail (Login)</label>
+                    <input type="email" id="modal-user-email" readonly class="bg-gray-100">
+                </div>
+            </div>
+             <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-user-matricula">Matrícula</label>
+                    <input type="text" id="modal-user-matricula">
+                </div>
+                <div class="form-group">
+                    <label for="modal-user-filial">Permissão Filiais (separado por vírgula)</label>
+                    <input type="text" id="modal-user-filial" placeholder="Ex: 101, 205, 301">
+                </div>
+            </div>
+             <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-user-role">Permissão (Role)</label>
+                    <select id="modal-user-role">
+                        <option value="user">Usuário (Padrão)</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="modal-user-status">Status</label>
+                     <select id="modal-user-status">
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-4 mt-6">
+                 <button type="button" class="btn btn-secondary" onclick="closeUserEditModal()">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-success">
+                    <i data-feather="save" class="h-4 w-4 mr-2"></i> Salvar
+                </button>
+            </div>
+        </form>
+       </div>
+     </div>
+
+    <!-- 
+    ====================================================================
+    SCRIPT ATUALIZADO
+    ====================================================================
+    -->
     <script>
         const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+        const SUPABASE_PROXY_URL = '/api/proxy'; // API de proxy
         
         let supabaseClient = null;
+        let currentUserData = null; // Cache para dados do usuário
 
         // Define o adaptador para sessionStorage
         const sessionStorageAdapter = {
@@ -220,29 +469,48 @@
                     window.location.href = 'index.html';
                     return;
                 }
-
+                
+                // Salva o token para o supabaseRequest
+                localStorage.setItem('auth_token', session.access_token);
                 const user = session.user;
                 
-                // ATUALIZADO: Buscar 'nome' e 'role'
+                // ATUALIZADO: Buscar todos os campos necessários
                 const { data: profile, error: profileError } = await supabaseClient
                     .from('usuarios')
-                    .select('nome, role') // Pede o 'role'
+                    .select('nome, role, email, matricula, profile_picture_url') // Pede tudo
                     .eq('auth_user_id', user.id)
                     .single();
 
                 if (profileError) {
-                    console.warn("Erro ao buscar perfil, usando nome do email:", profileError.message);
+                    console.warn("Erro ao buscar perfil, usando dados de auth:", profileError.message);
+                    currentUserData = {
+                        nome: user.email.split('@')[0] || 'Usuário',
+                        email: user.email,
+                        role: 'user',
+                        matricula: null,
+                        profile_picture_url: null
+                    };
+                } else {
+                    currentUserData = profile; // Salva no cache
                 }
 
-                const userName = profile?.nome || user.email.split('@')[0] || 'Usuário';
+                // Popula o Header
+                const userName = currentUserData.nome;
                 document.getElementById('userName').textContent = userName;
+                document.getElementById('topBarUserName').textContent = userName;
+                document.getElementById('dropdownUserName').textContent = userName;
+                document.getElementById('dropdownUserEmail').textContent = currentUserData.email;
+                if (currentUserData.profile_picture_url) {
+                    document.getElementById('topBarUserAvatar').src = currentUserData.profile_picture_url;
+                }
+
 
                 // NOVO: Verificar se é admin para mostrar o card
-                if (profile?.role === 'admin') {
+                if (currentUserData.role === 'admin') {
                     const adminCard = document.getElementById('admin-card-usuarios');
-                    if (adminCard) {
-                        adminCard.style.display = 'block';
-                    }
+                    const adminMenu = document.getElementById('admin-menu-usuarios');
+                    if (adminCard) adminCard.style.display = 'block'; // Mostra o card (que removemos, mas seguro deixar)
+                    if (adminMenu) adminMenu.style.display = 'flex'; // Mostra o item no menu
                 }
 
             } catch (e) {
@@ -252,6 +520,7 @@
         }
 
         function logout() {
+            localStorage.removeItem('auth_token');
             if (supabaseClient) {
                 supabaseClient.auth.signOut().then(() => {
                     window.location.href = 'index.html';
@@ -263,10 +532,383 @@
                  window.location.href = 'index.html';
             }
         }
+        
+        // --- INÍCIO DAS FUNÇÕES ADICIONADAS ---
+        
+        // Função de Request (essencial)
+        async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
+            const authToken = localStorage.getItem('auth_token');
+            if (!authToken) {
+                console.error("Token JWT não encontrado, deslogando.");
+                logout();
+                throw new Error("Sessão expirada. Faça login novamente.");
+            }
+            
+            const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
+            const config = {
+                method: method,
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}`, ...headers }
+            };
+            if (!config.headers['Prefer']) { config.headers['Prefer'] = 'return=representation'; }
+            if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+                config.body = JSON.stringify(body);
+            }
+
+            try {
+                const response = await fetch(url, config);
+                if (!response.ok) {
+                    let errorData = { message: `Erro ${response.status}: ${response.statusText}` };
+                    try { errorData = await response.json(); } catch(e) {}
+                    console.error("Erro Supabase (via Proxy):", errorData);
+                    const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
+                    if (response.status === 401) { throw new Error("Não autorizado. Sua sessão pode ter expirado."); }
+                    throw new Error(detailedError);
+                }
+                if (response.status === 204 || response.headers.get('content-length') === '0' ) { return null; }
+                return await response.json();
+            } catch (error) {
+                console.error("Erro na função supabaseRequest:", error.message);
+                if (error.message.includes("Não autorizado") || error.message.includes("expirada")) { logout(); }
+                throw error; 
+            }
+        }
+
+        // Funções de UI
+        function showLoading(mostrar) { document.getElementById('loading').style.display = mostrar ? 'flex' : 'none'; }
+        function escapeHTML(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        function mostrarNotificacao(message, type = 'info', timeout = 4000) {
+            const container = document.getElementById('notificationContainer');
+            if (!container) return;
+            const notification = document.createElement('div');
+            notification.className = `notification ${type} !text-gray-800`; // Força texto escuro
+            let icon = type === 'success' ? 'check-circle' : (type === 'error' ? 'x-circle' : 'info');
+            if (type === 'warning') icon = 'alert-triangle';
+            
+            notification.innerHTML = `
+                <div class="notification-header !font-bold ${type === 'success' ? '!text-green-600' : type === 'error' ? '!text-red-600' : '!text-blue-600'}">
+                    <i data-feather="${icon}" class="h-5 w-5 mr-2"></i>
+                    <span>${type === 'success' ? 'Sucesso!' : (type === 'error' ? 'Erro!' : (type === 'warning' ? 'Atenção!' : 'Aviso'))}</span>
+                </div>
+                <div class="notification-body !text-gray-700">${escapeHTML(message)}</div>`;
+            container.appendChild(notification);
+            feather.replace();
+            setTimeout(() => {
+                notification.classList.add('hide'); // Define a animação de saída
+                notification.style.animation = 'slideOut 0.5s forwards';
+                notification.addEventListener('animationend', () => notification.remove());
+            }, timeout);
+        }
+        // Adiciona a animação de notificação
+        const styleSheet = document.createElement("style");
+        styleSheet.type = "text/css";
+        styleSheet.innerText = `
+            .notification {
+                 width: 320px; background: #fff; padding: 16px; border-radius: 8px; 
+                 box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+                 transform: translateX(100%); animation: slideIn 0.5s forwards; 
+                 position: relative; overflow: hidden; border-left-width: 4px;
+            }
+            @keyframes slideIn { to { transform: translateX(0); } }
+            .notification.hide { animation: slideOut 0.5s forwards; }
+            @keyframes slideOut { to { transform: translateX(120%); opacity: 0; } }
+            .notification.success { border-left-color: var(--primary); }
+            .notification.error { border-left-color: #dc2626; }
+            .notification.info { border-left-color: var(--accent); }
+        `;
+        document.head.appendChild(styleSheet);
+
+
+        // --- Lógica do Modal "Meu Perfil" ---
+        function openPerfilModal() {
+            if (!currentUserData) {
+                mostrarNotificacao('Dados do usuário ainda carregando. Tente novamente.', 'warning');
+                return;
+            }
+            document.getElementById('perfilEmail').value = currentUserData.email || '';
+            document.getElementById('perfilNome').value = currentUserData.nome || '';
+            document.getElementById('perfilMatricula').value = currentUserData.matricula || '';
+            document.getElementById('perfilPicturePreview').src = currentUserData.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
+            document.getElementById('perfilAlert').innerHTML = '';
+            document.getElementById('perfilModal').style.display = 'flex';
+            feather.replace();
+        }
+        function closePerfilModal() { document.getElementById('perfilModal').style.display = 'none'; }
+        
+        function previewProfilePicture(event) {
+            const reader = new FileReader();
+            reader.onload = function(){
+                document.getElementById('perfilPicturePreview').src = reader.result;
+            };
+            if (event.target.files[0]) {
+                reader.readAsDataURL(event.target.files[0]);
+            } else {
+                 document.getElementById('perfilPicturePreview').src = currentUserData.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
+            }
+        }
+
+        document.getElementById('perfilForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const alertContainer = document.getElementById('perfilAlert');
+            const saveButton = document.querySelector('#perfilForm button[type="submit"]');
+            alertContainer.innerHTML = '';
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;margin-right:5px;"></div> Salvando...';
+
+            let profilePicUrl = currentUserData.profile_picture_url;
+            const pictureFile = document.getElementById('perfilPicture').files[0];
+
+            try {
+                if (pictureFile) {
+                    // Upload de nova foto
+                    const apiUrl = `/api/upload?fileName=${encodeURIComponent(pictureFile.name)}&fileType=${encodeURIComponent(pictureFile.type || 'application/octet-stream')}`;
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/octet-stream', 
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                        },
+                        body: pictureFile,
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`Erro ${response.status} ao enviar foto: ${errorData.details || errorData.error}`);
+                    }
+                    const result = await response.json();
+                    profilePicUrl = result.publicUrl;
+                }
+
+                // Atualiza dados do perfil
+                const profileData = {
+                    nome: document.getElementById('perfilNome').value,
+                    matricula: document.getElementById('perfilMatricula').value || null,
+                    profile_picture_url: profilePicUrl || null
+                };
+
+                const [updatedUser] = await supabaseRequest(`usuarios?auth_user_id=eq.${supabaseClient.auth.user.id}`, 'PATCH', profileData);
+
+                if (updatedUser) {
+                    currentUserData = updatedUser; // Atualiza o cache local
+                    // Atualiza a UI do header
+                    document.getElementById('topBarUserName').textContent = currentUserData.nome;
+                    document.getElementById('dropdownUserName').textContent = currentUserData.nome;
+                    if (currentUserData.profile_picture_url) {
+                        document.getElementById('topBarUserAvatar').src = currentUserData.profile_picture_url;
+                        document.getElementById('perfilPicturePreview').src = currentUserData.profile_picture_url;
+                    }
+                    mostrarNotificacao('Perfil atualizado com sucesso!', 'success');
+                    closePerfilModal();
+                } else {
+                    throw new Error("Resposta inesperada do servidor.");
+                }
+
+            } catch (error) {
+                console.error("Erro ao salvar perfil:", error);
+                alertContainer.innerHTML = `<div class="alert alert-error">Erro ao salvar: ${error.message}</div>`;
+            } finally {
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i data-feather="save" class="h-4 w-4 mr-2"></i> Salvar Alterações';
+                feather.replace();
+                document.getElementById('perfilPicture').value = ''; 
+            }
+        });
+
+        // --- Lógica do Modal "Gerenciar Usuários" ---
+        let adminDataCache = { usuarios: [], solicitacoes: [] };
+
+        async function openAdminModal() {
+            document.getElementById('adminModal').style.display = 'flex';
+            await Promise.all([
+                renderSolicitacoesTable(),
+                renderUsuariosTable()
+            ]);
+            feather.replace();
+        }
+        function closeAdminModal() { document.getElementById('adminModal').style.display = 'none'; }
+
+        async function renderSolicitacoesTable() {
+            const tbody = document.getElementById('solicitacoesTBody');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Carregando...</td></tr>';
+            try {
+                const data = await supabaseRequest('solicitacoes_acesso?status=eq.pendente&order=created_at.desc', 'GET');
+                adminDataCache.solicitacoes = data || [];
+                if (adminDataCache.solicitacoes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhuma solicitação pendente.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = adminDataCache.solicitacoes.map(s => {
+                    const data = new Date(s.created_at).toLocaleDateString('pt-BR');
+                    return `<tr>
+                        <td>${escapeHTML(s.nome)}</td>
+                        <td>${escapeHTML(s.email)}</td>
+                        <td style="white-space: normal; min-width: 250px;">${escapeHTML(s.motivo)}</td>
+                        <td>${data}</td>
+                        <td class="actions">
+                            <button class="btn btn-sm btn-success" onclick='aprovarSolicitacao(${s.id}, ${JSON.stringify(s.nome)}, ${JSON.stringify(s.email)})'>
+                                <i data-feather="check" class="h-4 w-4"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="rejeitarSolicitacao(${s.id})">
+                                <i data-feather="x" class="h-4 w-4"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: red;">Erro: ${e.message}</td></tr>`;
+            }
+        }
+        
+        async function renderUsuariosTable() {
+            const tbody = document.getElementById('usuariosTBody');
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Carregando...</td></tr>';
+            try {
+                const data = await supabaseRequest('usuarios?select=*&order=nome.asc', 'GET');
+                adminDataCache.usuarios = data || [];
+                if (adminDataCache.usuarios.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhum usuário encontrado.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = adminDataCache.usuarios.map(u => {
+                    const status = u.status || 'ativo';
+                    const statusClass = (status === 'ativo') ? 'status-ativo' : 'status-inativo';
+                    const roleClass = u.role === 'admin' ? 'font-bold text-blue-600' : 'text-gray-700';
+                    return `<tr>
+                        <td>${escapeHTML(u.nome)}</td>
+                        <td>${escapeHTML(u.email)}</td>
+                        <td>${escapeHTML(u.matricula || '--')}</td>
+                        <td class="${roleClass}">${escapeHTML(u.role)}</td>
+                        <td><span class="status-badge ${statusClass}">${escapeHTML(status)}</span></td>
+                        <td class="actions">
+                            <button class="btn btn-sm btn-warning" onclick="openUserEditModal('${u.id}')">
+                                <i data-feather="edit-2" class="h-4 w-4"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: red;">Erro: ${e.message}</td></tr>`;
+            }
+        }
+        
+        async function rejeitarSolicitacao(id) {
+            if (!confirm('Tem certeza que deseja rejeitar esta solicitação?')) return;
+            showLoading(true);
+            try {
+                await supabaseRequest(`solicitacoes_acesso?id=eq.${id}`, 'PATCH', { status: 'rejeitado' });
+                mostrarNotificacao('Solicitação rejeitada.', 'success');
+                await renderSolicitacoesTable();
+            } catch(e) {
+                mostrarNotificacao(`Erro ao rejeitar: ${e.message}`, 'error');
+            } finally {
+                showLoading(false);
+                feather.replace();
+            }
+        }
+
+        async function aprovarSolicitacao(id, nome, email) {
+            if (!confirm(`Aprovar "${nome}" (${email})? Isso enviará um e-mail de convite.`)) return;
+            showLoading(true);
+            try {
+                const response = await fetch('/api/approve-access', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    },
+                    body: JSON.stringify({ solicitacao_id: id, email: email, nome: nome })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Erro ${response.status}`);
+                }
+                mostrarNotificacao('Usuário aprovado e convite enviado!', 'success');
+                await Promise.all([renderSolicitacoesTable(), renderUsuariosTable()]);
+            } catch(e) {
+                mostrarNotificacao(`Erro ao aprovar: ${e.message}`, 'error');
+            } finally {
+                showLoading(false);
+                feather.replace();
+            }
+        }
+        
+        // --- Lógica do Modal de Edição de Usuário ---
+        function openUserEditModal(id) {
+            const usuario = adminDataCache.usuarios.find(u => u.id == id);
+            if (!usuario) {
+                mostrarNotificacao('Usuário não encontrado no cache.', 'error');
+                return;
+            }
+            document.getElementById('modal-user-id').value = usuario.id;
+            document.getElementById('modal-user-nome').value = usuario.nome || '';
+            document.getElementById('modal-user-email').value = usuario.email || '';
+            document.getElementById('modal-user-matricula').value = usuario.matricula || '';
+            // Converte array de filiais em string
+            document.getElementById('modal-user-filial').value = (usuario.permissoes_filiais || []).join(', ');
+            document.getElementById('modal-user-role').value = usuario.role || 'user';
+            document.getElementById('modal-user-status').value = usuario.status || 'inativo';
+            document.getElementById('userEditModal').style.display = 'flex';
+        }
+        
+        function closeUserEditModal() {
+            document.getElementById('userEditModal').style.display = 'none';
+            document.getElementById('userEditForm').reset();
+        }
+        
+        document.getElementById('userEditForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const id = document.getElementById('modal-user-id').value;
+            
+            // Converte string de filiais em array
+            const filiaisInput = document.getElementById('modal-user-filial').value || '';
+            let permissoesArray = null;
+            if (filiaisInput.trim().length > 0) {
+                permissoesArray = filiaisInput.split(',').map(f => f.trim()).filter(f => f.length > 0);
+            }
+
+            const payload = {
+                nome: document.getElementById('modal-user-nome').value,
+                matricula: document.getElementById('modal-user-matricula').value || null,
+                permissoes_filiais: permissoesArray,
+                role: document.getElementById('modal-user-role').value,
+                status: document.getElementById('modal-user-status').value
+            };
+            
+            showLoading(true);
+            try {
+                await supabaseRequest(`usuarios?id=eq.${id}`, 'PATCH', payload);
+                mostrarNotificacao('Usuário atualizado!', 'success');
+                await renderUsuariosTable();
+                closeUserEditModal();
+            } catch (e) {
+                mostrarNotificacao(`Erro ao salvar: ${e.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        });
+
+
+        // --- FIM DAS FUNÇÕES ADICIONADAS ---
 
         document.addEventListener('DOMContentLoaded', () => {
             feather.replace();
             getUserProfile();
+            
+            // Listener para o dropdown
+             const profileDropdownButton = document.getElementById('profileDropdownButton');
+             const profileDropdown = document.getElementById('profileDropdown');
+             if (profileDropdownButton) {
+                profileDropdownButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    profileDropdown.classList.toggle('open');
+                });
+            }
+            document.addEventListener('click', (e) => {
+                if (profileDropdown && !profileDropdown.contains(e.target) && !e.target.closest('.modal')) {
+                    profileDropdown.classList.remove('open');
+                }
+            });
         });
     </script>
 </body>
