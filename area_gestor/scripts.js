@@ -31,6 +31,7 @@ const state = {
     todosUsuarios: [], // Cache para fotos de perfil
     mapaFotos: {}, // Mapa de matricula -> foto
     bancoHorasMap: {}, // NOVO: Cache para banco de horas
+    bancoHorasHistoryMap: {}, // NOVO: Cache para o histórico
     subordinadosComTimes: [] // Cache para a nova view
 };
 
@@ -137,127 +138,41 @@ function showView(viewId, element) {
     feather.replace();
 }
 
-// --- Função de Requisição (Proxy) ---
-async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
-    const authToken = localStorage.getItem('auth_token'); 
-    
-    if (!authToken) {
-        console.error("Token JWT não encontrado no localStorage, deslogando.");
-        logout();
-        throw new Error("Sessão expirada. Faça login novamente.");
-    }
-    
-    const url = `${SUPABASE_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`;
-    
-    const config = {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`, 
-            ...headers 
-        }
-    };
-
-    if (!config.headers['Prefer']) {
-        config.headers['Prefer'] = 'return=representation';
-    }
-
-    if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
-        config.body = JSON.stringify(body);
-    }
-
-    try {
-        const response = await fetch(url, config);
-
-        if (!response.ok) {
-            let errorData = { message: `Erro ${response.status}: ${response.statusText}` };
-            try { 
-                errorData = await response.json(); 
-            } catch(e) {}
-            
-            console.error("Erro Supabase (via Proxy):", errorData);
-            const detailedError = errorData.message || errorData.error || `Erro na requisição (${response.status})`;
-            
-            if (response.status === 401) {
-                throw new Error("Não autorizado. Sua sessão pode ter expirada.");
-            }
-            // Log do erro 500 para depuração
-            if (response.status === 500) {
-                 console.error(`[supabaseRequest] Erro 500! Endpoint: ${endpoint}`, errorData);
-            }
-            throw new Error(detailedError);
-        }
-
-        if (config.headers['Prefer'] === 'count=exact') {
-            const countRange = response.headers.get('content-range'); 
-            const count = countRange ? countRange.split('/')[1] : '0';
-            return { count: parseInt(count || '0', 10) };
-        }
-
-        if (response.status === 204 || response.headers.get('content-length') === '0' ) {
-            return null; 
-        }
-
-        return await response.json(); 
-
-    } catch (error) {
-        console.error("Erro na função supabaseRequest:", error.message);
-        if (error.message.includes("Não autorizado") || error.message.includes("expirada")) {
-            if(typeof logout === 'function') logout(); 
-        }
-        throw error; 
-    }
-}
-
 // --- Funções de Lógica do Módulo (NOVAS E ATUALIZADAS) ---
 
 /**
- * ** CORREÇÃO (JP): **
- * A função agora constrói a query dinamicamente com base no nível do gestor,
- * conforme solicitado.
+ * NOVO: Helper para converter string de horas "1.234,56" para float 1234.56
  */
-async function loadAllTeamMembers(gestorChapa, nivelGestor) {
-    const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
-    const chapaStr = String(gestorChapa);
-    
-    // Array base de colunas de gestor
-    const colunasGestor = ['gestor_chapa', 'gestor_n2_chapa', 'gestor_n3_chapa', 'gestor_n4_chapa', 'gestor_n5_chapa'];
-    
-    let orConditions = [];
-    
-    // Se o nível não for definido (ou for admin), busca em todas as 5 colunas
-    if (nivelGestor === null || nivelGestor === undefined || nivelGestor > 5) {
-        console.log(`[Load] Nível não definido ou admin. Buscando em todas as ${colunasGestor.length} colunas.`);
-        orConditions = colunasGestor.map(col => `${col}.eq.${chapaStr}`);
-    } else {
-        // Nível 1 busca 1 coluna, Nível 2 busca 2 colunas, etc.
-        const niveisParaBuscar = Math.max(1, nivelGestor); // Garante pelo menos N1
-        console.log(`[Load] Gestor Nível ${nivelGestor}. Buscando nas ${niveisParaBuscar} primeiras colunas.`);
-        orConditions = colunasGestor.slice(0, niveisParaBuscar).map(col => `${col}.eq.${chapaStr}`);
-    }
+function parseHoras(horasStr) {
+    if (typeof horasStr !== 'string' || !horasStr) return 0;
+    // Remove pontos de milhar, substitui vírgula por ponto
+    const cleanStr = horasStr.replace(/\./g, '').replace(',', '.');
+    const val = parseFloat(cleanStr);
+    return isNaN(val) ? 0 : val;
+}
 
-    // Se por algum motivo o nível for 0 ou inválido, garante pelo menos o N1
-    if (orConditions.length === 0) {
-         orConditions.push(`gestor_chapa.eq.${chapaStr}`);
+/**
+ * NOVO: Helper para retornar o ícone de tendência
+ * Tendência 'up' (vermelho) = mais horas, 'down' (verde) = menos horas
+ */
+function getTendenciaIcon(tendencia) {
+    if (tendencia === 'up') {
+        return '<i data-feather="arrow-up" class="h-3 w-3 diff-up"></i>'; // Piorou (mais horas)
     }
-
-    const query = `colaboradores?select=${columns}&or=(${orConditions.join(',')})`;
-    console.log(`[Load] Query: ${query}`);
-    
-    const team = await supabaseRequest(query, 'GET');
-    
-    return team || [];
+    if (tendencia === 'down') {
+        return '<i data-feather="arrow-down" class="h-3 w-3 diff-down"></i>'; // Melhorou (menos horas)
+    }
+    if (tendencia === 'new') {
+        return '<i data-feather="star" class="h-3 w-3 diff-new" title="Novo"></i>'; // Novo
+    }
+    // 'same'
+    return '<i data-feather="minus" class="h-3 w-3 diff-same"></i>'; // Manteve
 }
 
 
 /**
- * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
- * Chamado uma vez during a inicialização.
- */
-/**
- * Carrega os dados essenciais do módulo (config, time, disponíveis e funções)
- * Chamado uma vez during a inicialização.
- */
+ * ** CORREÇÃO (JP): **
+// ... existing code ... */
 async function loadModuleData() {
     // Se não tiver matrícula, não pode ser gestor, pula o carregamento
     if (!state.userMatricula && !state.isAdmin) {
@@ -269,14 +184,17 @@ async function loadModuleData() {
     
     try {
         // --- ETAPA 1: Carregar Configs, Nomes de Gestores, Funções e BANCO DE HORAS (em paralelo) ---
-        const [configRes, funcoesRes, gestorMapRes, usuariosRes, bancoHorasRes] = await Promise.allSettled([
+        const [configRes, funcoesRes, gestorMapRes, usuariosRes, bancoHorasRes, bancoHorasHistoryRes] = await Promise.allSettled([
             supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
             supabaseRequest('colaboradores?select=funcao', 'GET'),
             supabaseRequest('colaboradores?select=matricula,nome', 'GET'), // Pega TODOS os nomes para o mapa
             supabaseRequest('usuarios?select=matricula,profile_picture_url', 'GET'), // NOVO: Pega fotos de perfil
             
             // ATUALIZAÇÃO: Corrigido o nome da coluna de "Total Geral" para "TOTAL_EM_HORA"
-            supabaseRequest('banco_horas_data?select="CHAPA","TOTAL_EM_HORA","VAL_PGTO_BHS"', 'GET') // NOVO: Pega banco de horas
+            supabaseRequest('banco_horas_data?select="CHAPA","TOTAL_EM_HORA","VAL_PGTO_BHS"', 'GET'), // NOVO: Pega banco de horas
+            
+            // NOVO: Pega o último histórico
+            supabaseRequest('banco_horas_history?select=data&order=created_at.desc&limit=1', 'GET')
         ]);
 
         // Processa Config
@@ -334,6 +252,29 @@ async function loadModuleData() {
             console.error("Erro ao carregar banco de horas:", bancoHorasRes.reason);
             state.bancoHorasMap = {};
         }
+
+        // NOVO: Processa Histórico do Banco de Horas
+        if (bancoHorasHistoryRes.status === 'fulfilled' && bancoHorasHistoryRes.value && bancoHorasHistoryRes.value[0]) {
+            const historyData = bancoHorasHistoryRes.value[0].data; // Isto é um array JSON
+            if (Array.isArray(historyData)) {
+                state.bancoHorasHistoryMap = historyData.reduce((acc, item) => {
+                    // O histórico também usa CHAPA e TOTAL_EM_HORA
+                    if (item.CHAPA) { 
+                        const normalizedChapa = String(item.CHAPA).trim();
+                        acc[normalizedChapa] = { 
+                            horas: item['TOTAL_EM_HORA'] || '0,00',
+                            valor: item['VAL_PGTO_BHS'] || 'R$ 0,00'
+                        };
+                    }
+                    return acc;
+                }, {});
+                 console.log(`[Load] Histórico do Banco de Horas map created with ${Object.keys(state.bancoHorasHistoryMap).length} entries.`); // DEBUG
+            }
+        } else {
+             console.warn("Nenhum histórico de banco de horas encontrado para comparação.");
+             state.bancoHorasHistoryMap = {};
+        }
+
 
         // --- *** NOVA ETAPA (MOVILDA) *** ---
         // --- ETAPA 1.5: Definir o Nível do Gestor AGORA ---
@@ -411,6 +352,8 @@ async function loadModuleData() {
 
         // --- ETAPA 5: Processar o Time (Adicionar Nível, Nome do Gestor e BANCO DE HORAS) ---
         const bancoHorasMap = state.bancoHorasMap || {};
+        const bancoHorasHistoryMap = state.bancoHorasHistoryMap || {}; // NOVO
+        
         state.meuTime = timeRes.map(c => {
             const nivel_hierarquico = configMapNivel[c.funcao?.toLowerCase()] || null;
             const gestor_imediato_nome = gestorMap[c.gestor_chapa] || 'N/A';
@@ -418,6 +361,18 @@ async function loadModuleData() {
             // CORREÇÃO: Normaliza a matrícula para a busca
             const normalizedMatricula = String(c.matricula).trim();
             const banco = bancoHorasMap[normalizedMatricula] || { horas: '0,00', valor: 'R$ 0,00' }; 
+            const bancoHistory = bancoHorasHistoryMap[normalizedMatricula]; // NOVO: Pega o histórico
+
+            // NOVO: Calcula a tendência
+            let tendencia = 'same';
+            if (!bancoHistory) {
+                tendencia = 'new'; // Colaborador não existia no histórico
+            } else {
+                const horasAtual = parseHoras(banco.horas);
+                const horasAnterior = parseHoras(bancoHistory.horas);
+                if (horasAtual > horasAnterior) tendencia = 'up'; // Piorou (mais horas)
+                if (horasAtual < horasAnterior) tendencia = 'down'; // Melhorou (menos horas)
+            }
             
             // Debugging log for the first 3 items
             if (timeRes.indexOf(c) < 3) {
@@ -429,7 +384,8 @@ async function loadModuleData() {
                 nivel_hierarquico,
                 gestor_imediato_nome,
                 banco_horas: banco.horas, // Adiciona as horas
-                banco_valor: banco.valor  // Adiciona o valor
+                banco_valor: banco.valor,  // Adiciona o valor
+                banco_tendencia: tendencia // NOVO: Adiciona a tendência
             };
         });
 
@@ -703,7 +659,7 @@ function populateFilters(data) {
 /**
  * Renderiza a tabela principal de "Meu Time"
  * ** ATUALIZADO: para ler os dados da nova query plana **
- */
+// ... existing code ... */
 function renderMeuTimeTable(data) {
     const tbody = document.getElementById('tableBodyMeuTime');
     const message = document.getElementById('tableMessageMeuTime');
@@ -771,17 +727,21 @@ function renderMeuTimeTable(data) {
         const nomeStyle = (nivel && nivel > 0) ? `style="padding-left: ${nivel * 0.75}rem;"` : '';
 
         // NOVO: Lógica de cor do Banco de Horas
-        const horasVal = parseFloat((item.banco_horas || '0,00').replace(',', '.'));
+        const horasVal = parseHoras(item.banco_horas); // Usa o helper
         let horasClass = 'text-gray-600';
-        if (horasVal > 0) horasClass = 'text-green-600 font-medium'; // Positivo (para a empresa)
-        if (horasVal < 0) horasClass = 'text-red-600 font-medium'; // Negativo (para a empresa)
+        if (horasVal > 0) horasClass = 'text-green-600 font-medium'; // Positivo (banco positivo)
+        if (horasVal < 0) horasClass = 'text-red-600 font-medium'; // Negativo (banco negativo)
 
         tr.innerHTML = `
             <td ${nomeStyle}>${item.nome || '-'}</td>
             <td>${item.matricula || '-'}</td>
-            <!-- ATUALIZADO: Coluna de Banco de Horas -->
-            <td class="${horasClass}" style="text-align: center; font-family: monospace;">
-                ${item.banco_horas || '0,00'}
+            <!-- ATUALIZADO: Coluna de Banco de Horas com Valor e Tendência -->
+            <td style="text-align: center;">
+                <div class="banco-horas-principal ${horasClass}" style="font-family: monospace;">
+                    <span>${item.banco_horas || '0,00'}</span>
+                    ${getTendenciaIcon(item.banco_tendencia)}
+                </div>
+                <small class="banco-horas-valor">${item.banco_valor || 'R$ 0,00'}</small>
             </td>
             <td>${item.funcao || '-'}</td>
             <td>${item.secao || '-'}</td>
@@ -916,19 +876,29 @@ async function loadMeusGestoresView() {
         // Re-usa a função de carregar time!
         const timeDoGestor = await loadAllTeamMembers(gestor.matricula, gestor.nivel_hierarquico);
         
-        // NOVO: Calcular total de horas do sub-time
+        // NOVO: Calcular total de horas do sub-time (Atual e Anterior)
         let totalHorasSubTime = 0;
+        let totalHorasSubTimeAnterior = 0; // NOVO
         const bancoHorasMap = state.bancoHorasMap || {};
+        const bancoHorasHistoryMap = state.bancoHorasHistoryMap || {}; // NOVO
         
         timeDoGestor.forEach(colaborador => {
-            const banco = bancoHorasMap[colaborador.matricula];
+            const normalizedMatricula = String(colaborador.matricula).trim(); // Garante a normalização
+            const banco = bancoHorasMap[normalizedMatricula];
+            const bancoHist = bancoHorasHistoryMap[normalizedMatricula];
+
             if (banco) {
-                const horasVal = parseFloat((banco.horas || '0,00').replace(',', '.'));
-                if (!isNaN(horasVal)) {
-                    totalHorasSubTime += horasVal;
-                }
+                totalHorasSubTime += parseHoras(banco.horas);
+            }
+            if (bancoHist) {
+                totalHorasSubTimeAnterior += parseHoras(bancoHist.horas); // Soma o anterior
             }
         });
+        
+        // NOVO: Calcula a tendência do time
+        let tendenciaHorasTotal = 'same';
+        if (totalHorasSubTime > totalHorasSubTimeAnterior) tendenciaHorasTotal = 'up';
+        if (totalHorasSubTime < totalHorasSubTimeAnterior) tendenciaHorasTotal = 'down';
         // FIM NOVO
 
         const total = timeDoGestor.length;
@@ -939,7 +909,11 @@ async function loadMeusGestoresView() {
         return {
             ...gestor, // dados do gestor (nome, matricula, funcao, filial)
             foto: state.mapaFotos[gestor.matricula] || 'https://i.imgur.com/80SsE11.png',
-            stats: { total, ativos, inativos, novatos, totalHoras: totalHorasSubTime }, // ATUALIZADO
+            stats: { 
+                total, ativos, inativos, novatos, 
+                totalHoras: totalHorasSubTime, 
+                tendenciaHoras: tendenciaHorasTotal // NOVO
+            }, 
             timeCompleto: timeDoGestor // Armazena o time para o modal
         };
     });
@@ -979,11 +953,13 @@ function renderGestorCards(gestores) {
         const card = document.createElement('div');
         card.className = 'stat-card-dash flex items-start gap-4'; // Reutiliza a classe dos cards
         
-        // NOVO: Define a cor do total de horas
+        // NOVO: Define a cor do total de horas e pega o ícone de tendência
         const horasFormatadas = gestor.stats.totalHoras.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         let horasClass = 'text-cyan-700';
-        if (gestor.stats.totalHoras < 0) horasClass = 'text-red-700';
-        if (gestor.stats.totalHoras > 0) horasClass = 'text-green-700';
+        if (gestor.stats.totalHoras < 0) horasClass = 'text-red-700'; // Negativo
+        if (gestor.stats.totalHoras > 0) horasClass = 'text-green-700'; // Positivo
+        
+        const tendenciaIcon = getTendenciaIcon(gestor.stats.tendenciaHoras); // NOVO
 
         card.innerHTML = `
             <img src="${gestor.foto}" class="w-16 h-16 rounded-full object-cover bg-gray-200 flex-shrink-0">
@@ -996,9 +972,10 @@ function renderGestorCards(gestores) {
                     <span><i data-feather="user-check" class="h-3 w-3 inline-block mr-1 text-green-600"></i>Ativos: <strong>${gestor.stats.ativos}</strong></span>
                     <span><i data-feather="user-plus" class="h-3 w-3 inline-block mr-1 text-yellow-600"></i>Novatos: <strong>${gestor.stats.novatos}</strong></span>
                     <span><i data-feather="user-x" class="h-3 w-3 inline-block mr-1 text-red-600"></i>Inativos: <strong>${gestor.stats.inativos}</strong></span>
-                    <!-- NOVO ITEM -->
-                    <span class="col-span-2 mt-1 ${horasClass}">
+                    <!-- NOVO ITEM ATUALIZADO com tendência -->
+                    <span class="col-span-2 mt-1 ${horasClass} banco-horas-principal !justify-start">
                         <i data-feather="clock" class="h-3 w-3 inline-block mr-1"></i>Total Horas: <strong>${horasFormatadas}</strong>
+                        ${tendenciaIcon}
                     </span>
                 </div>
                 <button class="btn btn-sm btn-primary mt-3" onclick="showGestorTimeModal('${gestor.matricula}')">
@@ -1064,21 +1041,39 @@ function renderModalTimeTable(data) {
         if (status === 'inativo') statusClass = 'status-inativo';
         if (status === 'novato') statusClass = 'status-aviso';
 
-        // NOVO: Lógica de cor do Banco de Horas
-        const banco = state.bancoHorasMap[item.matricula];
-        const horas = banco ? banco.horas : '0,00';
-        const horasVal = parseFloat((horas).replace(',', '.'));
+        // NOVO: Lógica de cor e tendência do Banco de Horas
+        const normalizedMatricula = String(item.matricula).trim();
+        const banco = state.bancoHorasMap[normalizedMatricula] || { horas: '0,00', valor: 'R$ 0,00' };
+        const bancoHistory = state.bancoHorasHistoryMap[normalizedMatricula];
+        
+        let tendencia = 'same';
+        if (!bancoHistory) {
+            tendencia = 'new';
+        } else {
+            const horasAtual = parseHoras(banco.horas);
+            const horasAnterior = parseHoras(bancoHistory.horas);
+            if (horasAtual > horasAnterior) tendencia = 'up';
+            if (horasAtual < horasAnterior) tendencia = 'down';
+        }
+        
+        const horasVal = parseHoras(banco.horas);
         let horasClass = 'text-gray-600';
-        if (horasVal > 0) horasClass = 'text-green-600 font-medium';
-        if (horasVal < 0) horasClass = 'text-red-600 font-medium';
+        if (horasVal > 0) horasClass = 'text-green-600 font-medium'; // Positivo
+        if (horasVal < 0) horasClass = 'text-red-600 font-medium'; // Negativo
         // FIM NOVO
 
         tr.innerHTML = `
             <td>${item.nome || '-'}</td>
-            <td>${item.matricula || '-'}</td>
+            <td>${item.matricula || '-'}}</td>
             <td>${gestorImediato}</td>
-            <!-- ATUALIZADO: Coluna de Banco de Horas -->
-            <td class="${horasClass}" style="text-align: center; font-family: monospace;">${horas}</td>
+            <!-- ATUALIZADO: Coluna de Banco de Horas com Valor e Tendência -->
+             <td style="text-align: center;">
+                <div class="banco-horas-principal ${horasClass}" style="font-family: monospace;">
+                    <span>${banco.horas}</span>
+                    ${getTendenciaIcon(tendencia)}
+                </div>
+                <small class="banco-horas-valor">${banco.valor}</small>
+            </td>
             <td>${item.funcao || '-'}</td>
             <td>${item.secao || '-'}</td>
             <td>${item.filial || '-'}</td>
