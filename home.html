@@ -66,6 +66,21 @@
             box-shadow: 0 10px 20px rgba(0, 119, 182, 0.2);
         }
         
+        /* NOVO ESTILO PARA INCONSISTÊNCIAS */
+        .card-icon-inconsistencia {
+            background: linear-gradient(135deg, #F59E0B 0%, #FB8500 100%);
+            color: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+        .card-hover:hover .card-icon-inconsistencia {
+            box-shadow: 0 10px 20px rgba(245, 158, 11, 0.2);
+        }
+        
         /* --- ESTILOS ADICIONADOS PARA MODAIS E DROPDOWN --- */
         
         /* Dropdown (copiado de style.css) */
@@ -217,7 +232,6 @@
                 <a id="admin-menu-usuarios" onclick="openAdminModal()" class="dropdown-item" style="display: none;">
                     <i data-feather="users" class="h-4 w-4 mr-2"></i> Gerenciar Usuários
                 </a>
-                <!-- REMOVIDO: Link para Configurações da Avaliação -->
                 <div class="border-t border-gray-600">
                     <a onclick="logout()" class="dropdown-item text-red-400">
                         <i data-feather="log-out" class="h-4 w-4 mr-2"></i> Sair
@@ -269,6 +283,16 @@
                 <p class="text-gray-400 mb-6">Gerenciar seu time, definir hierarquias e acompanhar o status dos colaboradores.</p>
                 <span class="font-semibold" style="color: var(--accent);">Acessar Sistema &rarr;</span>
             </a>
+            
+            <!-- NOVO CARD: INCONSISTÊNCIAS -->
+            <a href="inconsistencias/inconsistencias.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
+                <div class="card-icon-inconsistencia">
+                    <i data-feather="alert-octagon" class="h-8 w-8"></i>
+                </div>
+                <h2 class="text-2xl font-semibold mb-2">Inconsistências</h2>
+                <p class="text-gray-400 mb-6">Analisar e consultar inconsistências de dados por filial, setor e tipo.</p>
+                <span class="font-semibold" style="color: #F59E0B;">Acessar Sistema &rarr;</span>
+            </a>
 
         </div>
     </main>
@@ -311,7 +335,6 @@
                         <label for="perfilNome">Nome Completo:</label>
                         <input type="text" id="perfilNome" required class="w-full">
                     </div>
-                    <!-- REMOVIDO: Campo Matrícula do Modal de Perfil -->
                     <div class="form-group">
                         <label for="perfilMatricula">Matrícula (Opcional):</label>
                         <input type="text" id="perfilMatricula" class="w-full" placeholder="Sua matrícula na empresa">
@@ -352,9 +375,7 @@
             <h4 class="font-semibold text-lg text-gray-800 mb-2">Gerenciar Usuários do Sistema</h4>
             <div class="table-container">
                 <table class="tabela" id="tabela-usuarios-admin">
-                    <!-- REMOVIDO: Coluna Matrícula -->
                     <thead><tr><th>Nome</th><th>E-mail</th><th>Permissão</th><th>Status</th><th>Ações</th></tr></thead>
-                    <!-- ATUALIZADO: colspan="5" -->
                     <tbody id="usuariosTBody"><tr><td colspan="5" style="text-align:center;">Carregando...</td></tr></tbody>
                 </table>
             </div>
@@ -380,7 +401,6 @@
                 </div>
             </div>
              <div class="form-row">
-                <!-- REMOVIDO: Campo Matrícula -->
                 <div class="form-group">
                     <label for="modal-user-filial">Permissão Filiais (separado por vírgula)</label>
                     <input type="text" id="modal-user-filial" placeholder="Ex: 101, 205, 301">
@@ -466,7 +486,6 @@
                 const user = session.user;
                 currentAuthUserId = user.id; 
                 
-                // **** CORREÇÃO DA FOTO: Usando supabaseRequest (proxy) ****
                 const endpoint = `usuarios?auth_user_id=eq.${user.id}&select=nome,role,email,matricula,profile_picture_url,id`;
                 let profile = null;
                 let profileError = null;
@@ -481,7 +500,6 @@
                 } catch (err) {
                     profileError = err;
                 }
-                // **** FIM DA CORREÇÃO ****
 
                 if (profileError) {
                     console.warn("Erro ao buscar perfil, usando dados de auth:", profileError.message);
@@ -509,12 +527,9 @@
                     document.getElementById('topBarUserAvatar').src = 'https://placehold.co/96x96/e2e8f0/64748b?text=Perfil';
                 }
 
-                // ADICIONADO: Mostrar links de Admin
                 if (currentUserData.role === 'admin') {
                     const adminMenuUsuarios = document.getElementById('admin-menu-usuarios');
-                    // REMOVIDO: const adminMenuConfig
                     if (adminMenuUsuarios) adminMenuUsuarios.style.display = 'flex';
-                    // REMOVIDO: if (adminMenuConfig)
                 }
 
             } catch (e) {
@@ -536,8 +551,6 @@
                  window.location.href = 'index.html';
             }
         }
-        
-        // --- INÍCIO DAS FUNÇÕES ADICIONADAS ---
         
         async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
             const authToken = localStorage.getItem('auth_token');
@@ -602,7 +615,7 @@
             container.appendChild(notification);
             feather.replace();
             setTimeout(() => {
-                notification.classList.add('hide'); // Define a animação de saída
+                notification.classList.add('hide');
                 notification.style.animation = 'slideOut 0.5s forwards';
                 notification.addEventListener('animationend', () => notification.remove());
             }, timeout);
@@ -625,7 +638,6 @@
             .notification.info { border-left-color: var(--accent); }
         `;
         document.head.appendChild(styleSheet);
-
 
         // --- Lógica do Modal "Meu Perfil" ---
         function openPerfilModal() {
@@ -783,7 +795,6 @@
                     return `<tr>
                         <td>${escapeHTML(u.nome)}</td>
                         <td>${escapeHTML(u.email)}</td>
-                        <!-- REMOVIDO: <td>${escapeHTML(u.matricula || '--')}</td> -->
                         <td class="${roleClass}">${escapeHTML(u.role)}</td>
                         <td><span class="status-badge ${statusClass}">${escapeHTML(status)}</span></td>
                         <td class="actions">
@@ -849,7 +860,6 @@
             document.getElementById('modal-user-id').value = usuario.id;
             document.getElementById('modal-user-nome').value = usuario.nome || '';
             document.getElementById('modal-user-email').value = usuario.email || '';
-            // REMOVIDO: document.getElementById('modal-user-matricula').value = usuario.matricula || '';
             document.getElementById('modal-user-filial').value = (usuario.permissoes_filiais || []).join(', ');
             document.getElementById('modal-user-role').value = usuario.role || 'user';
             document.getElementById('modal-user-status').value = usuario.status || 'inativo';
@@ -873,7 +883,6 @@
 
             const payload = {
                 nome: document.getElementById('modal-user-nome').value,
-                // REMOVIDO: matricula
                 permissoes_filiais: permissoesArray,
                 role: document.getElementById('modal-user-role').value,
                 status: document.getElementById('modal-user-status').value
@@ -892,14 +901,10 @@
             }
         });
 
-
-        // --- FIM DAS FUNÇÕES ADICIONADAS ---
-
         document.addEventListener('DOMContentLoaded', () => {
             feather.replace();
             getUserProfile();
             
-            // Listener para o dropdown
              const profileDropdownButton = document.getElementById('profileDropdownButton');
              const profileDropdown = document.getElementById('profileDropdown');
              if (profileDropdownButton) {
