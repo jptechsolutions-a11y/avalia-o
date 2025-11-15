@@ -217,10 +217,7 @@
                 <a id="admin-menu-usuarios" onclick="openAdminModal()" class="dropdown-item" style="display: none;">
                     <i data-feather="users" class="h-4 w-4 mr-2"></i> Gerenciar Usuários
                 </a>
-                <!-- ADICIONADO: Link para Configurações da Avaliação -->
-                <a id="admin-menu-config" href="app.html#configuracoes" class="dropdown-item" style="display: none;">
-                    <i data-feather="settings" class="h-4 w-4 mr-2"></i> Config. Avaliação
-                </a>
+                <!-- REMOVIDO: Link para Configurações da Avaliação -->
                 <div class="border-t border-gray-600">
                     <a onclick="logout()" class="dropdown-item text-red-400">
                         <i data-feather="log-out" class="h-4 w-4 mr-2"></i> Sair
@@ -314,6 +311,7 @@
                         <label for="perfilNome">Nome Completo:</label>
                         <input type="text" id="perfilNome" required class="w-full">
                     </div>
+                    <!-- REMOVIDO: Campo Matrícula do Modal de Perfil -->
                     <div class="form-group">
                         <label for="perfilMatricula">Matrícula (Opcional):</label>
                         <input type="text" id="perfilMatricula" class="w-full" placeholder="Sua matrícula na empresa">
@@ -354,8 +352,10 @@
             <h4 class="font-semibold text-lg text-gray-800 mb-2">Gerenciar Usuários do Sistema</h4>
             <div class="table-container">
                 <table class="tabela" id="tabela-usuarios-admin">
-                    <thead><tr><th>Nome</th><th>E-mail</th><th>Matrícula</th><th>Permissão</th><th>Status</th><th>Ações</th></tr></thead>
-                    <tbody id="usuariosTBody"><tr><td colspan="6" style="text-align:center;">Carregando...</td></tr></tbody>
+                    <!-- REMOVIDO: Coluna Matrícula -->
+                    <thead><tr><th>Nome</th><th>E-mail</th><th>Permissão</th><th>Status</th><th>Ações</th></tr></thead>
+                    <!-- ATUALIZADO: colspan="5" -->
+                    <tbody id="usuariosTBody"><tr><td colspan="5" style="text-align:center;">Carregando...</td></tr></tbody>
                 </table>
             </div>
         </div>
@@ -380,10 +380,7 @@
                 </div>
             </div>
              <div class="form-row">
-                <div class="form-group">
-                    <label for="modal-user-matricula">Matrícula</label>
-                    <input type="text" id="modal-user-matricula">
-                </div>
+                <!-- REMOVIDO: Campo Matrícula -->
                 <div class="form-group">
                     <label for="modal-user-filial">Permissão Filiais (separado por vírgula)</label>
                     <input type="text" id="modal-user-filial" placeholder="Ex: 101, 205, 301">
@@ -515,9 +512,9 @@
                 // ADICIONADO: Mostrar links de Admin
                 if (currentUserData.role === 'admin') {
                     const adminMenuUsuarios = document.getElementById('admin-menu-usuarios');
-                    const adminMenuConfig = document.getElementById('admin-menu-config'); // NOVO
+                    // REMOVIDO: const adminMenuConfig
                     if (adminMenuUsuarios) adminMenuUsuarios.style.display = 'flex';
-                    if (adminMenuConfig) adminMenuConfig.style.display = 'flex'; // NOVO
+                    // REMOVIDO: if (adminMenuConfig)
                 }
 
             } catch (e) {
@@ -771,12 +768,12 @@
         
         async function renderUsuariosTable() {
             const tbody = document.getElementById('usuariosTBody');
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Carregando...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Carregando...</td></tr>'; // Colspan 5
             try {
                 const data = await supabaseRequest('usuarios?select=*&order=nome.asc', 'GET');
                 adminDataCache.usuarios = data || [];
                 if (adminDataCache.usuarios.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhum usuário encontrado.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhum usuário encontrado.</td></tr>'; // Colspan 5
                     return;
                 }
                 tbody.innerHTML = adminDataCache.usuarios.map(u => {
@@ -786,7 +783,7 @@
                     return `<tr>
                         <td>${escapeHTML(u.nome)}</td>
                         <td>${escapeHTML(u.email)}</td>
-                        <td>${escapeHTML(u.matricula || '--')}</td>
+                        <!-- REMOVIDO: <td>${escapeHTML(u.matricula || '--')}</td> -->
                         <td class="${roleClass}">${escapeHTML(u.role)}</td>
                         <td><span class="status-badge ${statusClass}">${escapeHTML(status)}</span></td>
                         <td class="actions">
@@ -797,7 +794,7 @@
                     </tr>`;
                 }).join('');
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: red;">Erro: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: red;">Erro: ${e.message}</td></tr>`; // Colspan 5
             }
         }
         
@@ -852,8 +849,7 @@
             document.getElementById('modal-user-id').value = usuario.id;
             document.getElementById('modal-user-nome').value = usuario.nome || '';
             document.getElementById('modal-user-email').value = usuario.email || '';
-            document.getElementById('modal-user-matricula').value = usuario.matricula || '';
-            // Converte array de filiais em string
+            // REMOVIDO: document.getElementById('modal-user-matricula').value = usuario.matricula || '';
             document.getElementById('modal-user-filial').value = (usuario.permissoes_filiais || []).join(', ');
             document.getElementById('modal-user-role').value = usuario.role || 'user';
             document.getElementById('modal-user-status').value = usuario.status || 'inativo';
@@ -869,7 +865,6 @@
             event.preventDefault();
             const id = document.getElementById('modal-user-id').value;
             
-            // Converte string de filiais em array
             const filiaisInput = document.getElementById('modal-user-filial').value || '';
             let permissoesArray = null;
             if (filiaisInput.trim().length > 0) {
@@ -878,7 +873,7 @@
 
             const payload = {
                 nome: document.getElementById('modal-user-nome').value,
-                matricula: document.getElementById('modal-user-matricula').value || null,
+                // REMOVIDO: matricula
                 permissoes_filiais: permissoesArray,
                 role: document.getElementById('modal-user-role').value,
                 status: document.getElementById('modal-user-status').value
