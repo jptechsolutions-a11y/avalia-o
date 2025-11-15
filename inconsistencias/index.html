@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inconsistências | G&G</title>
+    <link rel="icon" href="../icon.png" type="image/png">
+    
+    <!-- Scripts de Estilo e Ícones (Padrão do App) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../style.css?v=2">
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Chart.js para os gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+</head>
+<body class="bg-gray-100">
+
+    <div id="appShell" class="h-screen flex flex-col" style="display: none;">
+
+        <header id="topBar" class="flex-shrink-0">
+            <div class="flex items-center gap-4">
+                <button id="sidebarToggle" class="btn-icon">
+                    <i data-feather="menu" class="h-5 w-5"></i>
+                </button>
+                <img src="../icon.png" class="h-8 w-auto" alt="Logo G&G">
+                <div class="separator"></div>
+                <div class="flex flex-col">
+                    <span class="text-sm font-semibold text-white" id="topBarProjectName">Sistema G&G</span>
+                    <span class="text-xs text-gray-400" id="topBarOrgName">Inconsistências</span>
+                </div>
+            </div>
+            
+            <div class="flex-1 flex justify-center px-8">
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div id="profileDropdown" class="relative">
+                    <button id="profileDropdownButton" class="flex items-center gap-2 rounded-full hover:bg-gray-700 p-1">
+                        <img id="topBarUserAvatar" src="https://i.imgur.com/80SsE11.png" class="w-8 h-8 rounded-full object-cover bg-gray-600">
+                        <span id="topBarUserName" class="text-sm font-medium text-white hidden md:block">Usuário</span>
+                        <i data-feather="chevron-down" class="h-4 w-4 text-gray-400 hidden md:block"></i>
+                    </button>
+                    <div id="profileDropdownMenu" class="dropdown-menu">
+                         <div class="px-4 py-3 border-b border-gray-600">
+                            <span class="block text-sm font-medium text-white" id="dropdownUserName">...</span>
+                            <span class="block text-xs text-gray-400" id="dropdownUserEmail">...</span>
+                        </div>
+                        <a href="../home.html" class="dropdown-item">
+                            <i data-feather="home" class="h-4 w-4 mr-2"></i> Voltar (Home G&G)
+                        </a>
+                        <div class="border-t border-gray-600">
+                            <a href="#" class="dropdown-item text-red-400" id="logoutButton">
+                                <i data-feather="log-out" class="h-4 w-4 mr-2"></i> Sair
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div id="mainSystem" class="flex flex-1 overflow-hidden">
+
+            <aside class="sidebar collapsed">
+                <nav class="p-2 pt-4">
+                    <a href="#dashboard" class="nav-item active" title="Dashboard">
+                        <i data-feather="grid" class="h-5 w-5 mr-3"></i> <span class="nav-text">Dashboard</span>
+                    </a>
+                    <a href="#acompanhamento" class="nav-item" title="Acompanhamento">
+                        <i data-feather="list" class="h-5 w-5 mr-3"></i> <span class="nav-text">Acompanhamento</span>
+                    </a>
+                    
+                    <div class="mt-4 border-t border-gray-700 pt-2">
+                        <span class="p-3 text-xs font-semibold text-gray-500 uppercase nav-text">Administração</span>
+                    </div>
+                    <a href="#configuracoes" id="configLink" class="nav-item" title="Importar Dados" style="display: none;">
+                        <i data-feather="upload" class="h-5 w-5 mr-3"></i> <span class="nav-text">Importar Dados</span>
+                    </a>
+
+                     <a href="#" id="logoutLink" class="nav-item" title="Sair">
+                        <i data-feather="log-out" class="h-5 w-5 mr-3 text-red-400"></i> <span class="nav-text text-red-400">Sair</span>
+                    </a>
+                </nav>
+            </aside>
+            
+            <div id="sidebarOverlay"></div>
+
+            <main class="main-content">
+                <div class="container mx-auto px-6 py-8">
+                
+                    <div id="dashboardView" class="view-content active">
+                        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                            <h1><i data-feather="grid" class="h-7 w-7 text-accent"></i> Dashboard de Inconsistências</h1>
+                            <div class="text-sm text-gray-600">
+                                <strong>Última Importação:</strong>
+                                <span id="lastUpdatedDash" class="font-medium" style="color: var(--accent);">Buscando...</span>
+                            </div>
+                        </div>
+
+                        <!-- Filtros do Dashboard -->
+                        <div class="filter-bar">
+                            <div class="form-group">
+                                <label for="filterRegionalDash">Filtrar por Regional</label>
+                                <select id="filterRegionalDash">
+                                    <option value="">Todas as regionais</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="filterCodFilialDash">Filtrar por Cód. Filial</label>
+                                <select id="filterCodFilialDash">
+                                    <option value="">Todas as filiais</option>
+                                </select>
+                            </div>
+                             <div class="form-group">
+                                <label for="filterTipoDash">Filtrar por Tipo</label>
+                                <select id="filterTipoDash">
+                                    <option value="">Todos os tipos</option>
+                                </select>
+                            </div>
+                             <div class="form-group">
+                                <label for="filterFuncaoDash">Filtrar por Função</label>
+                                <select id="filterFuncaoDash">
+                                    <option value="">Todas as funções</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Gráficos -->
+                        <div class="report-grid">
+                            <div class="chart-card">
+                                <h3><i data-feather="pie-chart"></i> Inconsistências por Setor</h3>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartSetor"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3><i data-feather="pie-chart"></i> Inconsistências por Função</h3>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartFuncao"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="report-grid">
+                            <div class="chart-card">
+                                <h3><i data-feather="bar-chart-2"></i> Inconsistências por Tipo</h3>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartTipo"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3><i data-feather="bar-chart-2"></i> Total por Filial</h3>
+                                <div class="chart-container-wrapper" style="height: 350px;">
+                                    <canvas id="chartFilial"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="acompanhamentoView" class="view-content">
+                        <div class="info-card">
+                            <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                                <h3 class="!mb-0 !pb-0 !border-b-0"><i data-feather="list" class="h-5 w-5 mr-2"></i> Acompanhamento de Inconsistências</h3>
+                                <div class="text-sm text-gray-600">
+                                    <strong>Última Importação:</strong>
+                                    <span id="lastUpdatedAcomp" class="font-medium" style="color: var(--accent);">Buscando...</span>
+                                </div>
+                            </div>
+
+                            <div class="filter-bar mt-4">
+                                <div class="form-group">
+                                    <label for="filterChapa">Filtrar por Chapa</label>
+                                    <input type="text" id="filterChapa" placeholder="Digite a chapa...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="filterNome">Filtrar por Nome</label>
+                                    <input type="text" id="filterNome" placeholder="Digite o nome...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="filterRegional">Filtrar por Regional</label>
+                                    <select id="filterRegional">
+                                        <option value="">Todas</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="filterCodFilial">Filtrar por Cód. Filial</label>
+                                    <select id="filterCodFilial">
+                                        <option value="">Todas</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="filterTipo">Filtrar por Tipo</label>
+                                    <select id="filterTipo">
+                                        <option value="">Todos</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div id="tableContainer" class="table-container mt-6">
+                                <table class="tabela">
+                                    <thead id="tableHead">
+                                    </thead>
+                                    <tbody id="tableBody">
+                                        <tr><td colspan="8" class="text-center py-10 text-gray-500">Carregando dados...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p id="tableMessage" class="hidden text-center py-10 text-gray-500">Nenhum dado encontrado para os filtros aplicados.</p>
+                        </div>
+                    </div>
+
+                    <div id="configuracoesView" class="view-content">
+                        <div id="adminPanel" class="info-card mb-6">
+                            <h3><i data-feather="upload" class="h-5 w-5 mr-2"></i> Importar Dados de Inconsistências</h3>
+                            <p class="text-gray-600 mb-4">Cole os dados brutos da sua planilha. A primeira linha deve ser o cabeçalho. Colunas esperadas: `REGIONAL`, `CODFILIAL`, `CHAPA`, `NOME`, `DESC_SECAO`, `FUNCAO`, `TIPO`, `DATA`, `CODSITUACAO`, `REFERENCIA`, `BANDEIRA`.</p>
+                            
+                            <div id="importError" class="hidden alert alert-error mb-4" role="alert">
+                                <strong class="font-bold">Erro na Importação:</strong>
+                                <span class="block sm:inline" id="importErrorMessage"></span>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="dataInput">Dados para importação:</label>
+                                <textarea id="dataInput" class="w-full h-48" placeholder="Cole os dados aqui..."></textarea>
+                            </div>
+                            
+                            <div class="flex items-center gap-4 mt-4">
+                                <button id="previewButton" class="btn btn-info flex items-center gap-2">
+                                    <i data-feather="search" class="h-5 w-5"></i>
+                                    Pré-visualizar 15 Linhas
+                                </button>
+                                <button id="importButton" class="btn btn-success flex items-center gap-2">
+                                    <i data-feather="upload" class="h-5 w-5"></i>
+                                    Importar (Substituir Dados)
+                                </button>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2"><strong>Atenção:</strong> A importação **limpará** a base atual e a substituirá pelos dados colados.</p>
+                        
+                            <div id="previewContainer" class="mt-6" style="display: none;">
+                                <h4 class="text-lg font-semibold text-gray-800 mb-2">Pré-visualização</h4>
+                                <div id="previewTableContainer" class="table-container">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div id="notificationContainer"></div>
+
+    <!-- Modal Detalhes -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content" style="width: 800px; max-width: 95vw;">
+            <span id="modalClose" class="modal-close">&times;</span>
+            <h3 id="modalTitle">Detalhes do Colaborador</h3>
+            <div id="modalBody" class="space-y-4 mt-4">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nome:</label>
+                        <input type="text" id="modalNome" readonly class="bg-gray-100">
+                    </div>
+                    <div class="form-group">
+                        <label>Chapa:</label>
+                        <input type="text" id="modalChapa" readonly class="bg-gray-100">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Função:</label>
+                        <input type="text" id="modalFuncao" readonly class="bg-gray-100">
+                    </div>
+                     <div class="form-group">
+                        <label>Seção:</label>
+                        <input type="text" id="modalSecao" readonly class="bg-gray-100">
+                    </div>
+                </div>
+                
+                <hr>
+                <h4 class="text-lg font-semibold text-gray-800">Inconsistências Registradas</h4>
+                <div id="modalDetailsContainer" class="table-container" style="max-height: 300px; overflow-y: auto;">
+                    <!-- Tabela de detalhes será injetada aqui -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p id="loadingText">Processando...</p>
+    </div>
+
+    <script src="inconsistencias.js" defer></script>
+</body>
+</html>
