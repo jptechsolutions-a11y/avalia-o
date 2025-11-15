@@ -200,10 +200,8 @@
     <header class="absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
         <img src="icon.png" alt="Logo G&G" class="h-10 w-auto">
         
-        <!-- ATUALIZADO: Dropdown de Perfil (substitui o botão Sair) -->
         <div id="profileDropdown" class="relative">
             <button id="profileDropdownButton" class="flex items-center gap-2 rounded-full hover:bg-gray-700 p-1 pr-2">
-                <!-- CORREÇÃO 1: Imagem de fallback trocada -->
                 <img id="topBarUserAvatar" src="https://placehold.co/96x96/e2e8f0/64748b?text=Perfil" class="w-8 h-8 rounded-full object-cover bg-gray-600">
                 <span id="topBarUserName" class="text-sm font-medium text-white hidden md:block">Usuário</span>
                 <i data-feather="chevron-down" class="h-4 w-4 text-gray-400 hidden md:block"></i>
@@ -219,6 +217,10 @@
                 <a id="admin-menu-usuarios" onclick="openAdminModal()" class="dropdown-item" style="display: none;">
                     <i data-feather="users" class="h-4 w-4 mr-2"></i> Gerenciar Usuários
                 </a>
+                <!-- ADICIONADO: Link para Configurações da Avaliação -->
+                <a id="admin-menu-config" href="app.html#configuracoes" class="dropdown-item" style="display: none;">
+                    <i data-feather="settings" class="h-4 w-4 mr-2"></i> Config. Avaliação
+                </a>
                 <div class="border-t border-gray-600">
                     <a onclick="logout()" class="dropdown-item text-red-400">
                         <i data-feather="log-out" class="h-4 w-4 mr-2"></i> Sair
@@ -226,7 +228,6 @@
                 </div>
             </div>
         </div>
-        <!-- FIM DA ATUALIZAÇÃO -->
 
     </header>
 
@@ -234,10 +235,8 @@
         <h1 class="text-4xl font-bold mb-4">Bem-vindo, <span id="userName">Usuário</span>.</h1>
         <p class="text-xl text-gray-300 mb-12">Selecione o sistema que deseja acessar:</p>
 
-        <!-- MUDANÇA: Grid atualizado para 4 colunas em 'lg' -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
             
-            <!-- Card 1: Avaliação de Desempenho -->
             <a href="app.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
                 <div class="card-icon">
                     <i data-feather="clipboard" class="h-8 w-8"></i>
@@ -247,7 +246,6 @@
                 <span class="font-semibold text-primary hover:text-secondary transition-colors duration-200">Acessar Sistema &rarr;</span>
             </a>
 
-            <!-- Card 2: Banco de Horas -->
             <a href="banco_de_horas/banco_horas.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
                 <div class="card-icon">
                     <i data-feather="clock" class="h-8 w-8"></i>
@@ -257,7 +255,6 @@
                 <span class="font-semibold text-primary hover:text-secondary transition-colors duration-200">Acessar Sistema &rarr;</span>
             </a>
             
-            <!-- Card 3: Pendência de Documentos -->
             <a href="pendencias_documentos/pendencias.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
                 <div class="card-icon-pendencias">
                     <i data-feather="alert-triangle" class="h-8 w-8"></i>
@@ -267,7 +264,6 @@
                 <span class="font-semibold" style="color: #FF6F61;">Acessar Sistema &rarr;</span>
             </a>
 
-            <!-- Card 4: Área do Gestor -->
             <a href="area_gestor/index.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
                 <div class="card-icon-gestor">
                     <i data-feather="briefcase" class="h-8 w-8"></i>
@@ -276,9 +272,6 @@
                 <p class="text-gray-400 mb-6">Gerenciar seu time, definir hierarquias e acompanhar o status dos colaboradores.</p>
                 <span class="font-semibold" style="color: var(--accent);">Acessar Sistema &rarr;</span>
             </a>
-            
-            <!-- REMOVIDO: Card 5 (Meu Perfil) -->
-            <!-- REMOVIDO: Card 6 (Gerenciar Usuários) -->
 
         </div>
     </main>
@@ -295,7 +288,7 @@
 
     <!-- 
     ====================================================================
-    NOVOS MODAIS ADICIONADOS
+    MODAIS
     ====================================================================
     -->
 
@@ -307,7 +300,6 @@
             
              <form id="perfilForm" class="mt-4">
                 <div class="flex flex-col sm:flex-row items-center mb-6 pb-6 border-b">
-                    <!-- CORREÇÃO 1: Imagem de fallback trocada -->
                     <img id="perfilPicturePreview" src="https://placehold.co/96x96/e2e8f0/64748b?text=Perfil" alt="Foto Perfil" class="w-24 h-24 rounded-full object-cover mb-4 sm:mb-0 sm:mr-6 border border-gray-200 shadow-sm">
                     <div class="text-center sm:text-left">
                         <label for="perfilPicture" class="btn btn-primary btn-sm cursor-pointer">
@@ -428,17 +420,17 @@
 
     <!-- 
     ====================================================================
-    SCRIPT ATUALIZADO
+    SCRIPT
     ====================================================================
     -->
     <script>
         const SUPABASE_URL = 'https://xizamzncvtacaunhmsrv.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhYmF1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpemFtem5jdnRhY2F1bmhtc3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NTM3MTQsImV4cCI6MjA3NzQyOTcxNH0.tNZhQiPlpQCeFTKyahFOq_q-5i3_94AHpmIjYYrnTc8';
         const SUPABASE_PROXY_URL = '/api/proxy'; // API de proxy
         
         let supabaseClient = null;
         let currentUserData = null; // Cache para dados do usuário
-        let currentAuthUserId = null; // <-- ADICIONADO: Para guardar o ID de auth
+        let currentAuthUserId = null; // Para guardar o ID de auth
 
         // Define o adaptador para sessionStorage
         const sessionStorageAdapter = {
@@ -473,22 +465,20 @@
                     return;
                 }
                 
-                // Salva o token para o supabaseRequest
                 localStorage.setItem('auth_token', session.access_token);
                 const user = session.user;
-                currentAuthUserId = user.id; // <-- CORREÇÃO 2: Salva o ID de auth
+                currentAuthUserId = user.id; 
                 
-                // ATUALIZADO: Buscar todos os campos necessários
                 const { data: profile, error: profileError } = await supabaseClient
                     .from('usuarios')
-                    .select('nome, role, email, matricula, profile_picture_url, id') // Pede tudo, incluindo ID da tabela
+                    .select('nome, role, email, matricula, profile_picture_url, id') 
                     .eq('auth_user_id', user.id)
                     .single();
 
                 if (profileError) {
                     console.warn("Erro ao buscar perfil, usando dados de auth:", profileError.message);
                     currentUserData = {
-                        id: null, // Não sabemos o ID da tabela 'usuarios'
+                        id: null, 
                         nome: user.email.split('@')[0] || 'Usuário',
                         email: user.email,
                         role: 'user',
@@ -496,7 +486,7 @@
                         profile_picture_url: null
                     };
                 } else {
-                    currentUserData = profile; // Salva no cache
+                    currentUserData = profile; 
                 }
 
                 // Popula o Header
@@ -508,17 +498,15 @@
                 if (currentUserData.profile_picture_url) {
                     document.getElementById('topBarUserAvatar').src = currentUserData.profile_picture_url;
                 } else {
-                    // CORREÇÃO 1: Imagem de fallback trocada
                     document.getElementById('topBarUserAvatar').src = 'https://placehold.co/96x96/e2e8f0/64748b?text=Perfil';
                 }
 
-
-                // NOVO: Verificar se é admin para mostrar o card
+                // ADICIONADO: Mostrar links de Admin
                 if (currentUserData.role === 'admin') {
-                    const adminCard = document.getElementById('admin-card-usuarios');
-                    const adminMenu = document.getElementById('admin-menu-usuarios');
-                    if (adminCard) adminCard.style.display = 'block'; // Mostra o card (que removemos, mas seguro deixar)
-                    if (adminMenu) adminMenu.style.display = 'flex'; // Mostra o item no menu
+                    const adminMenuUsuarios = document.getElementById('admin-menu-usuarios');
+                    const adminMenuConfig = document.getElementById('admin-menu-config'); // NOVO
+                    if (adminMenuUsuarios) adminMenuUsuarios.style.display = 'flex';
+                    if (adminMenuConfig) adminMenuConfig.style.display = 'flex'; // NOVO
                 }
 
             } catch (e) {
@@ -543,7 +531,6 @@
         
         // --- INÍCIO DAS FUNÇÕES ADICIONADAS ---
         
-        // Função de Request (essencial)
         async function supabaseRequest(endpoint, method = 'GET', body = null, headers = {}) {
             const authToken = localStorage.getItem('auth_token');
             if (!authToken) {
@@ -612,7 +599,7 @@
                 notification.addEventListener('animationend', () => notification.remove());
             }, timeout);
         }
-        // Adiciona a animação de notificação
+        
         const styleSheet = document.createElement("style");
         styleSheet.type = "text/css";
         styleSheet.innerText = `
@@ -641,7 +628,6 @@
             document.getElementById('perfilEmail').value = currentUserData.email || '';
             document.getElementById('perfilNome').value = currentUserData.nome || '';
             document.getElementById('perfilMatricula').value = currentUserData.matricula || '';
-            // CORREÇÃO 1: Imagem de fallback trocada
             document.getElementById('perfilPicturePreview').src = currentUserData.profile_picture_url || 'https://placehold.co/96x96/e2e8f0/64748b?text=Perfil';
             document.getElementById('perfilAlert').innerHTML = '';
             document.getElementById('perfilModal').style.display = 'flex';
@@ -657,7 +643,6 @@
             if (event.target.files[0]) {
                 reader.readAsDataURL(event.target.files[0]);
             } else {
-                 // CORREÇÃO 1: Imagem de fallback trocada
                  document.getElementById('perfilPicturePreview').src = currentUserData.profile_picture_url || 'https://placehold.co/96x96/e2e8f0/64748b?text=Perfil';
             }
         }
@@ -675,7 +660,6 @@
 
             try {
                 if (pictureFile) {
-                    // Upload de nova foto
                     const apiUrl = `/api/upload?fileName=${encodeURIComponent(pictureFile.name)}&fileType=${encodeURIComponent(pictureFile.type || 'application/octet-stream')}`;
                     const response = await fetch(apiUrl, {
                         method: 'POST',
@@ -693,22 +677,19 @@
                     profilePicUrl = result.publicUrl;
                 }
 
-                // Atualiza dados do perfil
                 const profileData = {
                     nome: document.getElementById('perfilNome').value,
                     matricula: document.getElementById('perfilMatricula').value || null,
                     profile_picture_url: profilePicUrl || null
                 };
                 
-                // CORREÇÃO 2: Usar o ID de auth salvo para garantir que está definido
                 if (!currentAuthUserId) {
                     throw new Error("ID de autenticação do usuário não encontrado. Recarregue a página.");
                 }
                 const [updatedUser] = await supabaseRequest(`usuarios?auth_user_id=eq.${currentAuthUserId}`, 'PATCH', profileData);
 
                 if (updatedUser) {
-                    currentUserData = updatedUser; // Atualiza o cache local
-                    // Atualiza a UI do header
+                    currentUserData = updatedUser; 
                     document.getElementById('topBarUserName').textContent = currentUserData.nome;
                     document.getElementById('dropdownUserName').textContent = currentUserData.nome;
                     if (currentUserData.profile_picture_url) {
