@@ -10,6 +10,7 @@ const DATA_TABLE = 'inconsistencias_data';
 const META_TABLE = 'inconsistencias_meta';
 
 // Colunas para importação/preview (Exatamente como no arquivo)
+// ATUALIZADO: Removido 'REFERENCIA' e 'BANDEIRA'
 const COLUMN_MAP_ORIGINAL = {
     'REGIONAL': 'Regional',
     'CODFILIAL': 'Cód. Filial',
@@ -19,16 +20,15 @@ const COLUMN_MAP_ORIGINAL = {
     'FUNCAO': 'Função',
     'TIPO': 'Tipo',
     'DATA': 'Data',
-    'CODSITUACAO': 'Cód. Situação',
-    'REFERENCIA': 'Referência',
-    'BANDEIRA': 'Bandeira'
+    'CODSITUACAO': 'Cód. Situação'
 };
 const COLUMN_ORDER_ORIGINAL = [
     'REGIONAL', 'CODFILIAL', 'CHAPA', 'NOME', 'DESC_SECAO', 'FUNCAO', 
-    'TIPO', 'DATA', 'CODSITUACAO', 'REFERENCIA', 'BANDEIRA'
+    'TIPO', 'DATA', 'CODSITUACAO'
 ];
 
 // Colunas para a tabela de Acompanhamento (visão resumida)
+// (Sem alterações, já estava correto)
 const COLUMN_MAP_ACOMP = {
     'CODFILIAL': 'Filial',
     'CHAPA': 'Chapa',
@@ -224,7 +224,8 @@ async function initializeSupabaseAndUser() {
         localStorage.setItem('auth_token', session.access_token); 
         
         // Busca o perfil do usuário (incluindo 'permissoes_filiais')
-        const endpoint = `usuarios?select=nome,role,profile_picture_url,permissoes_filiais,email`;
+        // CORREÇÃO: Adicionado filtro pelo ID do usuário
+        const endpoint = `usuarios?auth_user_id=eq.${session.user.id}&select=nome,role,profile_picture_url,permissoes_filiais,email`;
         const profileResponse = await supabaseRequest(endpoint, 'GET');
         
         if (!profileResponse || profileResponse.length === 0) {
@@ -718,17 +719,17 @@ function showDetails(chapa) {
 
     // 4. Cria a tabela de detalhes
     const detailsContainer = document.getElementById('modalDetailsContainer');
-    let tableHTML = '<table class="tabela"><thead><tr><th>Tipo</th><th>Data</th><th>Referência</th><th>Situação</th></tr></thead><tbody>';
+    // ATUALIZADO: Removido 'Referência'
+    let tableHTML = '<table class="tabela"><thead><tr><th>Tipo</th><th>Data</th><th>Situação</th></tr></thead><tbody>';
     
     if (todasInconsistencias.length === 0) {
-        tableHTML += '<tr><td colspan="4" class="text-center py-4">Nenhum registro encontrado.</td></tr>';
+        tableHTML += '<tr><td colspan="3" class="text-center py-4">Nenhum registro encontrado.</td></tr>';
     } else {
         todasInconsistencias.forEach(item => {
             tableHTML += `
                 <tr>
                     <td style="white-space: normal;">${item.tipo || '-'}</td>
                     <td>${formatToBR(item.data) || '-'}</td>
-                    <td>${item.referencia || '-'}</td>
                     <td>${item.codsituacao || '-'}</td>
                 </tr>
             `;
@@ -742,13 +743,16 @@ function showDetails(chapa) {
 
 function formatToBR(isoDateStr) {
     if (!isoDateStr) return '-';
-    const parts = isoDateStr.split('-');
+    // Pega apenas a parte da data (YYYY-MM-DD)
+    const datePart = isoDateStr.split('T')[0];
+    const parts = datePart.split('-');
     if (parts.length === 3) {
         const [year, month, day] = parts;
         return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
     }
-    return isoDateStr;
+    return isoDateStr; // Retorna o original se não for YYYY-MM-DD
 }
+
 
 // --- FUNÇÕES DE CONFIGURAÇÃO (IMPORT) ---
 
@@ -796,7 +800,12 @@ function handlePreview() {
     previewData.forEach(item => {
         tableHTML += '<tr>';
         headers.forEach(key => {
-            tableHTML += `<td>${item[key] || '-'}</td>`;
+            let value = item[key] || '-';
+            // Formata a data ISO (YYYY-MM-DD) de volta para BR (DD/MM/YYYY) para o preview
+            if (key === 'DATA') {
+                value = formatToBR(value); 
+            }
+            tableHTML += `<td>${value}</td>`;
         });
         tableHTML += '</tr>';
     });
@@ -816,9 +825,14 @@ function parsePastedData(text) {
     if (lines.length < 2) throw new Error("Os dados precisam de pelo menos 2 linhas (cabeçalho e dados).");
 
     const delimiter = lines[0].includes('\t') ? '\t' : ',';
+    // Colunas esperadas: ATUALIZADO
+    const EXPECTED_HEADERS = [
+        'REGIONAL', 'CODFILIAL', 'CHAPA', 'NOME', 'DESC_SECAO', 'FUNCAO', 
+        'TIPO', 'DATA', 'CODSITUACAO'
+    ]; 
     const headers = lines[0].split(delimiter).map(h => h.trim().toUpperCase().replace(/"/g, ''));
     
-    const missingHeaders = COLUMN_ORDER_ORIGINAL.filter(col => !headers.includes(col));
+    const missingHeaders = EXPECTED_HEADERS.filter(col => !headers.includes(col));
     if (missingHeaders.length > 0) {
         throw new Error(`Cabeçalhos faltando: ${missingHeaders.join(', ')}`);
     }
@@ -828,8 +842,8 @@ function parsePastedData(text) {
         const obj = {};
         
         headers.forEach((header, index) => {
-            if (COLUMN_ORDER_ORIGINAL.includes(header)) {
-                // Converte data DD/MM/YYYY para YYYY-MM-DD
+            if (EXPECTED_HEADERS.includes(header)) {
+                // Converte data (DD/MM/YYYY HH:MM:SS) para ISO (YYYY-MM-DD)
                 if (header === 'DATA') {
                     obj[header] = formatToISO(values[index]) || null;
                 } else {
@@ -848,16 +862,20 @@ function parsePastedData(text) {
     return data;
 }
 
+// ATUALIZADO: Lida com o formato "DD/MM/YYYY HH:MM:SS"
 function formatToISO(dateStr) {
     if (!dateStr || dateStr.toLowerCase().includes('n/a') || dateStr === '-') return null;
-    const cleanedStr = dateStr.split(' ')[0].trim(); 
+    const cleanedStr = dateStr.split(' ')[0].trim(); // Pega só a parte da data
     const parts = cleanedStr.split('/');
     if (parts.length === 3) {
         let [day, month, year] = parts;
         if (year.length === 2) {
             year = '20' + year; 
         }
-        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        // Garante que o ano tenha 4 dígitos (ex: 2025)
+        if (year.length === 4) {
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
     }
     return null; // Retorna nulo se o formato for inválido
 }
