@@ -67,6 +67,35 @@
         .card-hover:hover .card-icon-gestor {
             box-shadow: 0 10px 20px rgba(0, 119, 182, 0.2);
         }
+        
+        /* NOVOS ESTILOS PARA OS NOVOS CARDS */
+        .card-icon-perfil {
+            background: linear-gradient(135deg, #6d28d9 0%, #4f46e5 100%); /* Roxo/Indigo */
+            color: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+         .card-hover:hover .card-icon-perfil {
+            box-shadow: 0 10px 20px rgba(109, 40, 217, 0.2);
+        }
+        
+        .card-icon-admin {
+            background: linear-gradient(135deg, #f59e0b 0%, #e11d48 100%); /* Amarelo/Rosa */
+            color: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+         .card-hover:hover .card-icon-admin {
+            box-shadow: 0 10px 20px rgba(225, 29, 72, 0.2);
+        }
     </style>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen p-6 text-white">
@@ -83,8 +112,8 @@
         <h1 class="text-4xl font-bold mb-4">Bem-vindo, <span id="userName">Usuário</span>.</h1>
         <p class="text-xl text-gray-300 mb-12">Selecione o sistema que deseja acessar:</p>
 
-        <!-- MUDANÇA: Grid atualizado para 2 colunas em 'md' e 4 colunas em 'lg' para acomodar 4 cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
+        <!-- MUDANÇA: Grid atualizado para 3 colunas em 'lg' -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
             
             <!-- Card 1: Avaliação de Desempenho -->
             <a href="app.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
@@ -92,7 +121,7 @@
                     <i data-feather="clipboard" class="h-8 w-8"></i>
                 </div>
                 <h2 class="text-2xl font-semibold mb-2">Avaliação de Desempenho</h2>
-                <p class="text-gray-400 mb-6">Acesse o sistema para registrar, consultar e gerenciar as avaliações de desempenho dos colaboradores.</p>
+                <p class="text-gray-400 mb-6">Registrar e consultar avaliações de desempenho dos colaboradores.</p>
                 <span class="font-semibold text-primary hover:text-secondary transition-colors duration-200">Acessar Sistema &rarr;</span>
             </a>
 
@@ -102,7 +131,7 @@
                     <i data-feather="clock" class="h-8 w-8"></i>
                 </div>
                 <h2 class="text-2xl font-semibold mb-2">Banco de Horas</h2>
-                <p class="text-gray-400 mb-6">Consulte, gerencie e atualize o banco de horas, pagamentos e saldos dos colaboradores.</p>
+                <p class="text-gray-400 mb-6">Consultar, gerenciar e atualizar o banco de horas dos colaboradores.</p>
                 <span class="font-semibold text-primary hover:text-secondary transition-colors duration-200">Acessar Sistema &rarr;</span>
             </a>
             
@@ -112,18 +141,38 @@
                     <i data-feather="alert-triangle" class="h-8 w-8"></i>
                 </div>
                 <h2 class="text-2xl font-semibold mb-2">Pendência de Documentos</h2>
-                <p class="text-gray-400 mb-6">Acompanhe e gerencie a assinatura de documentos e o status das pendências por filial e mês.</p>
+                <p class="text-gray-400 mb-6">Acompanhar o status de assinaturas e pendências por filial e mês.</p>
                 <span class="font-semibold" style="color: #FF6F61;">Acessar Sistema &rarr;</span>
             </a>
 
-            <!-- NOVO CARD: Área do Gestor -->
+            <!-- Card 4: Área do Gestor -->
             <a href="area_gestor/index.html" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
                 <div class="card-icon-gestor">
                     <i data-feather="briefcase" class="h-8 w-8"></i>
                 </div>
                 <h2 class="text-2xl font-semibold mb-2">Área do Gestor</h2>
-                <p class="text-gray-400 mb-6">Gerencie seu time, defina hierarquias e acompanhe o status dos colaboradores.</p>
+                <p class="text-gray-400 mb-6">Gerenciar seu time, definir hierarquias e acompanhar o status dos colaboradores.</p>
                 <span class="font-semibold" style="color: var(--accent);">Acessar Sistema &rarr;</span>
+            </a>
+            
+            <!-- NOVO CARD 5: Meu Perfil -->
+            <a href="app.html#perfil" class="card-hover bg-gray-800 rounded-xl p-8 text-left">
+                <div class="card-icon-perfil">
+                    <i data-feather="user" class="h-8 w-8"></i>
+                </div>
+                <h2 class="text-2xl font-semibold mb-2">Meu Perfil</h2>
+                <p class="text-gray-400 mb-6">Atualize seu nome, foto de perfil e matrícula no sistema.</p>
+                <span class="font-semibold" style="color: #8b5cf6;">Acessar Perfil &rarr;</span>
+            </a>
+            
+            <!-- NOVO CARD 6: Gerenciar Usuários (Admin) -->
+            <a id="admin-card-usuarios" href="app.html#configuracoes" class="card-hover bg-gray-800 rounded-xl p-8 text-left" style="display: none;">
+                <div class="card-icon-admin">
+                    <i data-feather="users" class="h-8 w-8"></i>
+                </div>
+                <h2 class="text-2xl font-semibold mb-2">Gerenciar Usuários</h2>
+                <p class="text-gray-400 mb-6">(Admin) Aprove acessos, edite permissões e status dos usuários.</p>
+                <span class="font-semibold" style="color: #f59e0b;">Acessar Config. &rarr;</span>
             </a>
 
         </div>
@@ -174,10 +223,10 @@
 
                 const user = session.user;
                 
-                // Buscar perfil na tabela 'usuarios'
+                // ATUALIZADO: Buscar 'nome' e 'role'
                 const { data: profile, error: profileError } = await supabaseClient
                     .from('usuarios')
-                    .select('nome')
+                    .select('nome, role') // Pede o 'role'
                     .eq('auth_user_id', user.id)
                     .single();
 
@@ -187,6 +236,14 @@
 
                 const userName = profile?.nome || user.email.split('@')[0] || 'Usuário';
                 document.getElementById('userName').textContent = userName;
+
+                // NOVO: Verificar se é admin para mostrar o card
+                if (profile?.role === 'admin') {
+                    const adminCard = document.getElementById('admin-card-usuarios');
+                    if (adminCard) {
+                        adminCard.style.display = 'block';
+                    }
+                }
 
             } catch (e) {
                 console.error("Erro ao buscar dados do usuário:", e);
