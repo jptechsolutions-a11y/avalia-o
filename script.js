@@ -22,8 +22,8 @@ window.GG = {
         indicadores: [], 
         resultadosIndicadores: [],
         metas: [], 
-        usuarios: [], 
-        solicitacoes: [], 
+        // usuarios: [], // REMOVIDO
+        // solicitacoes: [], // REMOVIDO
         colaboradoresGestores: [], 
         avaliacaoAtual: null, 
         dadosCarregados: false, // <-- FLAG DE CONTROLE
@@ -164,9 +164,11 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
             // 1. Prepara as promises de carregamento
             const dataPromises = [this.carregarDadosIniciais()];
+            /* REMOVIDO: Bloco if (this.currentUser.role === 'admin')
             if (this.currentUser.role === 'admin') {
                 dataPromises.push(this.carregarDadosAdmin());
             }
+            */
 
             // 2. Espera que TUDO seja carregado
             await Promise.allSettled(dataPromises);
@@ -261,7 +263,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         document.getElementById('dropdownUserName').textContent = userName;
         document.getElementById('dropdownUserEmail').textContent = this.currentUser?.email || '...';
         
-        this.loadPerfilView();
+        // this.loadPerfilView(); // REMOVIDO
         
         feather.replace();
     },
@@ -309,7 +311,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                 case 'relatoriosView': this.inicializarRelatoriosView(); break; 
                 case 'colaboradorView': this.inicializarColaboradorView(); break; 
                 case 'configuracoesView': this.inicializarConfiguracoes(); break;
-                case 'perfilView': this.loadPerfilView(); break;
+                // case 'perfilView': this.loadPerfilView(); break; // REMOVIDO
             }
         } catch(e) { console.error(`Erro ao carregar view ${viewId}:`, e); }
         feather.replace();
@@ -962,7 +964,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         // --- FIM DA OTIMIZAÇÃO ---
         
         // Apenas renderiza os dados que já estão no cache
-        this.renderizarTabelasAdmin(); 
+        // this.renderizarTabelasAdmin(); // REMOVIDO
         
         this.renderizarTabelaIndicadores(); 
         this.renderizarTabelaMetas();       
@@ -975,7 +977,7 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         this.limparFormMeta(); 
         this.limparFormResultado();
 
-        this.showConfigTab('usuarios', document.querySelector('.config-tab-item')); 
+        this.showConfigTab('indicadores', document.querySelector('.config-tab-item.active')); // ATUALIZADO
         
         this.mostrarLoading(false);
         feather.replace(); 
@@ -1003,247 +1005,17 @@ this.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     // FUNÇÕES DE ADMINISTRAÇÃO (Aba Usuários)
     // -----------------------------------------------------------------
 
-    async carregarDadosAdmin() {
-        // --- OTIMIZAÇÃO: Esta função agora SÓ carrega os dados e não atualiza a UI ---
-        try {
-            const [usuariosRes, solicitacoesRes] = await Promise.allSettled([
-                this.supabaseRequest('usuarios?select=*&order=nome.asc', 'GET'),
-                this.supabaseRequest('solicitacoes_acesso?status=eq.pendente&order=created_at.desc', 'GET')
-            ]);
-
-            this.dados.usuarios = (usuariosRes.status === 'fulfilled' && usuariosRes.value) ? usuariosRes.value : [];
-            this.dados.solicitacoes = (solicitacoesRes.status === 'fulfilled' && solicitacoesRes.value) ? solicitacoesRes.value : [];
-            
-        } catch (e) {
-            this.mostrarAlerta(`Erro ao carregar dados de admin: ${e.message}`, 'error');
-            console.error(e);
-        }
-    },
-    
-    renderizarTabelasAdmin() {
-        this.renderizarTabelaUsuarios();
-        this.renderizarTabelaSolicitacoes();
-        feather.replace();
-    },
-
-   renderizarTabelaSolicitacoes() {
-        const tbody = document.querySelector('#tabela-solicitacoes-admin tbody');
-        if (!tbody) return;
-        tbody.innerHTML = '';
-        if (this.dados.solicitacoes.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhuma solicitação pendente.</td></tr>';
-            return;
-        }
-        
-        this.dados.solicitacoes.forEach(s => {
-            const data = new Date(s.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            tbody.innerHTML += `<tr>
-                <td>${this.escapeHTML(s.nome)}</td>
-                <td>${this.escapeHTML(s.email)}</td>
-                <td style="white-space: normal; min-width: 250px;">${this.escapeHTML(s.motivo)}</td>
-                <td>${data}</td>
-                <td class="actions">
-                    <button class="btn btn-sm btn-success" onclick='window.GG.aprovarSolicitacao(${s.id}, ${JSON.stringify(s.nome)}, ${JSON.stringify(s.email)})'>
-                        <i data-feather="check" class="h-4 w-4"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger" onclick="window.GG.rejeitarSolicitacao(${s.id})">
-                        <i data-feather="x" class="h-4 w-4"></i>
-                    </button>
-                </td>
-            </tr>`;
-        });
-    },
-
-    async rejeitarSolicitacao(id) {
-        if (!confirm('Tem certeza que deseja rejeitar esta solicitação?')) return;
-        try {
-            this.mostrarLoading(true);
-            await this.supabaseRequest(`solicitacoes_acesso?id=eq.${id}`, 'PATCH', { status: 'rejeitado' });
-            this.mostrarAlerta('Solicitação rejeitada.', 'success');
-            
-            // ATUALIZA O CACHE
-            this.dados.solicitacoes = this.dados.solicitacoes.filter(s => s.id !== id);
-            this.renderizarTabelasAdmin(); // Re-renderiza a partir do cache
-        } catch(e) {
-            this.mostrarAlerta(`Erro ao rejeitar: ${e.message}`, 'error');
-        } finally {
-            this.mostrarLoading(false);
-        }
-    },
-async aprovarSolicitacao(id, nome, email) {
-        if (!confirm(`Tem certeza que deseja aprovar a solicitação para "${nome}" (${email})?\n\nIsso enviará um e-mail de convite para o usuário definir a própria senha.`)) return;
-
-        try {
-            this.mostrarLoading(true);
-
-            // Chamar a nova API serverless que criamos
-            const response = await fetch('/api/approve-access', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}` // Autentica o admin
-                },
-                body: JSON.stringify({
-                    solicitacao_id: id,
-                    email: email,
-                    nome: nome
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Erro ${response.status}`);
-            }
-
-            this.mostrarAlerta('Usuário aprovado e convite enviado!', 'success');
-            
-            // ATUALIZA O CACHE
-            this.dados.solicitacoes = this.dados.solicitacoes.filter(s => s.id !== id);
-            // Re-busca a lista de usuários para incluir o novo
-            const usuariosRes = await this.supabaseRequest('usuarios?select=*&order=nome.asc', 'GET');
-            this.dados.usuarios = (usuariosRes.status === 'fulfilled' && usuariosRes.value) ? usuariosRes.value : [];
-            
-            this.renderizarTabelasAdmin(); // Re-renderiza a partir do cache
-
-        } catch(e) {
-            this.mostrarAlerta(`Erro ao aprovar: ${e.message}`, 'error');
-            console.error("Erro em aprovarSolicitacao:", e);
-        } finally {
-            this.mostrarLoading(false);
-        }
-    },
-
-    // ... (sua função rejeitarSolicitacao e outras)
-
-renderizarTabelaUsuarios() {
-        const tbody = document.querySelector('#tabela-usuarios-admin tbody');
-        if (!tbody) return;
-        tbody.innerHTML = '';
-        if (this.dados.usuarios.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Nenhum usuário encontrado.</td></tr>';
-            return;
-        }
-        
-        this.dados.usuarios.forEach(u => {
-            const status = u.status || 'ativo'; // Default para 'ativo'
-            let statusClass = '';
-            switch(status) {
-                case 'ativo': statusClass = 'status-ativo'; break;
-                case 'inativo': statusClass = 'status-inativo'; break;
-                default: statusClass = 'status-inativo';
-            }
-            const roleClass = u.role === 'admin' ? 'font-bold text-blue-600' : 'text-gray-700';
-
-            tbody.innerHTML += `
-                <tr>
-                    <td>${this.escapeHTML(u.nome)}</td>
-                    <td>${this.escapeHTML(u.email)}</td>
-                    <td>${this.escapeHTML(u.matricula || '--')}</td>
-                    <td class="${roleClass}">${this.escapeHTML(u.role)}</td>
-                    <td>${this.escapeHTML(u.filial || '--')}</td>
-                    <td><span class="status-badge ${statusClass}">${this.escapeHTML(status)}</span></td>
-                    <td class="actions">
-                        <button class="btn btn-sm btn-warning" onclick="window.GG.abrirModalEdicaoUsuario('${u.id}')">
-                            <i data-feather="edit-2" class="h-4 w-4"></i>
-                        </button>
-                    </td>
-                </tr>
-            `;
-        });
-        
-        feather.replace();
-    }, // <-- **** ESSA VÍRGULA É FUNDAMENTAL ****
-    
-abrirModalEdicaoUsuario(id) {
-       const usuario = this.dados.usuarios.find(u => u.id == id); // Use '==' para comparar string com número/string
-        if (!usuario) {
-            this.mostrarAlerta('Usuário não encontrado.', 'error');
-            return;
-        }
-        
-        document.getElementById('modal-user-id').value = usuario.id;
-        document.getElementById('modal-user-nome').value = usuario.nome || '';
-        document.getElementById('modal-user-email').value = usuario.email || '';
-        document.getElementById('modal-user-matricula').value = usuario.matricula || '';
-        document.getElementById('modal-user-filial').value = usuario.filial || '';
-        document.getElementById('modal-user-role').value = usuario.role || 'user';
-        document.getElementById('modal-user-status').value = usuario.status || 'inativo';
-
-        document.getElementById('userEditModal').style.display = 'flex';
-        feather.replace();
-    },
-    
-    fecharModalUsuario() {
-        document.getElementById('userEditModal').style.display = 'none';
-        document.getElementById('userEditForm').reset();
-    },
-
-    async salvarModalUsuario() {
-        const id = document.getElementById('modal-user-id').value;
-
-        // --- INÍCIO DA CORREÇÃO ---
-        // Pega o valor do input, ou uma string vazia se for nulo
-        const filiaisInput = document.getElementById('modal-user-filial').value || '';
-        let permissoesArray = null; // Por padrão, é nulo (acesso a todas)
-
-        if (filiaisInput.trim().length > 0) {
-            // Se o campo NÃO estiver vazio, converte em array
-            permissoesArray = filiaisInput
-                .split(',')                 // Separa por vírgula (ex: ["101", " 205"])
-                .map(f => f.trim())         // Remove espaços (ex: ["101", "205"])
-                .filter(f => f.length > 0); // Remove itens vazios
-        }
-        // --- FIM DA CORREÇÃO ---
-
-        const payload = {
-            nome: document.getElementById('modal-user-nome').value,
-            matricula: document.getElementById('modal-user-matricula').value || null,
-            
-            // ATENÇÃO AQUI:
-            // O erro (`image_fc97a5.jpg`) mostra que o banco espera 'permissoes_filiais'.
-            // O seu script.js original enviava 'filial'.
-            // Estou assumindo que seu banco está correto e o payload deve ser 'permissoes_filiais'.
-            permissoes_filiais: permissoesArray, // Envia o array (ou null)
-
-            role: document.getElementById('modal-user-role').value,
-            status: document.getElementById('modal-user-status').value
-        };
-
-        // Remove a chave 'filial' se ela existir no payload, para evitar conflito
-        // (Caso você tenha as duas chaves no seu payload)
-        if (payload.hasOwnProperty('filial')) {
-             delete payload.filial;
-        }
-
-        if (!id || !payload.nome) {
-            this.mostrarAlerta('Nome é obrigatório.', 'warning');
-            return;
-        }
-
-        try {
-            this.mostrarLoading(true);
-            const resultado = await this.supabaseRequest(`usuarios?id=eq.${id}`, 'PATCH', payload);
-            
-            const index = this.dados.usuarios.findIndex(u => u.id == id);
-            if (index > -1) {
-                this.dados.usuarios[index] = { ...this.dados.usuarios[index], ...resultado[0] };
-            }
-            
-            if (this.currentUser.id == id) {
-                this.currentUser = { ...this.currentUser, ...resultado[0] };
-                this.showMainSystem(); 
-            }
-            
-            this.renderizarTabelaUsuarios();
-            this.fecharModalUsuario();
-            this.mostrarAlerta('Usuário atualizado com sucesso!', 'success');
-            
-        } catch (e) {
-            this.mostrarAlerta(`Erro ao salvar usuário: ${e.message}`, 'error');
-        } finally {
-            this.mostrarLoading(false);
-        }
-    },
+    /*
+    REMOVIDO: async carregarDadosAdmin() { ... }
+    REMOVIDO: renderizarTabelasAdmin() { ... }
+    REMOVIDO: renderizarTabelaSolicitacoes() { ... }
+    REMOVIDO: async rejeitarSolicitacao(id) { ... }
+    REMOVIDO: async aprovarSolicitacao(id, nome, email) { ... }
+    REMOVIDO: renderizarTabelaUsuarios() { ... }
+    REMOVIDO: abrirModalEdicaoUsuario(id) { ... }
+    REMOVIDO: fecharModalUsuario() { ... }
+    REMOVIDO: async salvarModalUsuario() { ... }
+    */
     
     // -----------------------------------------------------------------
     // FUNÇÕES DE ADMINISTRAÇÃO (Aba Pessoal)
@@ -2144,117 +1916,11 @@ exibirLaudo(avaliacaoId) {
     // FUNÇÕES DE PERFIL E UTILITÁRIOS
     // -----------------------------------------------------------------
 
-    loadPerfilView() {
-        const form = document.getElementById('perfilForm');
-        const alertContainer = document.getElementById('perfilAlert');
-        if (!form || !alertContainer || !this.currentUser) return; 
-        alertContainer.innerHTML = '';
-        form.reset();
-
-        document.getElementById('perfilEmail').value = this.currentUser.email || '';
-        document.getElementById('perfilNome').value = this.currentUser.nome || '';
-        document.getElementById('perfilMatricula').value = this.currentUser.matricula || '';
-        document.getElementById('perfilPicturePreview').src = this.currentUser.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
-        feather.replace();
-    },
-
-    previewProfilePicture(event) {
-        const reader = new FileReader();
-        reader.onload = function(){
-            const output = document.getElementById('perfilPicturePreview');
-            output.src = reader.result;
-        };
-        if (event.target.files[0]) {
-            reader.readAsDataURL(event.target.files[0]);
-        } else {
-             if(window.GG && window.GG.currentUser) {
-                 document.getElementById('perfilPicturePreview').src = window.GG.currentUser.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
-             }
-        }
-    },
-
-    async handlePerfilFormSubmit(event) {
-        if (event) event.preventDefault(); 
-        
-        const alertContainer = document.getElementById('perfilAlert');
-        const saveButton = document.querySelector('#perfilForm button[type="submit"]');
-        if (!saveButton || !alertContainer) return;
-        
-        const originalButtonText = saveButton.innerHTML;
-        alertContainer.innerHTML = '';
-        saveButton.disabled = true;
-        saveButton.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;margin-right:5px;"></div> Salvando...';
-
-        let profilePicUrl = this.currentUser.profile_picture_url;
-        let newPictureUploaded = false; 
-
-        const pictureFile = document.getElementById('perfilPicture').files[0];
-        if (pictureFile) {
-            try {
-                newPictureUploaded = true; 
-                const apiUrl = `/api/upload?fileName=${encodeURIComponent(pictureFile.name)}&fileType=${encodeURIComponent(pictureFile.type || 'application/octet-stream')}`;
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/octet-stream', 
-                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-                    },
-                    body: pictureFile,
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`Erro ${response.status} ao enviar foto: ${errorData.details || errorData.error}`);
-                }
-                const result = await response.json();
-                if (result.publicUrl) {
-                    profilePicUrl = result.publicUrl;
-                } else {
-                     throw new Error("API de upload não retornou URL pública.");
-                }
-            } catch (uploadError) {
-                console.error("Falha no upload da foto:", uploadError);
-                alertContainer.innerHTML = `<div class="alert alert-error">Falha ao enviar a nova foto: ${uploadError.message}.</div>`;
-                 saveButton.disabled = false;
-                 saveButton.innerHTML = originalButtonText;
-                 feather.replace();
-                 return; 
-            }
-        }
-
-        const profileData = {
-            nome: document.getElementById('perfilNome').value,
-            matricula: document.getElementById('perfilMatricula').value || null,
-            profile_picture_url: profilePicUrl || null
-        };
-
-        try {
-            const updatedUser = await this.supabaseRequest(`usuarios?id=eq.${this.currentUser.id}`, 'PATCH', profileData);
-
-            if (updatedUser && updatedUser[0]) {
-                this.currentUser = { ...this.currentUser, ...updatedUser[0] };
-                
-                this.showMainSystem();
-                if (!newPictureUploaded) {
-                     document.getElementById('perfilPicturePreview').src = this.currentUser.profile_picture_url || 'https://i.imgur.com/80SsE11.png';
-                }
-                
-                this.mostrarAlerta('Perfil atualizado com sucesso!', 'success');
-            } else {
-                 throw new Error("Resposta inesperada do servidor ao atualizar perfil.");
-            }
-
-        } catch (error) {
-            console.error("Erro ao salvar perfil:", error);
-            if (!alertContainer.innerHTML) { 
-                 alertContainer.innerHTML = `<div class="alert alert-error">Erro ao salvar dados: ${error.message}</div>`;
-            }
-        } finally {
-            saveButton.disabled = false;
-            saveButton.innerHTML = '<i data-feather="save" class="h-4 w-4 mr-2"></i> Salvar Alterações';
-            feather.replace();
-            document.getElementById('perfilPicture').value = ''; 
-        }
-    },
+    /*
+    REMOVIDO: loadPerfilView() { ... }
+    REMOVIDO: previewProfilePicture(event) { ... }
+    REMOVIDO: async handlePerfilFormSubmit(event) { ... }
+    */
     
     fecharModal() { document.getElementById('editModal').style.display = 'none'; },
     salvarEdicaoModal() { 
@@ -2360,5 +2026,3 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Erro crítico. Verifique o console.");
     }
 });
-
-// (Dentro do objeto window.GG)
