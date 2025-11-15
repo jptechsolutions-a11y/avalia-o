@@ -1164,9 +1164,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 filteredData = filteredData.filter(permissionFilter);
-                permissionsFilteredData = permissionsFilteredData.filter(permissionFilter);
+                permissionsFilteredData = permissionsFilteredData.filter(permissionFilter); // <--- CORRETO
                 historyData = historyData.filter(permissionFilter);
-                permissionsFilteredHistory = permissionsFilteredHistory.filter(permissionFilter);
+                permissionsFilteredHistory = permissionsFilteredHistory.filter(permissionFilter); // <--- CORRETO
             }
             
             // Aplica filtros da UI do Dashboard (SOMENTE em filteredData e historyData)
