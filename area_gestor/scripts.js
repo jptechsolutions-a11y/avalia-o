@@ -92,42 +92,65 @@ async function supabaseRequest(endpoint, method = 'GET', body = null, headers = 
 }
 
 /**
- * ** CORREÇÃO (JP): **
- * A função agora constrói a query dinamicamente com base no nível do gestor,
- * conforme solicitado.
- * * ATUALIZAÇÃO: Movido para o topo para corrigir o ReferenceError
+ * ** MODIFICAÇÃO (JP): **
+ * A função agora busca TODOS os colaboradores usando paginação,
+ * em vez de depender do limite padrão de 1000 do Supabase.
  */
 async function loadAllTeamMembers(gestorChapa, nivelGestor) {
     const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
     const chapaStr = String(gestorChapa);
     
-    // Array base de colunas de gestor
     const colunasGestor = ['gestor_chapa', 'gestor_n2_chapa', 'gestor_n3_chapa', 'gestor_n4_chapa', 'gestor_n5_chapa'];
-    
     let orConditions = [];
     
-    // Se o nível não for definido (ou for admin), busca em todas as 5 colunas
     if (nivelGestor === null || nivelGestor === undefined || nivelGestor > 5) {
         console.log(`[Load] Nível não definido ou admin. Buscando em todas as ${colunasGestor.length} colunas.`);
         orConditions = colunasGestor.map(col => `${col}.eq.${chapaStr}`);
     } else {
-        // Nível 1 busca 1 coluna, Nível 2 busca 2 colunas, etc.
-        const niveisParaBuscar = Math.max(1, nivelGestor); // Garante pelo menos N1
+        const niveisParaBuscar = Math.max(1, nivelGestor); 
         console.log(`[Load] Gestor Nível ${nivelGestor}. Buscando nas ${niveisParaBuscar} primeiras colunas.`);
         orConditions = colunasGestor.slice(0, niveisParaBuscar).map(col => `${col}.eq.${chapaStr}`);
     }
-
-    // Se por algum motivo o nível for 0 ou inválido, garante pelo menos o N1
+    
     if (orConditions.length === 0) {
-         orConditions.push(`gestor_chapa.eq.${chapaStr}`);
+        orConditions.push(`gestor_chapa.eq.${chapaStr}`);
     }
 
-    const query = `colaboradores?select=${columns}&or=(${orConditions.join(',')})`;
-    console.log(`[Load] Query: ${query}`);
+    // --- INÍCIO DA MODIFICAÇÃO (PAGINAÇÃO) ---
+    const orQueryPart = `or=(${orConditions.join(',')})`;
+    const baseQuery = `colaboradores?select=${columns}&${orQueryPart}`;
+    console.log(`[Load] Base Query: ${baseQuery}`);
+
+    const pageSize = 1000; // O Supabase tem um limite padrão de 1000, vamos usar ele para paginar
+    let currentPage = 0;
+    let hasMoreData = true;
+    let allTeamMembers = [];
+
+    while (hasMoreData) {
+        const offset = currentPage * pageSize;
+        // A query agora inclui offset e limit
+        const query = `${baseQuery}&offset=${offset}&limit=${pageSize}`;
+        
+        showLoading(true, `Carregando time... ${allTeamMembers.length} membros...`);
+        
+        const teamBatch = await supabaseRequest(query, 'GET');
+
+        if (teamBatch && Array.isArray(teamBatch)) {
+            allTeamMembers = allTeamMembers.concat(teamBatch);
+            
+            if (teamBatch.length < pageSize) {
+                hasMoreData = false; // Fim dos dados
+            } else {
+                currentPage++; // Prepara para a próxima página
+            }
+        } else {
+            hasMoreData = false; // Erro ou array vazio
+        }
+    }
     
-    const team = await supabaseRequest(query, 'GET');
-    
-    return team || [];
+    console.log(`[Load] Paginação concluída. Total de ${allTeamMembers.length} membros carregados.`);
+    return allTeamMembers; // Retorna a lista completa
+    // --- FIM DA MODIFICAÇÃO ---
 }
 // --- FIM DA ATUALIZAÇÃO ---
 
@@ -231,9 +254,9 @@ function showView(viewId, element) {
         switch (viewId) {
             case 'meuTimeView':
                 // Funções que usam os dados carregados no state
-                updateDashboardStats(state.meuTime);
-                populateFilters(state.meuTime);
-                applyFilters(); // Renderiza a tabela inicial
+                updateDashboardStats(state.meuTime); // <-- USA O CACHE COMPLETO
+                populateFilters(state.meuTime, 'all'); // MODIFICAÇÃO: Popula TUDO na primeira carga
+                applyFilters(); // Renderiza a tabela inicial (agora com limite)
                 break;
             case 'meusGestoresView':
                 loadMeusGestoresView();
@@ -467,9 +490,11 @@ async function loadModuleData() {
         if (state.isAdmin) {
             console.log("[Load] Admin detectado. Carregando TODOS os colaboradores...");
             const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
-            timeRes = await supabaseRequest(`colaboradores?select=${columns}`, 'GET');
+            // MODIFICAÇÃO: Chama a função de paginação
+            timeRes = await loadAllTeamMembers(null, null); // Admin busca tudo
         } else {
             console.log(`[Load] 1. Buscando time hierárquico (Nível ${state.userNivel || 'N/A'}) de ${state.userMatricula}...`);
+            // MODIFICAÇÃO: Chama a função de paginação
             timeRes = await loadAllTeamMembers(state.userMatricula, state.userNivel);
         }
 
@@ -738,6 +763,8 @@ async function handleSalvarTime() {
 
 /**
  * Atualiza os 4 cards do dashboard com base nos dados do time.
+ * MODIFICAÇÃO: Esta função agora lê o cache 'data' (state.meuTime),
+ * que já foi carregado com TODOS os membros pela paginação.
  */
 function updateDashboardStats(data) {
     if (!data) data = [];
@@ -746,7 +773,7 @@ function updateDashboardStats(data) {
     const inativos = data.filter(c => c.status === 'inativo').length;
     const novatos = data.filter(c => c.status === 'novato').length;
     
-    // NOVO: Calcular total de horas
+    // NOVO: Calcular total de horas (lendo do cache completo)
     let totalHoras = 0;
     data.forEach(c => {
         // Usa a propriedade 'banco_horas' adicionada no loadModuleData
@@ -766,42 +793,55 @@ function updateDashboardStats(data) {
 
 /**
  * Preenche os <select> de filtro com base nos dados do time.
+ * MODIFICAÇÃO: Esta função agora é dinâmica e chamada pelo applyFilters.
+ * Ela preserva o valor selecionado se ele ainda for válido.
  */
-function populateFilters(data) {
-    if (!data) data = [];
+function populateFilters(sourceData, filterTypeToPopulate) { // filterTypeToPopulate can be 'filial', 'funcao', or null/'all'
+    if (!sourceData) sourceData = [];
     const filialSelect = document.getElementById('filterFilial');
     const funcaoSelect = document.getElementById('filterFuncao');
     
-    const filiais = [...new Set(data.map(c => c.filial).filter(Boolean))].sort();
-    const funcoes = [...new Set(data.map(c => c.funcao).filter(Boolean))].sort();
-    
-    filialSelect.innerHTML = '<option value="">Todas as filiais</option>';
-    funcaoSelect.innerHTML = '<option value="">Todas as funções</option>';
-    
-    filiais.forEach(f => filialSelect.innerHTML += `<option value="${f}">${f}</option>`);
-    funcoes.forEach(f => funcaoSelect.innerHTML += `<option value="${f}">${f}</option>`);
+    if (!filialSelect || !funcaoSelect) return; // Checagem de segurança
+
+    if (filterTypeToPopulate === 'filial' || !filterTypeToPopulate || filterTypeToPopulate === 'all') {
+        const filiais = [...new Set(sourceData.map(c => c.filial).filter(Boolean))].sort();
+        const currentValue = filialSelect.value; // Mantém o valor atual
+        filialSelect.innerHTML = '<option value="">Todas as filiais</option>';
+        filiais.forEach(f => {
+            // Só seleciona se ainda for uma opção válida
+            const selected = (f === currentValue) ? 'selected' : ''; 
+            filialSelect.innerHTML += `<option value="${f}" ${selected}>${f}</option>`;
+        });
+    }
+
+    if (filterTypeToPopulate === 'funcao' || !filterTypeToPopulate || filterTypeToPopulate === 'all') {
+        const funcoes = [...new Set(sourceData.map(c => c.funcao).filter(Boolean))].sort();
+        const currentValue = funcaoSelect.value; // Mantém o valor atual
+        funcaoSelect.innerHTML = '<option value="">Todas as funções</option>';
+        funcoes.forEach(f => {
+            const selected = (f === currentValue) ? 'selected' : '';
+            funcaoSelect.innerHTML += `<option value="${f}" ${selected}>${f}</option>`;
+        });
+    }
 }
 
 /**
  * Renderiza a tabela principal de "Meu Time"
- * ** ATUALIZADO: para ler os dados da nova query plana **
-// ... existing code ... */
+ * MODIFICAÇÃO: A mensagem de "nenhum dado" foi simplificada
+ * e agora é controlada pela função applyFilters.
+ */
 function renderMeuTimeTable(data) {
     const tbody = document.getElementById('tableBodyMeuTime');
-    const message = document.getElementById('tableMessageMeuTime');
+    // const message = document.getElementById('tableMessageMeuTime'); // Mensagem agora é controlada por applyFilters
     tbody.innerHTML = '';
 
     if (data.length === 0) {
-        message.classList.remove('hidden');
-        if (state.meuTime.length === 0) { // Se o cache original está vazio
-             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Seu time ainda não possui colaboradores vinculados.</td></tr>'; // Colspan 8
-        } else { // Se o cache tem dados, mas o filtro limpou
-             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Nenhum colaborador encontrado para os filtros aplicados.</td></tr>'; // Colspan 8
-        }
+        // A mensagem de "Nenhum dado" é definida em applyFilters.
+        // Apenas garantimos que o tbody esteja vazio.
         return;
     }
     
-    message.classList.add('hidden');
+    // message.classList.add('hidden'); // Controlado por applyFilters
 
     // --- LÓGICA DE HIERARQUIA (Nível 1-5) ---
         
@@ -903,7 +943,11 @@ function renderMeuTimeTable(data) {
 }
 
 /**
+ * ** MODIFICAÇÃO (JP): **
  * Aplica os filtros da UI na tabela "Meu Time"
+ * Adiciona a lógica de limite de exibição (600) se não estiver filtrando,
+ * ou mostra todos os resultados se estiver filtrando.
+ * ADICIONA LÓGICA DE FILTRO CASCADING.
  */
 function applyFilters() {
     const nomeFiltro = document.getElementById('filterNome').value.toLowerCase();
@@ -911,7 +955,35 @@ function applyFilters() {
     const funcaoFiltro = document.getElementById('filterFuncao').value;
     const statusFiltro = document.getElementById('filterStatus').value;
     
-    const filteredData = state.meuTime.filter(item => {
+    // --- INÍCIO DA LÓGICA CASCADING ---
+    
+    // 1a. Define a fonte de dados para o dropdown FUNÇÃO
+    // (Filtra o time por Filial e Status)
+    let dataForFuncaoFilter = state.meuTime;
+    if (filialFiltro) {
+        dataForFuncaoFilter = dataForFuncaoFilter.filter(item => item.filial === filialFiltro);
+    }
+    if (statusFiltro) {
+         dataForFuncaoFilter = dataForFuncaoFilter.filter(item => (item.status || 'ativo') === statusFiltro);
+    }
+    // (Não filtramos dropdown por nome, apenas a tabela)
+    populateFilters(dataForFuncaoFilter, 'funcao'); // Repopula o dropdown de Função
+
+    // 1b. Define a fonte de dados para o dropdown FILIAL
+    // (Filtra o time por Função e Status)
+    let dataForFilialFilter = state.meuTime;
+    if (funcaoFiltro) {
+        dataForFilialFilter = dataForFilialFilter.filter(item => item.funcao === funcaoFiltro);
+    }
+    if (statusFiltro) {
+        dataForFilialFilter = dataForFilialFilter.filter(item => (item.status || 'ativo') === statusFiltro);
+    }
+    populateFilters(dataForFilialFilter, 'filial'); // Repopula o dropdown de Filial
+    
+    // --- FIM DA LÓGICA CASCADING ---
+
+    // 2. Agora, aplica TODOS os filtros para renderizar a tabela
+    const finalFilteredData = state.meuTime.filter(item => {
         const nomeChapaMatch = nomeFiltro === '' || 
             (item.nome && item.nome.toLowerCase().includes(nomeFiltro)) ||
             (item.matricula && item.matricula.toLowerCase().includes(nomeFiltro));
@@ -923,7 +995,52 @@ function applyFilters() {
         return nomeChapaMatch && filialMatch && funcaoMatch && statusMatch;
     });
     
-    renderMeuTimeTable(filteredData);
+    // --- INÍCIO DA MODIFICAÇÃO (LIMITE DE EXIBIÇÃO) ---
+    const totalResultados = finalFilteredData.length; // Usa finalFilteredData
+    const isFiltering = nomeFiltro || filialFiltro || funcaoFiltro || statusFiltro;
+    const tableMessage = document.getElementById('tableMessageMeuTime');
+    
+    let dadosParaRenderizar = [];
+    let mensagem = '';
+    
+    const LIMITE_EXIBICAO = 600; // Conforme solicitado pelo JP
+
+    if (totalResultados === 0) {
+        if (isFiltering) {
+            mensagem = "Nenhum colaborador encontrado para os filtros aplicados.";
+        } else {
+            mensagem = "Seu time ainda não possui colaboradores vinculados.";
+        }
+    } else if (isFiltering) {
+        // Se está filtrando, mostra todos os resultados
+        dadosParaRenderizar = filteredData;
+        mensagem = `Exibindo ${totalResultados} resultado(s) para sua busca.`;
+        
+    } else {
+        // Se NÃO está filtrando, mostra apenas o limite (600)
+        dadosParaRenderizar = filteredData.slice(0, LIMITE_EXIBICAO);
+        
+        if (totalResultados > LIMITE_EXIBICAO) {
+            mensagem = `Exibindo os ${LIMITE_EXIBICAO} primeiros de ${totalResultados} registros. Use os filtros para buscar.`;
+        } else {
+             mensagem = `Exibindo ${totalResultados} registro(s).`;
+        }
+    }
+    
+    if (tableMessage) {
+        tableMessage.textContent = mensagem;
+        if(totalResultados === 0) {
+             tableMessage.classList.remove('hidden'); // Mostra se for 0
+        } else {
+             // Esconde se for > 0 E não estiver filtrando E estiver dentro do limite
+             const hideMessage = !isFiltering && totalResultados <= LIMITE_EXIBICAO;
+             tableMessage.classList.toggle('hidden', hideMessage);
+        }
+    }
+    
+    // 2. Renderiza apenas os dados selecionados (dadosParaRenderizar)
+    renderMeuTimeTable(dadosParaRenderizar);
+    // --- FIM DA MODIFICAÇÃO ---
 }
 
 /**
