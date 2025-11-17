@@ -10,7 +10,6 @@ const DATA_TABLE = 'inconsistencias_data';
 const META_TABLE = 'inconsistencias_meta';
 
 // Colunas para importação/preview (Exatamente como no arquivo)
-// ATUALIZADO: Removido 'REFERENCIA' e 'BANDEIRA'
 const COLUMN_MAP_ORIGINAL = {
     'REGIONAL': 'Regional',
     'CODFILIAL': 'Cód. Filial',
@@ -28,7 +27,6 @@ const COLUMN_ORDER_ORIGINAL = [
 ];
 
 // Colunas para a tabela de Acompanhamento (visão resumida)
-// (Sem alterações, já estava correto)
 const COLUMN_MAP_ACOMP = {
     'CODFILIAL': 'Filial',
     'CHAPA': 'Chapa',
@@ -223,8 +221,6 @@ async function initializeSupabaseAndUser() {
         state.auth = session;
         localStorage.setItem('auth_token', session.access_token); 
         
-        // Busca o perfil do usuário (incluindo 'permissoes_filiais')
-        // CORREÇÃO: Adicionado filtro pelo ID do usuário
         const endpoint = `usuarios?auth_user_id=eq.${session.user.id}&select=nome,role,profile_picture_url,permissoes_filiais,email`;
         const profileResponse = await supabaseRequest(endpoint, 'GET');
         
@@ -237,7 +233,6 @@ async function initializeSupabaseAndUser() {
         state.isAdmin = (profile.role === 'admin');
         state.permissoes_filiais = profile.permissoes_filiais || null; 
 
-        // Atualiza a UI do Header
         const userName = profile.nome || profile.email || 'Usuário';
         const userAvatar = profile.profile_picture_url || 'https://i.imgur.com/80SsE11.png'; 
         document.getElementById('topBarUserName').textContent = userName;
@@ -245,14 +240,11 @@ async function initializeSupabaseAndUser() {
         document.getElementById('dropdownUserName').textContent = userName;
         document.getElementById('dropdownUserEmail').textContent = profile.email || '...';
         
-        // Mostra o link de Config/Importar se for admin
         document.getElementById('configLink').style.display = state.isAdmin ? 'block' : 'none';
 
-        // Mostra a aplicação
         document.getElementById('appShell').style.display = 'flex';
         document.body.classList.add('system-active');
 
-        // Carrega os dados e navega para a view correta
         await loadInitialData();
         handleHashChange();
 
@@ -267,27 +259,34 @@ async function initializeSupabaseAndUser() {
     }
 }
 
+// *** FUNÇÃO ADICIONADA ***
+// Formata o timestamp para exibição na UI
+function formatTimestamp(isoString) {
+    if (!isoString) return 'N/A';
+    return new Date(isoString).toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+}
+
 async function loadInitialData() {
     showLoading(true, 'Carregando dados de inconsistências...');
     
     try {
-        // 1. Busca os dados
-        // A RLS configurada no SQL cuidará da filtragem por filial para não-admins
         const query = `${DATA_TABLE}?select=*`;
         const dataRes = await supabaseRequest(query, 'GET');
         
         state.allData = (dataRes && Array.isArray(dataRes)) ? dataRes : [];
         console.log(`Dados carregados: ${state.allData.length} registros.`);
 
-        // 2. Busca os metadados
         const metaQuery = `${META_TABLE}?id=eq.1&select=lastupdatedat&limit=1`;
         const metaRes = await supabaseRequest(metaQuery, 'GET');
         
+        // *** ERRO ESTAVA AQUI (formatTimestamp not defined) ***
         const timestamp = (metaRes && metaRes[0]) ? formatTimestamp(metaRes[0].lastupdatedat) : 'Nenhuma importação registrada.';
         document.getElementById('lastUpdatedDash').textContent = timestamp;
         document.getElementById('lastUpdatedAcomp').textContent = timestamp;
         
-        // 3. Popula filtros e redesenha o Dashboard (view padrão)
         populateFilterLists();
         initializeDashboard();
         
@@ -300,7 +299,6 @@ async function loadInitialData() {
     }
 }
 
-// Preenche os selects de filtro
 function populateFilterLists() {
     const allData = state.allData;
     const sets = {
@@ -327,13 +325,11 @@ function populateFilterLists() {
         tipo: [...sets.tipo].sort()
     };
 
-    // Popula selects do Dashboard
     populateSelect('filterRegionalDash', state.listasFiltros.regional, 'Todas as regionais');
     populateSelect('filterCodFilialDash', state.listasFiltros.codfilial, 'Todas as filiais');
     populateSelect('filterTipoDash', state.listasFiltros.tipo, 'Todos os tipos');
     populateSelect('filterFuncaoDash', state.listasFiltros.funcao, 'Todas as funções');
     
-    // Popula selects do Acompanhamento
     populateSelect('filterRegional', state.listasFiltros.regional, 'Todas');
     populateSelect('filterCodFilial', state.listasFiltros.codfilial, 'Todas');
     populateSelect('filterTipo', state.listasFiltros.tipo, 'Todos');
@@ -391,7 +387,6 @@ function showView(viewId, element) {
                 initializeAcompanhamento();
                 break;
             case 'configuracoesView':
-                // Nenhuma ação extra necessária
                 break;
         }
     } catch(e) {
@@ -418,7 +413,6 @@ function initializeDashboard() {
         const tipoFiltro = document.getElementById('filterTipoDash').value;
         const funcaoFiltro = document.getElementById('filterFuncaoDash').value;
 
-        // Filtra os dados (state.allData já está filtrado por RLS)
         let filteredData = state.allData;
         if (regionalFiltro) {
             filteredData = filteredData.filter(item => item.regional === regionalFiltro);
@@ -433,7 +427,6 @@ function initializeDashboard() {
             filteredData = filteredData.filter(item => item.funcao === funcaoFiltro);
         }
         
-        // Processa e renderiza os gráficos
         processDashboardCharts(filteredData);
         
         feather.replace();
@@ -447,7 +440,6 @@ function initializeDashboard() {
 }
 
 function processDashboardCharts(data) {
-    // 1. Agrega dados por Setor (DESC_SECAO)
     const dataSetor = aggregateChartData(data, 'desc_secao');
     renderChart(
         document.getElementById('chartSetor'), 
@@ -458,7 +450,6 @@ function processDashboardCharts(data) {
         'Inconsistências por Setor'
     );
     
-    // 2. Agrega dados por Função (FUNCAO)
     const dataFuncao = aggregateChartData(data, 'funcao');
     renderChart(
         document.getElementById('chartFuncao'), 
@@ -469,7 +460,6 @@ function processDashboardCharts(data) {
         'Inconsistências por Função'
     );
 
-    // 3. Agrega dados por Tipo (TIPO)
     const dataTipo = aggregateChartData(data, 'tipo');
     renderChart(
         document.getElementById('chartTipo'), 
@@ -480,7 +470,6 @@ function processDashboardCharts(data) {
         'Inconsistências por Tipo'
     );
     
-    // 4. Agrega dados por Filial (CODFILIAL)
     const dataFilial = aggregateChartData(data, 'codfilial');
     renderChart(
         document.getElementById('chartFilial'), 
@@ -492,11 +481,6 @@ function processDashboardCharts(data) {
     );
 }
 
-/**
- * Agrega dados para os gráficos (Top 10 + Outros).
- * @param {Array} data - Os dados filtrados.
- * @param {string} field - O campo para agrupar (ex: 'tipo').
- */
 function aggregateChartData(data, field) {
     const groups = data.reduce((acc, item) => {
         const key = item[field] || 'Não Definido';
@@ -507,7 +491,7 @@ function aggregateChartData(data, field) {
     const sorted = Object.entries(groups)
         .sort(([, a], [, b]) => b - a);
             
-    const topN = (field === 'tipo' || field === 'codfilial') ? 20 : 10; // Mais barras para Tipo e Filial
+    const topN = (field === 'tipo' || field === 'codfilial') ? 20 : 10;
     const topItems = sorted.slice(0, topN);
     const others = sorted.slice(topN);
     
@@ -550,14 +534,14 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            indexAxis: (type === 'bar') ? 'y' : 'x', // Coloca barras na horizontal para melhor leitura
+            indexAxis: (type === 'bar') ? 'y' : 'x', 
             plugins: {
                 legend: {
-                    display: (type === 'pie' || type === 'doughnut'), // Apenas para pizza
+                    display: (type === 'pie' || type === 'doughnut'), 
                     position: 'right',
                 },
                 datalabels: {
-                    display: (type === 'pie' || type === 'doughnut'), // Apenas para pizza
+                    display: (type === 'pie' || type === 'doughnut'), 
                     formatter: (value, ctx) => {
                         let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
                         let percentage = (value * 100 / sum);
@@ -569,12 +553,11 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
             },
             scales: (type === 'bar') ? {
                 x: { beginAtZero: true },
-                y: { ticks: { autoSkip: false } } // Garante que todos os labels apareçam
+                y: { ticks: { autoSkip: false } } 
             } : {}
         }
     };
     
-    // Se for barra, usa uma cor só
     if (type === 'bar') {
         chartConfig.data.datasets[0].backgroundColor = accentColor;
     }
@@ -650,11 +633,10 @@ function renderTableBodyAcomp(data) {
         return;
     }
     
-    // Ordena por data (mais recente primeiro)
     data.sort((a, b) => new Date(b.data) - new Date(a.data));
 
     const fragment = document.createDocumentFragment();
-    const dataToShow = data.slice(0, 500); // Limita a 500 linhas para performance
+    const dataToShow = data.slice(0, 500); 
 
     if (data.length > 500) {
         tableMessage.innerHTML = 'Exibindo as 500 inconsistências mais recentes. Refine seus filtros.';
@@ -666,7 +648,7 @@ function renderTableBodyAcomp(data) {
         
         COLUMN_ORDER_ACOMP.forEach(key => {
             const td = document.createElement('td');
-            let value = item[key.toLowerCase()] || '-'; // Dados do supabase vêm minúsculos
+            let value = item[key.toLowerCase()] || '-'; 
             
             if (key === 'DATA') {
                 value = formatToBR(value); 
@@ -698,28 +680,23 @@ function showDetails(chapa) {
     const modal = document.getElementById('detailsModal');
     if (!chapa) return;
 
-    // 1. Encontra o primeiro registro para pegar os dados do colaborador
     const colaborador = state.allData.find(item => item.chapa === chapa);
     if (!colaborador) {
         mostrarNotificacao('Colaborador não encontrado.', 'error');
         return;
     }
 
-    // 2. Encontra TODAS as inconsistências desse colaborador
     const todasInconsistencias = state.allData
         .filter(item => item.chapa === chapa)
         .sort((a, b) => new Date(b.data) - new Date(a.data));
 
-    // 3. Preenche os campos do modal
     document.getElementById('modalTitle').textContent = `Detalhes: ${colaborador.nome}`;
     document.getElementById('modalNome').value = colaborador.nome || 'N/A';
     document.getElementById('modalChapa').value = colaborador.chapa || 'N/A';
     document.getElementById('modalFuncao').value = colaborador.funcao || 'N/A';
     document.getElementById('modalSecao').value = colaborador.desc_secao || 'N/A';
 
-    // 4. Cria a tabela de detalhes
     const detailsContainer = document.getElementById('modalDetailsContainer');
-    // ATUALIZADO: Removido 'Referência'
     let tableHTML = '<table class="tabela"><thead><tr><th>Tipo</th><th>Data</th><th>Situação</th></tr></thead><tbody>';
     
     if (todasInconsistencias.length === 0) {
@@ -743,14 +720,13 @@ function showDetails(chapa) {
 
 function formatToBR(isoDateStr) {
     if (!isoDateStr) return '-';
-    // Pega apenas a parte da data (YYYY-MM-DD)
     const datePart = isoDateStr.split('T')[0];
     const parts = datePart.split('-');
     if (parts.length === 3) {
         const [year, month, day] = parts;
         return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
     }
-    return isoDateStr; // Retorna o original se não for YYYY-MM-DD
+    return isoDateStr; 
 }
 
 
@@ -801,7 +777,6 @@ function handlePreview() {
         tableHTML += '<tr>';
         headers.forEach(key => {
             let value = item[key] || '-';
-            // Formata a data ISO (YYYY-MM-DD) de volta para BR (DD/MM/YYYY) para o preview
             if (key === 'DATA') {
                 value = formatToBR(value); 
             }
@@ -825,7 +800,6 @@ function parsePastedData(text) {
     if (lines.length < 2) throw new Error("Os dados precisam de pelo menos 2 linhas (cabeçalho e dados).");
 
     const delimiter = lines[0].includes('\t') ? '\t' : ',';
-    // Colunas esperadas: ATUALIZADO
     const EXPECTED_HEADERS = [
         'REGIONAL', 'CODFILIAL', 'CHAPA', 'NOME', 'DESC_SECAO', 'FUNCAO', 
         'TIPO', 'DATA', 'CODSITUACAO'
@@ -842,42 +816,54 @@ function parsePastedData(text) {
         const obj = {};
         
         headers.forEach((header, index) => {
-            if (EXPECTED_HEADERS.includes(header)) {
-                // Converte data (DD/MM/YYYY HH:MM:SS) para ISO (YYYY-MM-DD)
+            if (EXPECTED_HEADERS.includes(header)) { 
                 if (header === 'DATA') {
-                    obj[header] = formatToISO(values[index]) || null;
+                    obj[header] = formatToISO(values[index]);
                 } else {
                     obj[header] = values[index] || null; 
                 }
             }
         });
         
-        if (!obj.CHAPA || !obj.DATA) {
-            console.warn("Linha sem 'CHAPA' ou 'DATA' ignorada:", line);
+        if (!obj.CHAPA) {
+            console.warn("Linha sem 'CHAPA' ignorada:", line);
             return null;
         }
         return obj;
-    }).filter(Boolean); // Remove linhas nulas
+    }).filter(Boolean);
 
     return data;
 }
 
-// ATUALIZADO: Lida com o formato "DD/MM/YYYY HH:MM:SS"
 function formatToISO(dateStr) {
     if (!dateStr || dateStr.toLowerCase().includes('n/a') || dateStr === '-') return null;
-    const cleanedStr = dateStr.split(' ')[0].trim(); // Pega só a parte da data
+    
+    const cleanedStr = dateStr.split(' ')[0].trim(); 
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanedStr)) {
+        return cleanedStr;
+    }
+
     const parts = cleanedStr.split('/');
     if (parts.length === 3) {
-        let [day, month, year] = parts;
+        let day = parts[0];
+        let month = parts[1];
+        let year = parts[2];
+
         if (year.length === 2) {
             year = '20' + year; 
         }
-        // Garante que o ano tenha 4 dígitos (ex: 2025)
-        if (year.length === 4) {
+        
+        if (year.length === 4 && 
+            parseInt(month, 10) >= 1 && parseInt(month, 10) <= 12 &&
+            parseInt(day, 10) >= 1 && parseInt(day, 10) <= 31) 
+        {
             return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         }
     }
-    return null; // Retorna nulo se o formato for inválido
+    
+    console.warn(`[formatToISO] Data em formato não reconhecido, será enviada como nula: ${dateStr}`);
+    return null; 
 }
 
 
@@ -932,12 +918,11 @@ async function handleImport() {
         ui.dataInput.value = '';
         
         showLoading(true, 'Recarregando dados...');
-        await loadInitialData(); // Recarrega tudo
+        await loadInitialData(); 
         
         showLoading(false);
         mostrarNotificacao(result.message || "Dados importados com sucesso!", 'success');
         
-        // Navega para o dashboard para ver o resultado
         window.location.hash = '#dashboard';
         handleHashChange();
 
@@ -956,12 +941,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     initializeSupabaseAndUser();
 
-    // Listeners de Navegação
     document.getElementById('logoutButton').addEventListener('click', logout);
     document.getElementById('logoutLink').addEventListener('click', logout);
     window.addEventListener('hashchange', handleHashChange);
     
-    // Listeners do Dropdown de Perfil
     const profileDropdownButton = document.getElementById('profileDropdownButton');
     const profileDropdown = document.getElementById('profileDropdown');
     if (profileDropdownButton) {
@@ -976,13 +959,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Listeners do Dashboard
     document.getElementById('filterRegionalDash').addEventListener('change', initializeDashboard);
     document.getElementById('filterCodFilialDash').addEventListener('change', initializeDashboard);
     document.getElementById('filterTipoDash').addEventListener('change', initializeDashboard);
     document.getElementById('filterFuncaoDash').addEventListener('change', initializeDashboard);
     
-    // Listeners do Acompanhamento
     document.getElementById('filterRegional').addEventListener('change', applyFiltersAcomp);
     document.getElementById('filterCodFilial').addEventListener('change', applyFiltersAcomp);
     document.getElementById('filterTipo').addEventListener('change', applyFiltersAcomp);
@@ -994,11 +975,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Listeners de Configuração (Import)
     document.getElementById('importButton').addEventListener('click', handleImport);
     document.getElementById('previewButton').addEventListener('click', handlePreview);
 
-    // Listener do Modal
     document.getElementById('modalClose').addEventListener('click', () => {
         document.getElementById('detailsModal').style.display = 'none';
     });
@@ -1008,7 +987,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Lógica da Sidebar
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.querySelector('.sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
