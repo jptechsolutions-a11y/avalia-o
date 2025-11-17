@@ -26,18 +26,17 @@ const COLUMN_ORDER_ORIGINAL = [
     'TIPO', 'DATA', 'CODSITUACAO'
 ];
 
-// Colunas para a tabela de Acompanhamento (visão resumida)
+// ATUALIZADO: Colunas para a tabela de Acompanhamento (agrupada)
 const COLUMN_MAP_ACOMP = {
     'CODFILIAL': 'Filial',
     'CHAPA': 'Chapa',
     'NOME': 'Nome',
     'FUNCAO': 'Função',
     'DESC_SECAO': 'Seção',
-    'TIPO': 'Tipo',
-    'DATA': 'Data'
+    'TOTAL': 'Total Inconsist.' // MUDANÇA
 };
-const COLUMN_ORDER_ACOMP = [
-    'CODFILIAL', 'CHAPA', 'NOME', 'FUNCAO', 'DESC_SECAO', 'TIPO', 'DATA'
+const COLUMN_ORDER_ACOMP = [ // MUDANÇA
+    'CODFILIAL', 'CHAPA', 'NOME', 'FUNCAO', 'DESC_SECAO', 'TOTAL'
 ];
 
 
@@ -56,13 +55,29 @@ const state = {
     userId: null,
     isAdmin: false,
     permissoes_filiais: null,
-    allData: [], 
+    allData: [], // Cache principal, nunca modificado após o load
+    // ATUALIZADO: listasFiltros agora armazena apenas as *opções* disponíveis
     listasFiltros: {
         regional: [],
         codfilial: [],
         funcao: [],
         secao: [],
         tipo: []
+    },
+    // ATUALIZADO: valoresFiltros armazena o que está *selecionado*
+    valoresFiltrosDash: {
+        regional: '',
+        codfilial: '',
+        funcao: '',
+        secao: '',
+        tipo: ''
+    },
+    valoresFiltrosAcomp: {
+        regional: '',
+        codfilial: '',
+        funcao: '',
+        secao: '',
+        tipo: ''
     },
     charts: { 
         chartSetor: null, 
@@ -259,8 +274,6 @@ async function initializeSupabaseAndUser() {
     }
 }
 
-// *** FUNÇÃO ADICIONADA ***
-// Formata o timestamp para exibição na UI
 function formatTimestamp(isoString) {
     if (!isoString) return 'N/A';
     return new Date(isoString).toLocaleString('pt-BR', {
@@ -282,12 +295,12 @@ async function loadInitialData() {
         const metaQuery = `${META_TABLE}?id=eq.1&select=lastupdatedat&limit=1`;
         const metaRes = await supabaseRequest(metaQuery, 'GET');
         
-        // *** ERRO ESTAVA AQUI (formatTimestamp not defined) ***
         const timestamp = (metaRes && metaRes[0]) ? formatTimestamp(metaRes[0].lastupdatedat) : 'Nenhuma importação registrada.';
         document.getElementById('lastUpdatedDash').textContent = timestamp;
         document.getElementById('lastUpdatedAcomp').textContent = timestamp;
         
-        populateFilterLists();
+        // ATUALIZADO: Popula os filtros de forma inicial
+        populateInitialFilterLists();
         initializeDashboard();
         
     } catch (e) {
@@ -299,50 +312,134 @@ async function loadInitialData() {
     }
 }
 
-function populateFilterLists() {
+// ATUALIZADO: Renomeado para 'populateInitialFilterLists'
+function populateInitialFilterLists() {
     const allData = state.allData;
-    const sets = {
-        regional: new Set(),
-        codfilial: new Set(),
-        funcao: new Set(),
-        secao: new Set(),
-        tipo: new Set()
-    };
-
-    allData.forEach(item => {
-        if (item.regional) sets.regional.add(item.regional);
-        if (item.codfilial) sets.codfilial.add(item.codfilial);
-        if (item.funcao) sets.funcao.add(item.funcao);
-        if (item.desc_secao) sets.secao.add(item.desc_secao);
-        if (item.tipo) sets.tipo.add(item.tipo);
-    });
-
+    // Pega todas as opções únicas do cache principal
     state.listasFiltros = {
-        regional: [...sets.regional].sort(),
-        codfilial: [...sets.codfilial].sort(),
-        funcao: [...sets.funcao].sort(),
-        secao: [...sets.secao].sort(),
-        tipo: [...sets.tipo].sort()
+        regional: [...new Set(allData.map(item => item.regional).filter(Boolean))].sort(),
+        codfilial: [...new Set(allData.map(item => item.codfilial).filter(Boolean))].sort(),
+        funcao: [...new Set(allData.map(item => item.funcao).filter(Boolean))].sort(),
+        secao: [...new Set(allData.map(item => item.desc_secao).filter(Boolean))].sort(),
+        tipo: [...new Set(allData.map(item => item.tipo).filter(Boolean))].sort()
     };
 
-    populateSelect('filterRegionalDash', state.listasFiltros.regional, 'Todas as regionais');
-    populateSelect('filterCodFilialDash', state.listasFiltros.codfilial, 'Todas as filiais');
-    populateSelect('filterTipoDash', state.listasFiltros.tipo, 'Todos os tipos');
-    populateSelect('filterFuncaoDash', state.listasFiltros.funcao, 'Todas as funções');
-    
-    populateSelect('filterRegional', state.listasFiltros.regional, 'Todas');
-    populateSelect('filterCodFilial', state.listasFiltros.codfilial, 'Todas');
-    populateSelect('filterTipo', state.listasFiltros.tipo, 'Todos');
+    // Popula todos os selects (Dashboard e Acompanhamento) com todas as opções
+    updateFilterOptions('dashboard', state.listasFiltros);
+    updateFilterOptions('acompanhamento', state.listasFiltros);
 }
 
-function populateSelect(selectId, list, defaultOptionText) {
+// NOVO: Função para popular selects
+function populateSelect(selectId, list, defaultOptionText, selectedValue = '') {
     const select = document.getElementById(selectId);
     if (!select) return;
+    
+    // Salva o valor que estava selecionado
+    // const selectedValue = select.value; 
+    
     select.innerHTML = `<option value="">${defaultOptionText}</option>`;
     list.forEach(val => {
-        select.innerHTML += `<option value="${val}">${val}</option>`;
+        // ATUALIZADO: Adiciona 'selected' se o valor for o que estava salvo
+        const isSelected = val === selectedValue ? 'selected' : '';
+        select.innerHTML += `<option value="${val}" ${isSelected}>${val}</option>`;
     });
 }
+
+// NOVO: Função central para atualizar filtros (cascading)
+function updateFilterOptions(viewPrefix, availableOptions, resetMenores = true) {
+    const isDash = viewPrefix === 'dashboard';
+    const filterValues = isDash ? state.valoresFiltrosDash : state.valoresFiltrosAcomp;
+
+    // Popula os selects com as opções disponíveis
+    populateSelect(
+        isDash ? 'filterRegionalDash' : 'filterRegional', 
+        availableOptions.regional, 
+        isDash ? 'Todas as regionais' : 'Todas',
+        resetMenores ? '' : filterValues.regional // Mantém o valor se não for reset
+    );
+    populateSelect(
+        isDash ? 'filterCodFilialDash' : 'filterCodFilial', 
+        availableOptions.codfilial, 
+        isDash ? 'Todas as filiais' : 'Todas',
+        resetMenores ? '' : filterValues.codfilial
+    );
+    populateSelect(
+        isDash ? 'filterTipoDash' : 'filterTipo', 
+        availableOptions.tipo, 
+        isDash ? 'Todos os tipos' : 'Todos',
+        resetMenores ? '' : filterValues.tipo
+    );
+    
+    // Função só existe no Dashboard e Acompanhamento
+    populateSelect(
+        isDash ? 'filterFuncaoDash' : 'filterFuncaoAcomp', // ID do filtro de função no acompanhamento
+        availableOptions.funcao, 
+        isDash ? 'Todas as funções' : 'Todas',
+        resetMenores ? '' : filterValues.funcao
+    );
+}
+
+// NOVO: Handler de mudança de filtro
+function handleFilterChange(viewPrefix, changedFilterKey) {
+    const isDash = viewPrefix === 'dashboard';
+    const filterValues = isDash ? state.valoresFiltrosDash : state.valoresFiltrosAcomp;
+    
+    // 1. Atualiza o valor selecionado no state
+    if (changedFilterKey === 'regional') {
+        filterValues.regional = document.getElementById(isDash ? 'filterRegionalDash' : 'filterRegional').value;
+        // Reseta os filhos
+        filterValues.codfilial = '';
+        filterValues.tipo = '';
+        filterValues.funcao = '';
+    } else if (changedFilterKey === 'codfilial') {
+        filterValues.codfilial = document.getElementById(isDash ? 'filterCodFilialDash' : 'filterCodFilial').value;
+        // Reseta os filhos
+        filterValues.tipo = '';
+        filterValues.funcao = '';
+    } else if (changedFilterKey === 'tipo') {
+        filterValues.tipo = document.getElementById(isDash ? 'filterTipoDash' : 'filterTipo').value;
+    } else if (changedFilterKey === 'funcao') {
+        filterValues.funcao = document.getElementById(isDash ? 'filterFuncaoDash' : 'filterFuncaoAcomp').value;
+    }
+    
+    // 2. Filtra os dados base (allData) de acordo com os filtros selecionados
+    let dadosFiltrados = state.allData;
+    if (filterValues.regional) {
+        dadosFiltrados = dadosFiltrados.filter(d => d.regional === filterValues.regional);
+    }
+    if (filterValues.codfilial) {
+        dadosFiltrados = dadosFiltrados.filter(d => d.codfilial === filterValues.codfilial);
+    }
+    if (filterValues.funcao) {
+        dadosFiltrados = dadosFiltrados.filter(d => d.funcao === filterValues.funcao);
+    }
+    if (filterValues.tipo) {
+        dadosFiltrados = dadosFiltrados.filter(d => d.tipo === filterValues.tipo);
+    }
+    
+    // 3. Recalcula as opções disponíveis *com base* nos dados filtrados
+    const availableOptions = {
+        // Se um filtro pai (ex: regional) está selecionado, as opções dele são SÓ ele mesmo.
+        // Se não está selecionado, as opções são todas as disponíveis nos 'dadosFiltrados'
+        regional: filterValues.regional ? [filterValues.regional] : [...new Set(dadosFiltrados.map(item => item.regional).filter(Boolean))].sort(),
+        codfilial: filterValues.codfilial ? [filterValues.codfilial] : [...new Set(dadosFiltrados.map(item => item.codfilial).filter(Boolean))].sort(),
+        tipo: filterValues.tipo ? [filterValues.tipo] : [...new Set(dadosFiltrados.map(item => item.tipo).filter(Boolean))].sort(),
+        funcao: filterValues.funcao ? [filterValues.funcao] : [...new Set(dadosFiltrados.map(item => item.funcao).filter(Boolean))].sort(),
+        secao: [...new Set(dadosFiltrados.map(item => item.desc_secao).filter(Boolean))].sort() // Seção é sempre recalculada
+    };
+    
+    // 4. Repopula os selects
+    updateFilterOptions(viewPrefix, availableOptions, false); // 'false' para não resetar os valores selecionados
+
+
+    // 5. Dispara a atualização da view
+    if (isDash) {
+        initializeDashboard();
+    } else {
+        applyFiltersAcomp();
+    }
+}
+
 
 function handleHashChange() {
     const hash = window.location.hash || '#dashboard';
@@ -381,12 +478,19 @@ function showView(viewId, element) {
     try {
         switch (viewId) {
             case 'dashboardView':
+                // ATUALIZADO: Garante que os filtros sejam populados antes de inicializar
+                updateFilterOptions('dashboard', state.listasFiltros, true); // Reseta os filtros do dash
+                state.valoresFiltrosDash = { regional: '', codfilial: '', funcao: '', secao: '', tipo: '' }; // Limpa o state
                 initializeDashboard();
                 break;
             case 'acompanhamentoView':
+                // ATUALIZADO: Garante que os filtros sejam populados antes de inicializar
+                updateFilterOptions('acompanhamento', state.listasFiltros, true); // Reseta os filtros do acomp
+                state.valoresFiltrosAcomp = { regional: '', codfilial: '', funcao: '', secao: '', tipo: '' }; // Limpa o state
                 initializeAcompanhamento();
                 break;
             case 'configuracoesView':
+                // Nenhuma ação extra necessária
                 break;
         }
     } catch(e) {
@@ -408,12 +512,16 @@ function initializeDashboard() {
     showLoading(true, 'Calculando dashboard...');
     
     try {
-        const regionalFiltro = document.getElementById('filterRegionalDash').value;
-        const filialFiltro = document.getElementById('filterCodFilialDash').value;
-        const tipoFiltro = document.getElementById('filterTipoDash').value;
-        const funcaoFiltro = document.getElementById('filterFuncaoDash').value;
+        // ATUALIZADO: Pega os filtros do state
+        const { regional: regionalFiltro, codfilial: filialFiltro, tipo: tipoFiltro, funcao: funcaoFiltro } = state.valoresFiltrosDash;
 
         let filteredData = state.allData;
+        
+        // Aplica filtros de permissão
+        if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+            filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.codfilial));
+        }
+        
         if (regionalFiltro) {
             filteredData = filteredData.filter(item => item.regional === regionalFiltro);
         }
@@ -537,6 +645,7 @@ function renderChart(canvas, chartStateKey, type, labels, data, label) {
             indexAxis: (type === 'bar') ? 'y' : 'x', 
             plugins: {
                 legend: {
+                    // ATUALIZADO: Legenda desligada para 'bar'
                     display: (type === 'pie' || type === 'doughnut'), 
                     position: 'right',
                 },
@@ -578,6 +687,7 @@ function initializeAcompanhamento() {
 
 function renderTableHeaderAcomp() {
     const tr = document.createElement('tr');
+    // ATUALIZADO: Usa o novo COLUMN_ORDER_ACOMP
     COLUMN_ORDER_ACOMP.forEach(key => {
         const th = document.createElement('th');
         th.textContent = COLUMN_MAP_ACOMP[key] || key;
@@ -590,23 +700,32 @@ function renderTableHeaderAcomp() {
     document.getElementById('tableHead').appendChild(tr);
 }
 
+// ATUALIZADO: Lógica de filtro e agregação
 function applyFiltersAcomp() {
     showLoading(true, 'Filtrando inconsistências...');
     
     const filtroNome = document.getElementById('filterNome').value.toLowerCase().trim();
     const filtroChapa = document.getElementById('filterChapa').value.toLowerCase().trim();
-    const filtroRegional = document.getElementById('filterRegional').value;
-    const filtroCodFilial = document.getElementById('filterCodFilial').value;
-    const filtroTipo = document.getElementById('filterTipo').value;
+    
+    // Pega filtros do state
+    const { regional: filtroRegional, codfilial: filtroCodFilial, tipo: filtroTipo } = state.valoresFiltrosAcomp;
 
     let filteredData = state.allData;
+
+    // Aplica filtros de permissão
+    if (!state.isAdmin && Array.isArray(state.permissoes_filiais) && state.permissoes_filiais.length > 0) {
+        filteredData = filteredData.filter(item => state.permissoes_filiais.includes(item.codfilial));
+    }
     
+    // Filtros de Texto
     if (filtroNome) {
         filteredData = filteredData.filter(item => item.nome && item.nome.toLowerCase().includes(filtroNome));
     }
     if (filtroChapa) {
         filteredData = filteredData.filter(item => item.chapa && item.chapa.toLowerCase().includes(filtroChapa));
     }
+    
+    // Filtros de Dropdown (já aplicados em 'filteredData' pela função de cascading)
     if (filtroRegional) {
         filteredData = filteredData.filter(item => item.regional === filtroRegional);
     }
@@ -617,10 +736,31 @@ function applyFiltersAcomp() {
         filteredData = filteredData.filter(item => item.tipo === filtroTipo);
     }
     
-    renderTableBodyAcomp(filteredData);
+    // --- NOVA LÓGICA DE AGREGAÇÃO ---
+    const agrupadoPorChapa = filteredData.reduce((acc, item) => {
+        const chapa = item.chapa;
+        if (!acc[chapa]) {
+            acc[chapa] = {
+                chapa: chapa,
+                nome: item.nome,
+                codfilial: item.codfilial,
+                funcao: item.funcao,
+                desc_secao: item.desc_secao,
+                total: 0
+            };
+        }
+        acc[chapa].total++; // Incrementa o total de inconsistências
+        return acc;
+    }, {});
+    
+    const aggregatedData = Object.values(agrupadoPorChapa);
+    // --- FIM DA AGREGAÇÃO ---
+    
+    renderTableBodyAcomp(aggregatedData); // Renderiza os dados agrupados
     showLoading(false);
 }
 
+// ATUALIZADO: Renderiza a tabela agrupada
 function renderTableBodyAcomp(data) {
     const tbody = document.getElementById('tableBody');
     const tableMessage = document.getElementById('tableMessage');
@@ -633,28 +773,33 @@ function renderTableBodyAcomp(data) {
         return;
     }
     
-    data.sort((a, b) => new Date(b.data) - new Date(a.data));
+    // Ordena por total (mais recente primeiro)
+    data.sort((a, b) => b.total - a.total);
 
     const fragment = document.createDocumentFragment();
     const dataToShow = data.slice(0, 500); 
 
     if (data.length > 500) {
-        tableMessage.innerHTML = 'Exibindo as 500 inconsistências mais recentes. Refine seus filtros.';
+        tableMessage.innerHTML = 'Exibindo os 500 colaboradores com mais inconsistências. Refine seus filtros.';
         tableMessage.classList.remove('hidden');
     }
 
     dataToShow.forEach(item => {
         const tr = document.createElement('tr');
         
+        // ATUALIZADO: Loop pelas novas colunas
         COLUMN_ORDER_ACOMP.forEach(key => {
             const td = document.createElement('td');
+            // 'key' está em maiúsculo (do MAP), 'item' está em minúsculo (do reduce)
             let value = item[key.toLowerCase()] || '-'; 
             
-            if (key === 'DATA') {
-                value = formatToBR(value); 
-            }
-            if (key === 'NOME' || key === 'FUNCAO' || key === 'TIPO') {
+            if (key === 'NOME' || key === 'FUNCAO' || key === 'DESC_SECAO') {
                 td.style.whiteSpace = 'normal';
+            }
+            
+            if (key === 'TOTAL') {
+                td.style.fontWeight = 'bold';
+                td.style.textAlign = 'center';
             }
             
             td.textContent = value;
@@ -680,12 +825,14 @@ function showDetails(chapa) {
     const modal = document.getElementById('detailsModal');
     if (!chapa) return;
 
+    // Busca o primeiro item para pegar os dados do colaborador
     const colaborador = state.allData.find(item => item.chapa === chapa);
     if (!colaborador) {
         mostrarNotificacao('Colaborador não encontrado.', 'error');
         return;
     }
 
+    // Pega todas as inconsistências (não agrupadas)
     const todasInconsistencias = state.allData
         .filter(item => item.chapa === chapa)
         .sort((a, b) => new Date(b.data) - new Date(a.data));
@@ -778,7 +925,7 @@ function handlePreview() {
         headers.forEach(key => {
             let value = item[key] || '-';
             if (key === 'DATA') {
-                value = formatToBR(value); 
+                value = formatToBR(value); // Converte ISO (do parse) de volta para BR
             }
             tableHTML += `<td>${value}</td>`;
         });
@@ -800,6 +947,7 @@ function parsePastedData(text) {
     if (lines.length < 2) throw new Error("Os dados precisam de pelo menos 2 linhas (cabeçalho e dados).");
 
     const delimiter = lines[0].includes('\t') ? '\t' : ',';
+    // Colunas esperadas (sem 'bandeira' e 'referencia')
     const EXPECTED_HEADERS = [
         'REGIONAL', 'CODFILIAL', 'CHAPA', 'NOME', 'DESC_SECAO', 'FUNCAO', 
         'TIPO', 'DATA', 'CODSITUACAO'
@@ -817,33 +965,40 @@ function parsePastedData(text) {
         
         headers.forEach((header, index) => {
             if (EXPECTED_HEADERS.includes(header)) { 
+                // Converte data (DD/MM/YYYY HH:MM:SS) para ISO (YYYY-MM-DD)
                 if (header === 'DATA') {
-                    obj[header] = formatToISO(values[index]);
+                    obj[header] = formatToISO(values[index]); // || null é redundante
                 } else {
                     obj[header] = values[index] || null; 
                 }
             }
         });
         
+        // ATUALIZADO: A verificação !obj.DATA foi removida.
+        // Se a chapa não existir, a linha é inútil.
         if (!obj.CHAPA) {
             console.warn("Linha sem 'CHAPA' ignorada:", line);
             return null;
         }
+        // Se DATA for null (inválido ou vazio), a linha ainda é válida.
         return obj;
-    }).filter(Boolean);
+    }).filter(Boolean); // Remove linhas nulas
 
     return data;
 }
 
+// ATUALIZADO: Lida com o formato "DD/MM/YYYY HH:MM:SS" de forma mais robusta
 function formatToISO(dateStr) {
     if (!dateStr || dateStr.toLowerCase().includes('n/a') || dateStr === '-') return null;
     
-    const cleanedStr = dateStr.split(' ')[0].trim(); 
+    const cleanedStr = dateStr.split(' ')[0].trim(); // Pega "20/09/2025"
 
+    // 1. Tenta formato YYYY-MM-DD (já está correto)
     if (/^\d{4}-\d{2}-\d{2}$/.test(cleanedStr)) {
         return cleanedStr;
     }
 
+    // 2. Tenta formato DD/MM/YYYY (baseado nos seus exemplos)
     const parts = cleanedStr.split('/');
     if (parts.length === 3) {
         let day = parts[0];
@@ -854,6 +1009,7 @@ function formatToISO(dateStr) {
             year = '20' + year; 
         }
         
+        // Checagem de validade (mês 1-12, dia 1-31)
         if (year.length === 4 && 
             parseInt(month, 10) >= 1 && parseInt(month, 10) <= 12 &&
             parseInt(day, 10) >= 1 && parseInt(day, 10) <= 31) 
@@ -863,7 +1019,7 @@ function formatToISO(dateStr) {
     }
     
     console.warn(`[formatToISO] Data em formato não reconhecido, será enviada como nula: ${dateStr}`);
-    return null; 
+    return null; // Retorna nulo se nenhum formato bater
 }
 
 
@@ -918,13 +1074,13 @@ async function handleImport() {
         ui.dataInput.value = '';
         
         showLoading(true, 'Recarregando dados...');
-        await loadInitialData(); 
+        await loadInitialData(); // Isso vai recarregar, repopular filtros e re-renderizar o dashboard
         
         showLoading(false);
         mostrarNotificacao(result.message || "Dados importados com sucesso!", 'success');
         
         window.location.hash = '#dashboard';
-        handleHashChange();
+        handleHashChange(); // Garante que a view do dashboard seja exibida
 
     } catch (err) {
         console.error("Erro durante a importação:", err);
@@ -959,19 +1115,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    document.getElementById('filterRegionalDash').addEventListener('change', initializeDashboard);
-    document.getElementById('filterCodFilialDash').addEventListener('change', initializeDashboard);
-    document.getElementById('filterTipoDash').addEventListener('change', initializeDashboard);
-    document.getElementById('filterFuncaoDash').addEventListener('change', initializeDashboard);
+    // ATUALIZADO: Listeners do Dashboard (chamam a nova função)
+    document.getElementById('filterRegionalDash').addEventListener('change', () => handleFilterChange('dashboard', 'regional'));
+    document.getElementById('filterCodFilialDash').addEventListener('change', () => handleFilterChange('dashboard', 'codfilial'));
+    document.getElementById('filterTipoDash').addEventListener('change', () => handleFilterChange('dashboard', 'tipo'));
+    document.getElementById('filterFuncaoDash').addEventListener('change', () => handleFilterChange('dashboard', 'funcao'));
     
-    document.getElementById('filterRegional').addEventListener('change', applyFiltersAcomp);
-    document.getElementById('filterCodFilial').addEventListener('change', applyFiltersAcomp);
-    document.getElementById('filterTipo').addEventListener('change', applyFiltersAcomp);
+    // ATUALIZADO: Listeners do Acompanhamento (chamam a nova função ou applyFiltersAcomp para texto)
+    document.getElementById('filterRegional').addEventListener('change', () => handleFilterChange('acompanhamento', 'regional'));
+    document.getElementById('filterCodFilial').addEventListener('change', () => handleFilterChange('acompanhamento', 'codfilial'));
+    document.getElementById('filterTipo').addEventListener('change', () => handleFilterChange('acompanhamento', 'tipo'));
+    
     let filterTimeout;
     ['filterNome', 'filterChapa'].forEach(id => {
         document.getElementById(id).addEventListener('input', () => {
             clearTimeout(filterTimeout);
-            filterTimeout = setTimeout(applyFiltersAcomp, 300);
+            filterTimeout = setTimeout(applyFiltersAcomp, 300); // Filtros de texto ainda chamam applyFiltersAcomp diretamente
         });
     });
 
