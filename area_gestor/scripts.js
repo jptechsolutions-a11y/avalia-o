@@ -1116,20 +1116,18 @@ async function loadMeusGestoresView() {
     let gestoresParaExibir = [];
     const funcoesGestor = new Set(state.gestorConfig.filter(g => g.pode_ser_gestor).map(g => g.funcao.toUpperCase())); // Funções em UPPERCASE
 
-    if (state.isAdmin) {
-        // Admin vê TODOS os gestores (exceto ele mesmo)
-        // Usamos state.meuTime (que no admin é TODOS os colaboradores)
-        gestoresParaExibir = state.meuTime.filter(c => 
-            c.matricula !== state.userMatricula &&
-            c.funcao && funcoesGestor.has(c.funcao.toUpperCase())
-        );
-    } else {
-        // Gestor Nível 2+ vê seus *subordinados diretos* que são gestores.
-        gestoresParaExibir = state.meuTime.filter(c => 
-            c.gestor_chapa === state.userMatricula && // É meu subordinado direto
-            c.nivel_hierarquico !== null && c.nivel_hierarquico !== undefined // E é um gestor (tem nível)
-        );
-    }
+    // --- INÍCIO DA MODIFICAÇÃO (JP) ---
+    // A lógica foi unificada. state.meuTime já contém a hierarquia
+    // completa do gestor logado (N1, N2, N3...) ou todos os
+    // colaboradores (se for admin).
+    // Agora, filtramos por todos que são gestores (têm nível)
+    // e não são o próprio usuário.
+    
+    gestoresParaExibir = state.meuTime.filter(c => 
+        c.matricula !== state.userMatricula && // Não é o próprio usuário
+        c.nivel_hierarquico !== null && c.nivel_hierarquico !== undefined // E é um gestor (tem nível)
+    );
+    // --- FIM DA MODIFICAÇÃO ---
     
     if (gestoresParaExibir.length === 0) {
         container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Nenhum gestor subordinado encontrado.</p>';
