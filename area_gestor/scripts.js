@@ -490,8 +490,31 @@ async function loadModuleData() {
         if (state.isAdmin) {
             console.log("[Load] Admin detectado. Carregando TODOS os colaboradores...");
             const columns = 'matricula,gestor_chapa,funcao,nome,secao,filial,status';
-            // MODIFICAÇÃO: Chama a função de paginação
-            timeRes = await loadAllTeamMembers(null, null); // Admin busca tudo
+            
+            // MODIFICAÇÃO: Admin não usa loadAllTeamMembers. Admin busca tudo com paginação.
+            const baseQuery = `colaboradores?select=${columns}`;
+            const pageSize = 1000;
+            let currentPage = 0;
+            let hasMoreData = true;
+            let allTeamMembers = [];
+            
+            while (hasMoreData) {
+                const offset = currentPage * pageSize;
+                const query = `${baseQuery}&offset=${offset}&limit=${pageSize}`;
+                showLoading(true, `Carregando time... ${allTeamMembers.length} membros...`);
+                const teamBatch = await supabaseRequest(query, 'GET');
+                
+                if (teamBatch && Array.isArray(teamBatch)) {
+                    allTeamMembers = allTeamMembers.concat(teamBatch);
+                    if (teamBatch.length < pageSize) hasMoreData = false;
+                    else currentPage++;
+                } else {
+                    hasMoreData = false;
+                }
+            }
+            console.log(`[Load] Admin: Paginação concluída. Total de ${allTeamMembers.length} membros carregados.`);
+            timeRes = allTeamMembers;
+            
         } else {
             console.log(`[Load] 1. Buscando time hierárquico (Nível ${state.userNivel || 'N/A'}) de ${state.userMatricula}...`);
             // MODIFICAÇÃO: Chama a função de paginação
@@ -1013,12 +1036,12 @@ function applyFilters() {
         }
     } else if (isFiltering) {
         // Se está filtrando, mostra todos os resultados
-        dadosParaRenderizar = filteredData;
+        dadosParaRenderizar = finalFilteredData; // CORREÇÃO: Era filteredData
         mensagem = `Exibindo ${totalResultados} resultado(s) para sua busca.`;
         
     } else {
         // Se NÃO está filtrando, mostra apenas o limite (600)
-        dadosParaRenderizar = filteredData.slice(0, LIMITE_EXIBICAO);
+        dadosParaRenderizar = finalFilteredData.slice(0, LIMITE_EXIBICAO); // CORREÇÃO: Era filteredData
         
         if (totalResultados > LIMITE_EXIBICAO) {
             mensagem = `Exibindo os ${LIMITE_EXIBICAO} primeiros de ${totalResultados} registros. Use os filtros para buscar.`;
