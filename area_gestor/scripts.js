@@ -1229,7 +1229,9 @@ function renderGestorCards(gestores) {
             <img src="${gestor.foto}" class="w-16 h-16 rounded-full object-cover bg-gray-200 flex-shrink-0">
             <div class="flex-1">
                 <h4 class="font-bold text-lg text-accent">${gestor.nome || 'N/A'}</h4>
-                <p class="text-sm text-gray-600 -mt-1 mb-2">${gestor.funcao || 'N/A'} (Filial: ${gestor.filial || 'N/A'})</p>
+                <p class="text-sm text-gray-600 -mt-1">${gestor.funcao || 'N/A'} (Filial: ${gestor.filial || 'N/A'})</p>
+                <!-- MODIFICAÇÃO: Adicionada a linha "Gestor Imediato" -->
+                <p class="text-xs text-blue-600 font-medium mb-2">Gestor Imediato: <strong>${gestor.gestor_imediato_nome || 'N/A'}</strong></p>
                 <!-- ATUALIZADO: Grid de stats com Banco de Horas -->
                 <div class="text-xs grid grid-cols-2 gap-1">
                     <span><i data-feather="users" class="h-3 w-3 inline-block mr-1"></i>Total: <strong>${gestor.stats.total}</strong></span>
