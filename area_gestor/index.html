@@ -268,6 +268,16 @@
                                     <div class="stat-label">Total Horas (Time)</div>
                                 </div>
                             </div>
+                            <!-- NOVO CARD: Total Inconsistências -->
+                            <div class="stat-card-dash flex items-start gap-4">
+                                <div class="p-3 rounded-lg bg-yellow-100 text-yellow-600">
+                                    <i data-feather="alert-octagon" class="h-6 w-6"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="stat-number" id="statTotalInconsistencias">0</div>
+                                    <div class="stat-label">Total Inconsistências</div>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Filtros e a tabela -->
@@ -312,6 +322,8 @@
                                             <th>Chapa</th>
                                             <!-- ATUALIZADO: Coluna Gestor removida e Banco de Horas adicionada -->
                                             <th style="text-align: center;">Banco de Horas</th>
+                                            <!-- NOVO: Coluna Inconsistências -->
+                                            <th style="text-align: center;">Inconsist.</th>
                                             <th>Função</th>
                                             <th>Seção</th>
                                             <th>Filial</th>
@@ -543,6 +555,8 @@
                             <th>Gestor Imediato</th>
                             <!-- ATUALIZADO: Coluna Banco de Horas -->
                             <th style="text-align: center;">Banco de Horas</th>
+                            <!-- NOVO: Coluna Inconsistências -->
+                            <th style="text-align: center;">Inconsist.</th>
                             <th>Função</th>
                             <th>Seção</th>
                             <th>Filial</th>
