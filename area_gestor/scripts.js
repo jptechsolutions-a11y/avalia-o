@@ -175,6 +175,7 @@ const state = {
     mapaFotos: {}, // Mapa de matricula -> foto
     bancoHorasMap: {}, // NOVO: Cache para banco de horas
     bancoHorasHistoryMap: {}, // NOVO: Cache para o histórico
+    inconsistenciasMap: {}, // NOVO: Cache para contagem de inconsistências
     subordinadosComTimes: [] // Cache para a nova view
 };
 
@@ -331,7 +332,7 @@ async function loadModuleData() {
     
     try {
         // --- ETAPA 1: Carregar Configs, Nomes de Gestores, Funções e BANCO DE HORAS (em paralelo) ---
-        const [configRes, funcoesRes, gestorMapRes, usuariosRes, bancoHorasRes, bancoHorasHistoryRes] = await Promise.allSettled([
+        const [configRes, funcoesRes, gestorMapRes, usuariosRes, bancoHorasRes, bancoHorasHistoryRes, inconsistenciasRes] = await Promise.allSettled([
             supabaseRequest('tabela_gestores_config?select=funcao,pode_ser_gestor,nivel_hierarquia', 'GET'),
             supabaseRequest('colaboradores?select=funcao', 'GET'),
             supabaseRequest('colaboradores?select=matricula,nome', 'GET'), // Pega TODOS os nomes para o mapa
@@ -341,7 +342,10 @@ async function loadModuleData() {
             supabaseRequest('banco_horas_data?select="CHAPA","TOTAL_EM_HORA","VAL_PGTO_BHS"', 'GET'), // NOVO: Pega banco de horas
             
             // ATUALIZAÇÃO: Corrigido o endpoint para remover o '?'
-            supabaseRequest('banco_horas_history&select=data&order=created_at.desc&limit=1', 'GET') // NOVO: Pega o último histórico
+            supabaseRequest('banco_horas_history&select=data&order=created_at.desc&limit=1', 'GET'), // NOVO: Pega o último histórico
+            
+            // NOVO: Pega contagem de inconsistências
+            supabaseRequest('inconsistencias_data?select=chapa', 'GET')
         ]);
 
         // Processa Config
@@ -422,6 +426,23 @@ async function loadModuleData() {
              // ATUALIZAÇÃO: Loga o motivo da falha (ex: "relation does not exist")
              console.warn("Nenhum histórico de banco de horas encontrado para comparação.", bancoHorasHistoryRes.reason || 'Resposta vazia');
              state.bancoHorasHistoryMap = {};
+        }
+        
+        // NOVO: Processa Inconsistências
+        if (inconsistenciasRes.status === 'fulfilled' && inconsistenciasRes.value) {
+            console.log(`[Load] Inconsistencias data received: ${inconsistenciasRes.value.length} records.`);
+            // Cria um mapa contando as ocorrências por chapa
+            state.inconsistenciasMap = inconsistenciasRes.value.reduce((acc, item) => {
+                if (item.chapa) {
+                    const normalizedChapa = String(item.chapa).trim();
+                    acc[normalizedChapa] = (acc[normalizedChapa] || 0) + 1;
+                }
+                return acc;
+            }, {});
+            console.log(`[Load] Inconsistencias map created with ${Object.keys(state.inconsistenciasMap).length} entries.`);
+        } else {
+            console.error("Erro ao carregar inconsistências:", inconsistenciasRes.reason);
+            state.inconsistenciasMap = {};
         }
 
 
@@ -536,6 +557,9 @@ async function loadModuleData() {
             const normalizedMatricula = String(c.matricula).trim();
             const banco = bancoHorasMap[normalizedMatricula] || { horas: '0,00', valor: 'R$ 0,00' }; 
             const bancoHistory = bancoHorasHistoryMap[normalizedMatricula]; // NOVO: Pega o histórico
+            
+            // NOVO: Pega contagem de inconsistências
+            const inconsistencias_count = state.inconsistenciasMap[normalizedMatricula] || 0;
 
             // NOVO: Calcula a tendência
             let tendencia = 'same';
@@ -559,7 +583,8 @@ async function loadModuleData() {
                 gestor_imediato_nome,
                 banco_horas: banco.horas, // Adiciona as horas
                 banco_valor: banco.valor,  // Adiciona o valor
-                banco_tendencia: tendencia // NOVO: Adiciona a tendência
+                banco_tendencia: tendencia, // NOVO: Adiciona a tendência
+                inconsistencias_count // NOVO: Adiciona contagem
             };
         });
 
@@ -796,14 +821,19 @@ function updateDashboardStats(data) {
     const inativos = data.filter(c => c.status === 'inativo').length;
     const novatos = data.filter(c => c.status === 'novato').length;
     
-    // NOVO: Calcular total de horas (lendo do cache completo)
+    // NOVO: Calcular total de horas
     let totalHoras = 0;
+    // NOVO: Calcular total de inconsistências
+    let totalInconsistencias = 0;
+    
     data.forEach(c => {
         // Usa a propriedade 'banco_horas' adicionada no loadModuleData
         const horasVal = parseFloat((c.banco_horas || '0,00').replace(',', '.'));
         if (!isNaN(horasVal)) {
             totalHoras += horasVal;
         }
+        // NOVO: Soma inconsistências
+        totalInconsistencias += (c.inconsistencias_count || 0);
     });
     
     document.getElementById('statTotalTime').textContent = total;
@@ -812,6 +842,8 @@ function updateDashboardStats(data) {
     document.getElementById('statNovatos').textContent = novatos;
     // NOVO: Atualiza o card de horas
     document.getElementById('statTotalBancoHoras').textContent = totalHoras.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // NOVO: Atualiza o card de inconsistências
+    document.getElementById('statTotalInconsistencias').textContent = totalInconsistencias;
 }
 
 /**
@@ -855,12 +887,18 @@ function populateFilters(sourceData, filterTypeToPopulate) { // filterTypeToPopu
  */
 function renderMeuTimeTable(data) {
     const tbody = document.getElementById('tableBodyMeuTime');
-    // const message = document.getElementById('tableMessageMeuTime'); // Mensagem agora é controlada por applyFilters
+    // const message = document.getElementById('tableMessageMeuTime'); // Mensagem agora é controlada pelo applyFilters
     tbody.innerHTML = '';
 
     if (data.length === 0) {
         // A mensagem de "Nenhum dado" é definida em applyFilters.
         // Apenas garantimos que o tbody esteja vazio.
+        // MODIFICAÇÃO: Ajuste de colspan para 9
+        if (state.meuTime.length === 0) { // Se o cache original está vazio
+             tbody.innerHTML = '<tr><td colspan="9" class="text-center py-10 text-gray-500">Seu time ainda não possui colaboradores vinculados.</td></tr>';
+        } else { // Se o cache tem dados, mas o filtro limpou
+             tbody.innerHTML = '<tr><td colspan="9" class="text-center py-10 text-gray-500">Nenhum colaborador encontrado para os filtros aplicados.</td></tr>';
+        }
         return;
     }
     
@@ -920,6 +958,11 @@ function renderMeuTimeTable(data) {
         let horasClass = 'text-gray-600';
         if (horasVal > 0) horasClass = 'text-green-600 font-medium'; // Positivo (banco positivo)
         if (horasVal < 0) horasClass = 'text-red-600 font-medium'; // Negativo (banco negativo)
+        
+        // NOVO: Lógica de cor Inconsistências
+        const inconsistenciasVal = item.inconsistencias_count || 0;
+        let inconsistenciasClass = 'text-gray-600';
+        if (inconsistenciasVal > 0) inconsistenciasClass = 'text-yellow-600 font-medium';
 
         tr.innerHTML = `
             <td ${nomeStyle}>${item.nome || '-'}</td>
@@ -931,6 +974,10 @@ function renderMeuTimeTable(data) {
                     ${getTendenciaIcon(item.banco_tendencia)}
                 </div>
                 <small class="banco-horas-valor">${item.banco_valor || 'R$ 0,00'}</small>
+            </td>
+            <!-- NOVO: Coluna Inconsistências -->
+            <td style="text-align: center;" class="${inconsistenciasClass}">
+                ${inconsistenciasVal}
             </td>
             <td>${item.funcao || '-'}</td>
             <td>${item.secao || '-'}</td>
@@ -1143,6 +1190,7 @@ async function loadMeusGestoresView() {
         // NOVO: Calcular total de horas do sub-time (Atual e Anterior)
         let totalHorasSubTime = 0;
         let totalHorasSubTimeAnterior = 0; // NOVO
+        let totalInconsistenciasSubTime = 0; // NOVO
         const bancoHorasMap = state.bancoHorasMap || {};
         const bancoHorasHistoryMap = state.bancoHorasHistoryMap || {}; // NOVO
         
@@ -1157,6 +1205,10 @@ async function loadMeusGestoresView() {
             if (bancoHist) {
                 totalHorasSubTimeAnterior += parseHoras(bancoHist.horas); // Soma o anterior
             }
+            
+            // NOVO: Soma inconsistências
+            const inconsistencias = state.inconsistenciasMap[normalizedMatricula] || 0;
+            totalInconsistenciasSubTime += inconsistencias;
         });
         
         // NOVO: Calcula a tendência do time
@@ -1176,7 +1228,8 @@ async function loadMeusGestoresView() {
             stats: { 
                 total, ativos, inativos, novatos, 
                 totalHoras: totalHorasSubTime, 
-                tendenciaHoras: tendenciaHorasTotal // NOVO
+                tendenciaHoras: tendenciaHorasTotal, // NOVO
+                totalInconsistencias: totalInconsistenciasSubTime // NOVO
             }, 
             timeCompleto: timeDoGestor // Armazena o time para o modal
         };
@@ -1238,6 +1291,9 @@ function renderGestorCards(gestores) {
                     <span><i data-feather="user-check" class="h-3 w-3 inline-block mr-1 text-green-600"></i>Ativos: <strong>${gestor.stats.ativos}</strong></span>
                     <span><i data-feather="user-plus" class="h-3 w-3 inline-block mr-1 text-yellow-600"></i>Novatos: <strong>${gestor.stats.novatos}</strong></span>
                     <span><i data-feather="user-x" class="h-3 w-3 inline-block mr-1 text-red-600"></i>Inativos: <strong>${gestor.stats.inativos}</strong></span>
+                    <!-- NOVO: Inconsistências -->
+                    <span><i data-feather="alert-octagon" class="h-3 w-3 inline-block mr-1 text-yellow-600"></i>Inconsist.: <strong>${gestor.stats.totalInconsistencias}</strong></span>
+                    
                     <!-- NOVO ITEM ATUALIZADO com tendência -->
                     <span class="col-span-2 mt-1 ${horasClass} banco-horas-principal !justify-start">
                         <i data-feather="clock" class="h-3 w-3 inline-block mr-1"></i>Total Horas: <strong>${horasFormatadas}</strong>
@@ -1282,8 +1338,8 @@ function renderModalTimeTable(data) {
     tbody.innerHTML = '';
 
     if (!data || data.length === 0) {
-        // ATUALIZADO: Colspan para 8
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-500">Este gestor não possui colaboradores vinculados.</td></tr>';
+        // ATUALIZADO: Colspan para 9
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-10 text-gray-500">Este gestor não possui colaboradores vinculados.</td></tr>';
         return;
     }
 
@@ -1312,6 +1368,9 @@ function renderModalTimeTable(data) {
         const banco = state.bancoHorasMap[normalizedMatricula] || { horas: '0,00', valor: 'R$ 0,00' };
         const bancoHistory = state.bancoHorasHistoryMap[normalizedMatricula];
         
+        // NOVO: Pega inconsistências
+        const inconsistencias = state.inconsistenciasMap[normalizedMatricula] || 0;
+        
         let tendencia = 'same';
         if (!bancoHistory) {
             tendencia = 'new';
@@ -1326,6 +1385,10 @@ function renderModalTimeTable(data) {
         let horasClass = 'text-gray-600';
         if (horasVal > 0) horasClass = 'text-green-600 font-medium'; // Positivo
         if (horasVal < 0) horasClass = 'text-red-600 font-medium'; // Negativo
+        
+        // NOVO: Lógica de cor Inconsistências
+        let inconsistenciasClass = 'text-gray-600';
+        if (inconsistencias > 0) inconsistenciasClass = 'text-yellow-600 font-medium';
         // FIM NOVO
 
         tr.innerHTML = `
@@ -1339,6 +1402,10 @@ function renderModalTimeTable(data) {
                     ${getTendenciaIcon(tendencia)}
                 </div>
                 <small class="banco-horas-valor">${banco.valor}</small>
+            </td>
+            <!-- NOVO: Coluna Inconsistências -->
+            <td style="text-align: center;" class="${inconsistenciasClass}">
+                ${inconsistencias}
             </td>
             <td>${item.funcao || '-'}</td>
             <td>${item.secao || '-'}</td>
