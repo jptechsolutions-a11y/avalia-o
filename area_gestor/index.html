@@ -336,7 +336,8 @@
                         <p class="text-gray-600 mb-6 -mt-4">Visualize o resumo dos times dos gestores que respondem a você.</p>
                         
                         <!-- Container para os Cards dos Gestores -->
-                        <div id="gestoresCardsContainer" class="stats-grid">
+                        <!-- MODIFICAÇÃO: Troquei 'stats-grid' por um grid mais espaçado com menos colunas -->
+                        <div id="gestoresCardsContainer" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                             <!-- Cards serão injetados aqui pelo JS -->
                             <p class="text-gray-500 col-span-full text-center py-10">Carregando gestores...</p>
                         </div>
@@ -486,7 +487,7 @@
                                 </div>
 
                                 <!-- Botões -->
-                                <div class="team-transfer-buttons">
+                                <div class_header="team-transfer-buttons">
                                     <button id="btnAdicionar" class="btn btn-primary" title="Adicionar ao Meu Time">
                                         <i data-feather="chevron-right" class="h-5 w-5"></i>
                                     </button>
@@ -497,7 +498,7 @@
 
                                 <!-- Coluna Meu Time -->
                                 <div class="team-list-box">
-                                    <div class="team-list-header">Meu Time</div>
+                                    <div class_header="team-list-header">Meu Time</div>
                                     <div class="team-list-content">
                                         <select id="listaMeuTime" multiple>
                                             <!-- Populado via JS -->
