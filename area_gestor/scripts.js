@@ -1422,12 +1422,11 @@ async function handleImportQLP() {
     try {
         const parsedData = parsePastedDataQLP(text);
         if (parsedData.length === 0) {
-            throw new Error("Nenhum dado válido encontrado.");
+            throw new Error("Nenhum dado válido encontrado. Verifique se copiou o cabeçalho.");
         }
 
-        showLoading(true, `Enviando ${parsedData.length} registros...`);
+        showLoading(true, `Enviando ${parsedData.length} registros (Processamento em 2 Fases)...`);
 
-        // Usamos fetch direto pois é uma API customizada nova
         const authToken = localStorage.getItem('auth_token');
         const response = await fetch(IMPORT_QLP_API_URL, {
             method: 'POST',
@@ -1438,20 +1437,30 @@ async function handleImportQLP() {
             body: JSON.stringify(parsedData)
         });
 
+        const result = await response.json();
+
         if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error || `Erro na importação (${response.status})`);
+            // Se for erro 500 ou 400, lança erro
+            throw new Error(result.details ? JSON.stringify(result.details) : (result.error || 'Erro desconhecido'));
         }
 
-        const result = await response.json();
-        mostrarNotificacao(result.message, 'success');
+        // Sucesso ou Sucesso Parcial (207)
+        if (response.status === 207) {
+            mostrarNotificacao('Aviso: ' + result.message, 'warning', 8000);
+        } else {
+            mostrarNotificacao(result.message, 'success');
+        }
         
-        // Limpa o input
+        // Limpa a interface
         dataInput.value = '';
         document.getElementById('previewContainer').style.display = 'none';
         document.getElementById('importError').classList.add('hidden');
+        
+        // Opcional: Recarrega os dados da tela se estiver na view de time
+        // await loadModuleData(); 
 
     } catch (e) {
+        console.error("Erro Import:", e);
         showImportError(`Erro na importação: ${e.message}`);
     } finally {
         showLoading(false);
