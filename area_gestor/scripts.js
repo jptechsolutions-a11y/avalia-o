@@ -298,7 +298,8 @@ async function loadModuleData() {
             supabaseRequest('colaboradores?select=matricula,nome', 'GET'), 
             supabaseRequest('usuarios?select=matricula,profile_picture_url', 'GET'), 
             supabaseRequest('banco_horas_data?select="CHAPA","TOTAL_EM_HORA","VAL_PGTO_BHS"', 'GET'), 
-            supabaseRequest('banco_horas_history&select=data&order=created_at.desc&limit=1', 'GET'), 
+            // CORREÇÃO: Mudado de '&' para '?'
+            supabaseRequest('banco_horas_history?select=data&order=created_at.desc&limit=1', 'GET'), 
             supabaseRequest('inconsistencias_data?select=chapa', 'GET')
         ]);
 
