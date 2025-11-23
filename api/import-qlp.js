@@ -45,8 +45,9 @@ export default async (req, res) => {
                 secao: item.SECAO ? item.SECAO.toUpperCase().trim() : null,
                 filial: item.CODFILIAL ? String(item.CODFILIAL).trim() : (item.FILIAL ? String(item.FILIAL).trim() : null),
                 gestor_chapa: item.GESTOR_CHAPA ? String(item.GESTOR_CHAPA).trim() : null,
-                status: 'ativo',
-                updated_at: new Date().toISOString()
+                status: 'ativo'
+                // REMOVIDO: updated_at para evitar erro se a coluna não existir no banco
+                // updated_at: new Date().toISOString() 
             };
         }).filter(Boolean); // Remove nulos
 
@@ -79,8 +80,8 @@ export default async (req, res) => {
             .filter(item => item.gestor_chapa) // Só quem tem gestor
             .map(item => ({
                 matricula: item.matricula,
-                gestor_chapa: item.gestor_chapa,
-                updated_at: new Date().toISOString() // Atualiza timestamp
+                gestor_chapa: item.gestor_chapa
+                // REMOVIDO: updated_at
             }));
 
         if (phase2Data.length > 0) {
